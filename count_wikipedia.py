@@ -1,7 +1,7 @@
 #! /usr/bin/python3
 # -*- coding: utf-8 -*-
 #--------------------------------------------------------------------------------------------------
-# Script to count the number of articles in a Wikipedia XML stream.
+# Script to count the number of articles in a Wikipedia XML stream
 #
 # Usage:
 # $ bzcat enwiki-20200701-pages-articles-multistream.xml.bz2 |

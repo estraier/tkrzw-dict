@@ -1,11 +1,11 @@
 #! /usr/bin/python3
 # -*- coding: utf-8 -*-
 #--------------------------------------------------------------------------------------------------
-# Script to count words and their cooccurrences.
+# Script to count words and their cooccurrences
 #
 # Usage:
-# $ bzcat enwiki-tokenized.tsv.bz2 | ./count_cooccurrences.py enwiki
-# $ bzcat jawiki-tokenized.tsv.bz2 | ./count_cooccurrences.py jawiki
+# $ bzcat enwiki-tokenized.tsv.bz2 | ./count_cooccurrences.py enwiki en
+# $ bzcat jawiki-tokenized.tsv.bz2 | ./count_cooccurrences.py jawiki ja
 #
 # Copyright 2020 Google LLC
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
@@ -21,26 +21,29 @@ import logging
 import math
 import operator
 import os
-import re
+import regex
 import struct
 import sys
 import time
 import tkrzw
+
 
 MAX_SENTENCES_PER_DOC = 64
 BASE_SCORE = 1000
 SCORE_DECAY = 0.95
 SENTENCE_GAP_PENALTY = 0.5
 WINDOW_SIZE = 16
-#BATCH_MAX_WORDS = 5500000  # for 1GB RAM usage
-BATCH_MAX_WORDS = 100000000  # for 8GB RAM usage
+BATCH_MAX_WORDS = 5500000  # for 1GB RAM usage
+#BATCH_MAX_WORDS = 100000000  # for 8GB RAM usage
 BATCH_CUTOFF_FREQ = 4
 MIN_WORD_COUNT_IN_BATCH = 16
 MIN_COOC_COUNT_IN_BATCH = 4
+STOP_WORD_COUNT_WEIGHT = 0.5
 MAX_COOC_PER_WORD = 64
 MERGE_DB_UNIT = 16
 MAX_IDF_WEIGHT = 12.0
 IDF_POWER = 1.5
+STOP_WORD_WEIGHT = 0.5
 PROB_CACHE_CAPACITY = 50000
 PROB_COST_BASE = 1000
 
@@ -52,10 +55,39 @@ logger.setLevel(logging.INFO)
 
 
 class WordCountBatch:
-  def __init__(self, data_prefix):
+  def __init__(self, data_prefix, language):
     self.data_prefix = data_prefix
+    self.language = language
     self.num_batches = 0
+
+  def Run(self):
+    start_time = time.time()
+    logger.info("Process started: data_prefix={}, language={}".format(
+      self.data_prefix, self.language))
     self.Start()
+    num_documents, num_sentences, num_words = 0, 0, 0
+    for line in sys.stdin:
+      line = line.strip()
+      sentences = line.split("\t")
+      if not sentences: continue
+      sentences = sentences[:MAX_SENTENCES_PER_DOC]
+      num_documents += 1
+      num_sentences += len(sentences)
+      document = []
+      for sentence in sentences:
+        words = sentence.split(" ")
+        num_words += len(words)
+        document.append(words)
+      if num_documents % 100 == 0:
+        logger.info(
+          "Processing: documents={}, sentences={}, words={}, RSS={:.2f}MB".format(
+            num_documents, num_sentences, num_words,
+            tkrzw.Utility.GetMemoryUsage() / 1024.0 / 1024))
+      self.FeedDocument(document)
+    self.Finish(num_sentences)
+    logger.info(
+      "Process done: documents={}, sentences={}, words={}, elapsed_time={:.2f}s".format(
+        num_documents, num_sentences, num_words, time.time() - start_time))
 
   def Start(self):
     self.mem_word_count = tkrzw.DBM()
@@ -113,14 +145,14 @@ class WordCountBatch:
         logger.info("Detected merging ID {}".format(index))
         word_count_paths.append(word_count_path)
         cooc_count_paths.append(cooc_count_path)
-    if len(word_count_paths) > 0:
+    if len(word_count_paths) > 1:
       logger.info("Merging word count databases")
       src_word_count_paths = word_count_paths[:-1]
       dest_word_count_path = word_count_paths[-1]
       self.MergeDatabases(src_word_count_paths, dest_word_count_path)
     else:
       dest_word_count_path = word_count_paths[0]
-    if len(cooc_count_paths) > 0:
+    if len(cooc_count_paths) > 1:
       logger.info("Merging cooccurrence count databases")
       src_cooc_count_paths = cooc_count_paths[:-1]
       dest_cooc_count_path = cooc_count_paths[-1]
@@ -187,6 +219,8 @@ class WordCountBatch:
           self.DumpCoocWords(cur_word, cooc_words, dbm_cooc_count)
         cur_word = word
         cur_word_freq = struct.unpack(">q", self.mem_word_count.Get(cur_word))[0]
+        if self.IsStopWord(cur_word):
+          cur_word_freq *= STOP_WORD_COUNT_WEIGHT
         cooc_words = []
       if cur_word_freq >= min_word_count and score >= min_score:
         cooc_freq = struct.unpack(">q", self.mem_word_count.Get(cooc_word))[0]
@@ -306,7 +340,7 @@ class WordCountBatch:
       count = int(record[1])
       prob = count / total_num_sentences
       value = "{:.8f}".format(prob)
-      value = re.sub(r"^0\.", ".", value)
+      value = regex.sub(r"^0\.", ".", value)
       word_prob_dbm.Set(word, value).OrDie()
       it.Next()
     word_prob_dbm.Close().OrDie()
@@ -360,6 +394,8 @@ class WordCountBatch:
           cur_word_count = max(round(cur_word_prob * total_num_sentences), 1)
           prob = count / cur_word_count
           score = prob * (cooc_idf ** IDF_POWER)
+          if self.IsStopWord(cooc_word):
+            score *= STOP_WORD_WEIGHT
           cooc_words.append((cooc_word, prob, score))
       it.Next()
     if cur_word and cooc_words:
@@ -368,13 +404,25 @@ class WordCountBatch:
     word_prob_dbm.Close().OrDie()
     cooc_count_dbm.Close().OrDie()
 
+  def IsStopWord(self, word):
+    if regex.search(r"[0-9]", word):
+      return True
+    if self.language == "ja":
+      if regex.search(r"^[\p{Hiragana}ー]*$", word):
+        return True
+      if regex.search(r"^[年月日]*$", word):
+        return True
+      if regex.search(r"[\p{Latin}]", word):
+        return True
+    return False
+
   def SaveCoocWords(self, word, cooc_words, dbm_cooc_prob):
     top_cooc_words = sorted(
       cooc_words, key=operator.itemgetter(2), reverse=True)[:MAX_COOC_PER_WORD]
     records = []
     for cooc_word, prob, score in top_cooc_words:
       rec_value = "{:.5f}".format(prob)
-      rec_value = re.sub(r"^0\.", ".", rec_value)
+      rec_value = regex.sub(r"^0\.", ".", rec_value)
       records.append("{} {}".format(cooc_word, rec_value))
     value = "\t".join(records)
     dbm_cooc_prob.Set(word, value).OrDie()
@@ -382,33 +430,9 @@ class WordCountBatch:
 
 def main():
   data_prefix = sys.argv[1] if len(sys.argv) > 1 else "result"
-  start_time = time.time()
-  logger.info("Process started: data_prefix={}".format(data_prefix))
-  batch = WordCountBatch(data_prefix)
-  num_documents, num_sentences, num_words = 0, 0, 0
-  for line in sys.stdin:
-    line = line.strip()
-    sentences = line.split("\t")
-    if not sentences: continue
-    sentences = sentences[:MAX_SENTENCES_PER_DOC]
-    num_documents += 1
-    num_sentences += len(sentences)
-    document = []
-    for sentence in sentences:
-      words = sentence.split(" ")
-      num_words += len(words)
-      document.append(words)
-    if num_documents % 100 == 0:
-      logger.info(
-        "Processing: documents={}, sentences={}, words={}, RSS={:.2f}MB".format(
-          num_documents, num_sentences, num_words,
-          tkrzw.Utility.GetMemoryUsage() / 1024.0 / 1024))
-    batch.FeedDocument(document)
-  batch.Finish(num_sentences)
-  logger.info(
-    "Process done: documents={}, sentences={}, words={}, elapsed_time={:.2f}s".format(
-      num_documents, num_sentences, num_words, time.time() - start_time))
-        
+  language = sys.argv[2] if len(sys.argv) > 2 else "en"
+  WordCountBatch(data_prefix, language).Run()
+ 
 
 if __name__=="__main__":
   main()
