@@ -33,17 +33,17 @@ BASE_SCORE = 1000
 SCORE_DECAY = 0.95
 SENTENCE_GAP_PENALTY = 0.5
 WINDOW_SIZE = 16
-BATCH_MAX_WORDS = 5500000  # for 1GB RAM usage
-#BATCH_MAX_WORDS = 100000000  # for 8GB RAM usage
+#BATCH_MAX_WORDS = 5500000  # for 1GB RAM usage
+BATCH_MAX_WORDS = 100000000  # for 8GB RAM usage
 BATCH_CUTOFF_FREQ = 4
 MIN_WORD_COUNT_IN_BATCH = 16
 MIN_COOC_COUNT_IN_BATCH = 4
-STOP_WORD_COUNT_WEIGHT = 0.5
-MAX_COOC_PER_WORD = 64
-MERGE_DB_UNIT = 16
-MAX_IDF_WEIGHT = 12.0
-IDF_POWER = 1.5
+NUMERIC_WORD_WEIGHT = 0.2
 STOP_WORD_WEIGHT = 0.5
+MAX_COOC_PER_WORD = 128
+MERGE_DB_UNIT = 16
+MAX_IDF_WEIGHT = 10.0
+IDF_POWER = 1.6
 PROB_CACHE_CAPACITY = 50000
 PROB_COST_BASE = 1000
 
@@ -219,8 +219,10 @@ class WordCountBatch:
           self.DumpCoocWords(cur_word, cooc_words, dbm_cooc_count)
         cur_word = word
         cur_word_freq = struct.unpack(">q", self.mem_word_count.Get(cur_word))[0]
-        if self.IsStopWord(cur_word):
-          cur_word_freq *= STOP_WORD_COUNT_WEIGHT
+        if self.IsNumericWord(cur_word):
+          cur_word_freq *= NUMERIC_WORD_WEIGHT
+        elif self.IsStopWord(cur_word):
+          cur_word_freq *= STOP_WORD_WEIGHT
         cooc_words = []
       if cur_word_freq >= min_word_count and score >= min_score:
         cooc_freq = struct.unpack(">q", self.mem_word_count.Get(cooc_word))[0]
@@ -394,7 +396,9 @@ class WordCountBatch:
           cur_word_count = max(round(cur_word_prob * total_num_sentences), 1)
           prob = count / cur_word_count
           score = prob * (cooc_idf ** IDF_POWER)
-          if self.IsStopWord(cooc_word):
+          if self.IsNumericWord(cooc_word):
+            score *= NUMERIC_WORD_WEIGHT
+          elif self.IsStopWord(cooc_word):
             score *= STOP_WORD_WEIGHT
           cooc_words.append((cooc_word, prob, score))
       it.Next()
@@ -404,9 +408,16 @@ class WordCountBatch:
     word_prob_dbm.Close().OrDie()
     cooc_count_dbm.Close().OrDie()
 
+  def IsNumericWord(self, word):
+    if regex.search(r"^[0-9]+$", word):
+      return True
+
   def IsStopWord(self, word):
     if regex.search(r"[0-9]", word):
       return True
+    if self.language == "en":
+      if word in ("the", "a", "an"):
+        return True
     if self.language == "ja":
       if regex.search(r"^[\p{Hiragana}ー]*$", word):
         return True
