@@ -23,13 +23,11 @@ import logging
 import MeCab
 import regex
 import sys
+import tkrzw_dict
 import unicodedata
 
 
-log_format = "%(levelname)s\t%(message)s"
-logging.basicConfig(format=log_format, stream=sys.stderr)
-logger = logging.getLogger("tokenize_text")
-logger.setLevel(logging.INFO)
+logger = tkrzw_dict.GetLogger()
 
 
 def SplitSentences(text):

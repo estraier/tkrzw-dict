@@ -23,15 +23,12 @@ import logging
 import random
 import regex
 import sys
+import tkrzw_dict
 import xml.sax
 import xml.sax.handler
 
-
 random.seed(19780211)
-log_format = "%(levelname)s\t%(message)s"
-logging.basicConfig(format=log_format, stream=sys.stderr)
-logger = logging.getLogger("parse_wikipedia")
-logger.setLevel(logging.INFO)
+logger = tkrzw_dict.GetLogger()
 
 
 class XMLHandler(xml.sax.handler.ContentHandler):

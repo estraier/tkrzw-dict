@@ -26,6 +26,7 @@ import struct
 import sys
 import time
 import tkrzw
+import tkrzw_dict
 
 
 MAX_SENTENCES_PER_DOC = 64
@@ -34,24 +35,18 @@ SCORE_DECAY = 0.95
 SENTENCE_GAP_PENALTY = 0.5
 WINDOW_SIZE = 16
 #BATCH_MAX_WORDS = 5500000  # for 1GB RAM usage
-BATCH_MAX_WORDS = 100000000  # for 8GB RAM usage
+#BATCH_MAX_WORDS = 100000000  # for 8GB RAM usage
+BATCH_MAX_WORDS = 100000
 BATCH_CUTOFF_FREQ = 4
 MIN_WORD_COUNT_IN_BATCH = 16
 MIN_COOC_COUNT_IN_BATCH = 4
-NUMERIC_WORD_WEIGHT = 0.2
-STOP_WORD_WEIGHT = 0.5
 MAX_COOC_PER_WORD = 128
 MERGE_DB_UNIT = 16
-MAX_IDF_WEIGHT = 10.0
-IDF_POWER = 1.6
 PROB_CACHE_CAPACITY = 50000
 PROB_COST_BASE = 1000
 
 
-log_format = "%(levelname)s\t%(message)s"
-logging.basicConfig(format=log_format, stream=sys.stderr)
-logger = logging.getLogger("count_cooccurrences")
-logger.setLevel(logging.INFO)
+logger = tkrzw_dict.GetLogger()
 
 
 class WordCountBatch:
@@ -139,8 +134,8 @@ class WordCountBatch:
     word_count_paths = []
     cooc_count_paths = []
     for index in range(0, self.num_batches):
-      word_count_path = "{}-word-count-{:08d}".format(self.data_prefix, index)
-      cooc_count_path = "{}-cooc-count-{:08d}".format(self.data_prefix, index)
+      word_count_path = "{}-word-count-{:08d}.tks".format(self.data_prefix, index)
+      cooc_count_path = "{}-cooc-count-{:08d}.tks".format(self.data_prefix, index)
       if os.path.isfile(word_count_path):
         logger.info("Detected merging ID {}".format(index))
         word_count_paths.append(word_count_path)
@@ -160,13 +155,13 @@ class WordCountBatch:
     else:
       dest_cooc_count_path = cooc_count_paths[0]
     logger.info("Finishing {} batches".format(self.num_batches))
-    word_count_path = "{}-word-count.tks".format(self.data_prefix)
+    word_count_path = tkrzw_dict.GetWordCountPath(self.data_prefix)
     os.rename(dest_word_count_path, word_count_path)
-    cooc_count_path = "{}-cooc-count.tks".format(self.data_prefix)
+    cooc_count_path = tkrzw_dict.GetCoocCountPath(self.data_prefix)
     os.rename(dest_cooc_count_path, cooc_count_path)
-    word_prob_path = "{}-word-prob.tkh".format(self.data_prefix)
+    word_prob_path = tkrzw_dict.GetWordProbPath(self.data_prefix)
     self.FinishWordCount(total_num_sentences, word_count_path, word_prob_path)
-    cooc_prob_path = "{}-cooc-prob.tkh".format(self.data_prefix)
+    cooc_prob_path = tkrzw_dict.GetCoocProbPath(self.data_prefix)
     self.FinishCoocCount(total_num_sentences, cooc_count_path, word_prob_path, cooc_prob_path)
 
   def MartializeWords(self, document):
@@ -193,11 +188,12 @@ class WordCountBatch:
          self.mem_word_count.Count(), self.mem_cooc_count.Count()))
     start_time = time.time()
     fill_ratio = min(self.num_words / BATCH_MAX_WORDS, 1.0)
-    dbm_cooc_count_path = "{}-cooc-count-{:08d}".format(self.data_prefix, self.num_batches)
+    dbm_cooc_count_path = "{}-cooc-count-{:08d}.tks".format(self.data_prefix, self.num_batches)
     dbm_cooc_count = tkrzw.DBM()
     dbm_cooc_count.Open(
       dbm_cooc_count_path, True, dbm="SkipDBM",
       truncate=True, insert_in_order=True, offset_width=5, step_unit=16, max_level=8).OrDie()
+    dbm_cooc_count.Set("", self.num_sentences).OrDie()
     it = self.mem_cooc_count.MakeIterator()
     it.First()
     cur_word = None
@@ -219,27 +215,28 @@ class WordCountBatch:
           self.DumpCoocWords(cur_word, cooc_words, dbm_cooc_count)
         cur_word = word
         cur_word_freq = struct.unpack(">q", self.mem_word_count.Get(cur_word))[0]
-        if self.IsNumericWord(cur_word):
-          cur_word_freq *= NUMERIC_WORD_WEIGHT
-        elif self.IsStopWord(cur_word):
-          cur_word_freq *= STOP_WORD_WEIGHT
+        if tkrzw_dict.IsNumericWord(cur_word):
+          cur_word_freq *= tkrzw_dict.NUMERIC_WORD_WEIGHT
+        elif tkrzw_dict.IsStopWord(cur_word, self.language):
+          cur_word_freq *= tkrzw_dict.STOP_WORD_WEIGHT
         cooc_words = []
       if cur_word_freq >= min_word_count and score >= min_score:
         cooc_freq = struct.unpack(">q", self.mem_word_count.Get(cooc_word))[0]
         cooc_prob = cooc_freq / self.num_sentences
-        cooc_idf = min(math.log(cooc_prob) * -1, MAX_IDF_WEIGHT)
-        score = count * (cooc_idf ** IDF_POWER)
+        cooc_idf = min(math.log(cooc_prob) * -1, tkrzw_dict.MAX_IDF_WEIGHT)
+        score = count * (cooc_idf ** tkrzw_dict.IDF_POWER)
         if cooc_freq >= min_word_count:
           cooc_words.append((cooc_word, count, score))
       it.Remove()
     if cur_word and cooc_words:
       self.DumpCoocWords(cur_word, cooc_words, dbm_cooc_count)
     dbm_cooc_count.Close().OrDie()
-    dbm_word_count_path = "{}-word-count-{:08d}".format(self.data_prefix, self.num_batches)
+    dbm_word_count_path = "{}-word-count-{:08d}.tks".format(self.data_prefix, self.num_batches)
     dbm_word_count = tkrzw.DBM()
     dbm_word_count.Open(
       dbm_word_count_path, True, dbm="SkipDBM",
       truncate=True, insert_in_order=True, offset_width=4, step_unit=4, max_level=12).OrDie()
+    dbm_word_count.Set("", self.num_sentences).OrDie()
     it = self.mem_word_count.MakeIterator()
     it.First()
     while True:
@@ -301,11 +298,11 @@ class WordCountBatch:
     src_cooc_count_paths = []
     while index < dest_index:
       logger.info("Detected merging source ID {}".format(index))
-      src_word_count_paths.append("{}-word-count-{:08d}".format(self.data_prefix, index))
-      src_cooc_count_paths.append("{}-cooc-count-{:08d}".format(self.data_prefix, index))
+      src_word_count_paths.append("{}-word-count-{:08d}.tks".format(self.data_prefix, index))
+      src_cooc_count_paths.append("{}-cooc-count-{:08d}.tks".format(self.data_prefix, index))
       index += step
-    dest_word_count_path = "{}-word-count-{:08d}".format(self.data_prefix, dest_index)
-    dest_cooc_count_path = "{}-cooc-count-{:08d}".format(self.data_prefix, dest_index)
+    dest_word_count_path = "{}-word-count-{:08d}.tks".format(self.data_prefix, dest_index)
+    dest_cooc_count_path = "{}-cooc-count-{:08d}.tks".format(self.data_prefix, dest_index)
     logger.info("Merging word count DBM files to {}".format(dest_word_count_path))
     start_time = time.time()
     self.MergeDatabases(src_word_count_paths, dest_word_count_path)
@@ -334,13 +331,18 @@ class WordCountBatch:
       word_prob_path, True, dbm="HashDBM", truncate=True, num_buckets=num_buckets).OrDie()
     it = word_count_dbm.MakeIterator()
     it.First()
+    record = it.GetStr()
+    if not record or len(record[0]) != 0:
+      raise RuntimeError("invalid first record")
+    num_sentences = int(record[1])
+    it.Next()
     while True:
       record = it.GetStr()
       if not record:
         break
       word = record[0]
       count = int(record[1])
-      prob = count / total_num_sentences
+      prob = count / num_sentences
       value = "{:.8f}".format(prob)
       value = regex.sub(r"^0\.", ".", value)
       word_prob_dbm.Set(word, value).OrDie()
@@ -373,6 +375,11 @@ class WordCountBatch:
       return None
     it = cooc_count_dbm.MakeIterator()
     it.First()
+    record = it.GetStr()
+    if not record or len(record[0]) != 0:
+      raise RuntimeError("invalid first record")
+    num_sentences = int(record[1])
+    it.Next()
     cur_word = None
     cur_word_prob = 0
     cooc_words = []
@@ -392,14 +399,14 @@ class WordCountBatch:
       if cur_word_prob:
         cooc_prob = GetWordProb(cooc_word)
         if cooc_prob:
-          cooc_idf = min(math.log(cooc_prob) * -1, MAX_IDF_WEIGHT)
-          cur_word_count = max(round(cur_word_prob * total_num_sentences), 1)
+          cooc_idf = min(math.log(cooc_prob) * -1, tkrzw_dict.MAX_IDF_WEIGHT)
+          cur_word_count = max(round(cur_word_prob * num_sentences), 1)
           prob = count / cur_word_count
-          score = prob * (cooc_idf ** IDF_POWER)
-          if self.IsNumericWord(cooc_word):
-            score *= NUMERIC_WORD_WEIGHT
-          elif self.IsStopWord(cooc_word):
-            score *= STOP_WORD_WEIGHT
+          score = prob * (cooc_idf ** tkrzw_dict.IDF_POWER)
+          if tkrzw_dict.IsNumericWord(cooc_word):
+            score *= tkrzw_dict.NUMERIC_WORD_WEIGHT
+          elif tkrzw_dict.IsStopWord(cooc_word, self.language):
+            score *= tkrzw_dict.STOP_WORD_WEIGHT
           cooc_words.append((cooc_word, prob, score))
       it.Next()
     if cur_word and cooc_words:
@@ -407,25 +414,6 @@ class WordCountBatch:
     cooc_prob_dbm.Close().OrDie()
     word_prob_dbm.Close().OrDie()
     cooc_count_dbm.Close().OrDie()
-
-  def IsNumericWord(self, word):
-    if regex.search(r"^[0-9]+$", word):
-      return True
-
-  def IsStopWord(self, word):
-    if regex.search(r"[0-9]", word):
-      return True
-    if self.language == "en":
-      if word in ("the", "a", "an"):
-        return True
-    if self.language == "ja":
-      if regex.search(r"^[\p{Hiragana}ー]*$", word):
-        return True
-      if regex.search(r"^[年月日]*$", word):
-        return True
-      if regex.search(r"[\p{Latin}]", word):
-        return True
-    return False
 
   def SaveCoocWords(self, word, cooc_words, dbm_cooc_prob):
     top_cooc_words = sorted(

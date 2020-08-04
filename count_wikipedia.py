@@ -19,14 +19,12 @@
 
 import logging
 import sys
+import tkrzw_dict
 import xml.sax
 import xml.sax.handler
 
 
-log_format = "%(levelname)s\t%(message)s"
-logging.basicConfig(format=log_format, stream=sys.stderr)
-logger = logging.getLogger("count_wikipedia")
-logger.setLevel(logging.INFO)
+logger = tkrzw_dict.GetLogger()
 
 
 class XMLHandler(xml.sax.handler.ContentHandler):
