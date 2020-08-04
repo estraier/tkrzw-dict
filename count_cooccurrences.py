@@ -29,11 +29,10 @@ import tkrzw_dict
 
 
 MAX_SENTENCES_PER_DOC = 64
-BASE_SCORE = 1000
 SCORE_DECAY = 0.95
 SENTENCE_GAP_PENALTY = 0.5
-WINDOW_SIZE = 16
-#BATCH_MAX_WORDS = 5500000  # for 1GB RAM usage
+WINDOW_SIZE = 20
+#BATCH_MAX_WORDS = 4300000  # for 1GB RAM usage
 BATCH_MAX_WORDS = 100000000  # for 8GB RAM usage
 BATCH_CUTOFF_FREQ = 4
 MIN_WORD_COUNT_IN_BATCH = 16
@@ -41,7 +40,6 @@ MIN_COOC_COUNT_IN_BATCH = 4
 MAX_COOC_PER_WORD = 128
 MERGE_DB_UNIT = 16
 PROB_CACHE_CAPACITY = 50000
-PROB_COST_BASE = 1000
 
 
 logger = tkrzw_dict.GetLogger()
@@ -112,7 +110,7 @@ class WordCountBatch:
         cooc_word, cooc_sentence_index = words[cooc_word_index]
         if cooc_word != word:
           diff = abs(word_index - cooc_word_index) - 1
-          score = BASE_SCORE * (SCORE_DECAY ** diff)
+          score = tkrzw_dict.COOC_BASE_SCORE * (SCORE_DECAY ** diff)
           if cooc_sentence_index != sentence_index:
             score *= SENTENCE_GAP_PENALTY
           scores[cooc_word] = max((scores.get(cooc_word) or 0), int(score))
@@ -152,15 +150,12 @@ class WordCountBatch:
       self.MergeDatabases(src_cooc_count_paths, dest_cooc_count_path)
     else:
       dest_cooc_count_path = cooc_count_paths[0]
-    logger.info("Finishing {} batches".format(self.num_batches))
     word_count_path = tkrzw_dict.GetWordCountPath(self.data_prefix)
-    os.rename(dest_word_count_path, word_count_path)
     cooc_count_path = tkrzw_dict.GetCoocCountPath(self.data_prefix)
+    logger.info("Finishing {} batches: word_count_path={}, cooc_count_path={}".format(
+      self.num_batches, word_count_path, cooc_count_path))
+    os.rename(dest_word_count_path, word_count_path)
     os.rename(dest_cooc_count_path, cooc_count_path)
-    word_prob_path = tkrzw_dict.GetWordProbPath(self.data_prefix)
-    self.FinishWordCount(total_num_sentences, word_count_path, word_prob_path)
-    cooc_prob_path = tkrzw_dict.GetCoocProbPath(self.data_prefix)
-    self.FinishCoocCount(total_num_sentences, cooc_count_path, word_prob_path, cooc_prob_path)
 
   def MartializeWords(self, document):
     words = []
@@ -191,13 +186,15 @@ class WordCountBatch:
     dbm_cooc_count.Open(
       dbm_cooc_count_path, True, dbm="SkipDBM",
       truncate=True, insert_in_order=True, offset_width=5, step_unit=16, max_level=8).OrDie()
+    logger.info("Batch {} cooc count dumping: dest={}".format(
+      self.num_batches + 1, dbm_cooc_count_path))
     dbm_cooc_count.Set("", self.num_sentences).OrDie()
     it = self.mem_cooc_count.MakeIterator()
     it.First()
     cur_word = None
     cur_word_freq = 0
     cooc_words = []
-    min_score = BASE_SCORE * MIN_COOC_COUNT_IN_BATCH * fill_ratio
+    min_score = tkrzw_dict.COOC_BASE_SCORE * MIN_COOC_COUNT_IN_BATCH * fill_ratio
     min_word_count = math.ceil(MIN_WORD_COUNT_IN_BATCH * fill_ratio)
     if MIN_WORD_COUNT_IN_BATCH >= 2:
       min_word_count = max(min_word_count, 2)
@@ -206,7 +203,7 @@ class WordCountBatch:
       if not record: break
       word_pair = record[0].decode()
       count = struct.unpack(">q", record[1])[0]
-      score = BASE_SCORE * count
+      score = tkrzw_dict.COOC_BASE_SCORE * count
       word, cooc_word = word_pair.split(" ")
       if cur_word != word:
         if cur_word and cooc_words:
@@ -234,6 +231,8 @@ class WordCountBatch:
     dbm_word_count.Open(
       dbm_word_count_path, True, dbm="SkipDBM",
       truncate=True, insert_in_order=True, offset_width=4, step_unit=4, max_level=12).OrDie()
+    logger.info("Batch {} word count dumping: dest={}".format(
+      self.num_batches + 1, dbm_word_count_path))
     dbm_word_count.Set("", self.num_sentences).OrDie()
     it = self.mem_word_count.MakeIterator()
     it.First()
@@ -274,12 +273,12 @@ class WordCountBatch:
          self.mem_word_count.Count(), self.mem_cooc_count.Count()))
     it = self.mem_cooc_count.MakeIterator()
     it.First()
-    min_score = BASE_SCORE * MIN_COOC_COUNT_IN_BATCH / BATCH_CUTOFF_FREQ
+    min_score = tkrzw_dict.COOC_BASE_SCORE * MIN_COOC_COUNT_IN_BATCH / BATCH_CUTOFF_FREQ
     while True:
       record = it.Get()
       if not record: break
       count = struct.unpack(">q", record[1])[0]
-      score = BASE_SCORE * count
+      score = tkrzw_dict.COOC_BASE_SCORE * count
       if count < min_score:
         it.Remove()
       else:
@@ -319,111 +318,6 @@ class WordCountBatch:
     for src_path in src_paths:
       os.remove(src_path)
 
-  def FinishWordCount(self, total_num_sentences, word_count_path, word_prob_path):
-    logger.info("Writing the word probability database: path={}".format(word_prob_path))
-    word_count_dbm = tkrzw.DBM()
-    word_count_dbm.Open(word_count_path, False, dbm="SkipDBM").OrDie()
-    word_prob_dbm = tkrzw.DBM()
-    num_buckets = word_count_dbm.Count() * 2
-    word_prob_dbm.Open(
-      word_prob_path, True, dbm="HashDBM", truncate=True, num_buckets=num_buckets).OrDie()
-    it = word_count_dbm.MakeIterator()
-    it.First()
-    record = it.GetStr()
-    if not record or len(record[0]) != 0:
-      raise RuntimeError("invalid first record")
-    num_sentences = int(record[1])
-    it.Next()
-    while True:
-      record = it.GetStr()
-      if not record:
-        break
-      word = record[0]
-      count = int(record[1])
-      prob = count / num_sentences
-      value = "{:.8f}".format(prob)
-      value = regex.sub(r"^0\.", ".", value)
-      word_prob_dbm.Set(word, value).OrDie()
-      it.Next()
-    word_prob_dbm.Close().OrDie()
-    word_count_dbm.Close().OrDie()
-
-  def FinishCoocCount(self, total_num_sentences,
-                      cooc_count_path, word_prob_path, cooc_prob_path):
-    logger.info("Writing the coocccurrence probability database: path={}".format(cooc_prob_path))
-    cooc_count_dbm = tkrzw.DBM()
-    cooc_count_dbm.Open(cooc_count_path, False, dbm="SkipDBM").OrDie()
-    word_prob_dbm = tkrzw.DBM()
-    word_prob_dbm.Open(word_prob_path, False, dbm="HashDBM").OrDie()
-    cooc_prob_dbm = tkrzw.DBM()
-    num_buckets = word_prob_dbm.Count() * 2
-    cooc_prob_dbm.Open(
-      cooc_prob_path, True, dbm="HashDBM",
-      truncate=True, offset_width=4, num_buckets=num_buckets).OrDie()
-    word_prob_cache = tkrzw.DBM()
-    word_prob_cache.Open("", True, dbm="CacheDBM", cap_rec_num=PROB_CACHE_CAPACITY)
-    def GetWordProb(key):
-      value = word_prob_cache.Get(key)
-      if value:
-        return float(value)
-      value = word_prob_dbm.GetStr(key)
-      if value:
-        word_prob_cache.Set(key, value)
-        return float(value)
-      return None
-    it = cooc_count_dbm.MakeIterator()
-    it.First()
-    record = it.GetStr()
-    if not record or len(record[0]) != 0:
-      raise RuntimeError("invalid first record")
-    num_sentences = int(record[1])
-    it.Next()
-    cur_word = None
-    cur_word_prob = 0
-    cooc_words = []
-    while True:
-      record = it.GetStr()
-      if not record:
-        break
-      word_pair = record[0]
-      count = int(record[1]) / BASE_SCORE
-      word, cooc_word = word_pair.split(" ")
-      if cur_word != word:
-        if cooc_words:
-          self.SaveCoocWords(cur_word, cooc_words, cooc_prob_dbm)
-        cur_word = word
-        cur_word_prob = GetWordProb(cur_word)          
-        cooc_words = []
-      if cur_word_prob:
-        cooc_prob = GetWordProb(cooc_word)
-        if cooc_prob:
-          cooc_idf = min(math.log(cooc_prob) * -1, tkrzw_dict.MAX_IDF_WEIGHT)
-          cur_word_count = max(round(cur_word_prob * num_sentences), 1)
-          prob = count / cur_word_count
-          score = prob * (cooc_idf ** tkrzw_dict.IDF_POWER)
-          if tkrzw_dict.IsNumericWord(cooc_word):
-            score *= tkrzw_dict.NUMERIC_WORD_WEIGHT
-          elif tkrzw_dict.IsStopWord(cooc_word, self.language):
-            score *= tkrzw_dict.STOP_WORD_WEIGHT
-          cooc_words.append((cooc_word, prob, score))
-      it.Next()
-    if cur_word and cooc_words:
-      self.SaveCoocWords(cur_word, cooc_words, cooc_prob_dbm)
-    cooc_prob_dbm.Close().OrDie()
-    word_prob_dbm.Close().OrDie()
-    cooc_count_dbm.Close().OrDie()
-
-  def SaveCoocWords(self, word, cooc_words, dbm_cooc_prob):
-    top_cooc_words = sorted(
-      cooc_words, key=operator.itemgetter(2), reverse=True)[:MAX_COOC_PER_WORD]
-    records = []
-    for cooc_word, prob, score in top_cooc_words:
-      rec_value = "{:.5f}".format(prob)
-      rec_value = regex.sub(r"^0\.", ".", rec_value)
-      records.append("{} {}".format(cooc_word, rec_value))
-    value = "\t".join(records)
-    dbm_cooc_prob.Set(word, value).OrDie()
-    
 
 def main():
   data_prefix = sys.argv[1] if len(sys.argv) > 1 else "result"
