@@ -19,7 +19,6 @@
 # and limitations under the License.
 #--------------------------------------------------------------------------------------------------
 
-import logging
 import random
 import regex
 import sys

@@ -17,7 +17,6 @@
 # and limitations under the License.
 #--------------------------------------------------------------------------------------------------
 
-import logging
 import math
 import operator
 import os
@@ -35,8 +34,7 @@ SCORE_DECAY = 0.95
 SENTENCE_GAP_PENALTY = 0.5
 WINDOW_SIZE = 16
 #BATCH_MAX_WORDS = 5500000  # for 1GB RAM usage
-#BATCH_MAX_WORDS = 100000000  # for 8GB RAM usage
-BATCH_MAX_WORDS = 100000
+BATCH_MAX_WORDS = 100000000  # for 8GB RAM usage
 BATCH_CUTOFF_FREQ = 4
 MIN_WORD_COUNT_IN_BATCH = 16
 MIN_COOC_COUNT_IN_BATCH = 4

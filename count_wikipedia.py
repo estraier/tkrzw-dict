@@ -17,7 +17,6 @@
 # and limitations under the License.
 #--------------------------------------------------------------------------------------------------
 
-import logging
 import sys
 import tkrzw_dict
 import xml.sax
