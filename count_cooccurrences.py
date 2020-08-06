@@ -32,12 +32,12 @@ MAX_SENTENCES_PER_DOC = 64
 SCORE_DECAY = 0.95
 SENTENCE_GAP_PENALTY = 0.5
 WINDOW_SIZE = 20
-#BATCH_MAX_WORDS = 4300000  # for 1GB RAM usage
-BATCH_MAX_WORDS = 100000000  # for 8GB RAM usage
+#BATCH_MAX_WORDS = 5000000  # for 1GB RAM usage
+BATCH_MAX_WORDS = 100000000  # for 10GB RAM usage
 BATCH_CUTOFF_FREQ = 4
 MIN_WORD_COUNT_IN_BATCH = 16
 MIN_COOC_COUNT_IN_BATCH = 4
-MAX_COOC_PER_WORD = 128
+MAX_COOC_PER_WORD = 256
 MERGE_DB_UNIT = 16
 PROB_CACHE_CAPACITY = 50000
 
@@ -191,36 +191,43 @@ class WordCountBatch:
     dbm_cooc_count.Set("", self.num_sentences).OrDie()
     it = self.mem_cooc_count.MakeIterator()
     it.First()
-    cur_word = None
-    cur_word_freq = 0
-    cooc_words = []
-    min_score = tkrzw_dict.COOC_BASE_SCORE * MIN_COOC_COUNT_IN_BATCH * fill_ratio
     min_word_count = math.ceil(MIN_WORD_COUNT_IN_BATCH * fill_ratio)
     if MIN_WORD_COUNT_IN_BATCH >= 2:
       min_word_count = max(min_word_count, 2)
+    min_count = math.ceil(tkrzw_dict.COOC_BASE_SCORE * MIN_COOC_COUNT_IN_BATCH * fill_ratio)
+    cur_word = None
+    cur_word_count = 0
+    cur_word_weight = 1.0
+    cooc_words = []
     while True:
       record = it.Get()
       if not record: break
       word_pair = record[0].decode()
       count = struct.unpack(">q", record[1])[0]
-      score = tkrzw_dict.COOC_BASE_SCORE * count
       word, cooc_word = word_pair.split(" ")
       if cur_word != word:
         if cur_word and cooc_words:
           self.DumpCoocWords(cur_word, cooc_words, dbm_cooc_count)
         cur_word = word
-        cur_word_freq = struct.unpack(">q", self.mem_word_count.Get(cur_word))[0]
+        cur_word_count = struct.unpack(">q", self.mem_word_count.Get(cur_word))[0]
+        cur_word_weight = 1.0
         if tkrzw_dict.IsNumericWord(cur_word):
-          cur_word_freq *= tkrzw_dict.NUMERIC_WORD_WEIGHT
+          cur_word_weight = tkrzw_dict.NUMERIC_WORD_WEIGHT
         elif tkrzw_dict.IsStopWord(cur_word, self.language):
-          cur_word_freq *= tkrzw_dict.STOP_WORD_WEIGHT
+          cur_word_weight = tkrzw_dict.STOP_WORD_WEIGHT
         cooc_words = []
-      if cur_word_freq >= min_word_count and score >= min_score:
-        cooc_freq = struct.unpack(">q", self.mem_word_count.Get(cooc_word))[0]
-        cooc_prob = cooc_freq / self.num_sentences
+      if cur_word_count * cur_word_weight >= min_word_count:
+        cooc_count = struct.unpack(">q", self.mem_word_count.Get(cooc_word))[0]
+        cooc_weight = 1.0
+        if tkrzw_dict.IsNumericWord(cooc_word):
+          cooc_weight *= tkrzw_dict.NUMERIC_WORD_WEIGHT
+        elif tkrzw_dict.IsStopWord(cooc_word, self.language):
+          cooc_weight *= tkrzw_dict.STOP_WORD_WEIGHT
+        cooc_prob = cooc_count / self.num_sentences
         cooc_idf = min(math.log(cooc_prob) * -1, tkrzw_dict.MAX_IDF_WEIGHT)
         score = count * (cooc_idf ** tkrzw_dict.IDF_POWER)
-        if cooc_freq >= min_word_count:
+        if (cooc_count * cooc_weight >= min_word_count and
+            count * cur_word_weight * cooc_weight < min_count):
           cooc_words.append((cooc_word, count, score))
       it.Remove()
     if cur_word and cooc_words:
@@ -273,13 +280,28 @@ class WordCountBatch:
          self.mem_word_count.Count(), self.mem_cooc_count.Count()))
     it = self.mem_cooc_count.MakeIterator()
     it.First()
-    min_score = tkrzw_dict.COOC_BASE_SCORE * MIN_COOC_COUNT_IN_BATCH / BATCH_CUTOFF_FREQ
+    min_count = math.ceil(tkrzw_dict.COOC_BASE_SCORE * MIN_COOC_COUNT_IN_BATCH / BATCH_CUTOFF_FREQ)
+    cur_word = None
+    cur_word_weight = 1.0
     while True:
       record = it.Get()
       if not record: break
+      word_pair = record[0].decode()
       count = struct.unpack(">q", record[1])[0]
-      score = tkrzw_dict.COOC_BASE_SCORE * count
-      if count < min_score:
+      word, cooc_word = word_pair.split(" ")
+      if cur_word != word:
+        cur_word = word
+        cur_word_weight = 1.0
+        if tkrzw_dict.IsNumericWord(cur_word):
+          cur_word_weight = tkrzw_dict.NUMERIC_WORD_WEIGHT
+        elif tkrzw_dict.IsStopWord(cur_word, self.language):
+          cur_word_weight = tkrzw_dict.STOP_WORD_WEIGHT
+      cooc_word_weight = 1.0
+      if tkrzw_dict.IsNumericWord(cooc_word):
+        cur_word_weight = tkrzw_dict.NUMERIC_WORD_WEIGHT
+      elif tkrzw_dict.IsStopWord(cooc_word, self.language):
+        cur_word_weight = tkrzw_dict.STOP_WORD_WEIGHT
+      if count * cur_word_weight * cooc_word_weight < min_count:
         it.Remove()
       else:
         it.Next()

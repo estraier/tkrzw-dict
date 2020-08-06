@@ -15,6 +15,7 @@
 
 import logging
 import random
+import re
 import regex
 import sys
 
@@ -23,7 +24,7 @@ COOC_BASE_SCORE = 1000
 NUMERIC_WORD_WEIGHT = 0.2
 STOP_WORD_WEIGHT = 0.5
 MAX_IDF_WEIGHT = 10.0
-IDF_POWER = 1.6
+IDF_POWER = 1.4
 
 
 def GetLogger():
@@ -50,22 +51,37 @@ def GetCoocProbPath(data_prefix):
     return "{}-cooc-prob.tkh".format(data_prefix)
 
 
+def GetCoocScorePath(data_prefix):
+    return "{}-cooc-score.tkh".format(data_prefix)
+
+
+def GetCoocIndexPath(data_prefix):
+    return "{}-cooc-index.tkh".format(data_prefix)
+
+
+_regex_numeric_word = re.compile(r"^[0-9]+$")
 def IsNumericWord(word):
-  if regex.search(r"^[0-9]+$", word):
+  if _regex_numeric_word.search(word):
     return True
+  return False
 
 
+_regex_stop_word_num = re.compile(r"[0-9]")
+_set_en_stop_words = set(("the", "a", "an"))
+_regex_stop_word_ja_hiragana = regex.compile(r"^[\p{Hiragana}ー]*$")
+_regex_stop_word_ja_date = re.compile(r"^[年月日]*$")
+_regex_stop_word_ja_latin = regex.compile(r"[\p{Latin}]")
 def IsStopWord(word, lang):
-  if regex.search(r"[0-9]", word):
+  if _regex_stop_word_num.search(word):
     return True
   if lang == "en":
-    if word in ("the", "a", "an"):
+    if word in _set_en_stop_words:
       return True
   if lang == "ja":
-    if regex.search(r"^[\p{Hiragana}ー]*$", word):
+    if _regex_stop_word_ja_hiragana.search(word):
       return True
-    if regex.search(r"^[年月日]*$", word):
+    if _regex_stop_word_ja_date.search(word):
       return True
-    if regex.search(r"[\p{Latin}]", word):
+    if _regex_stop_word_ja_latin.search(word):
       return True
   return False
