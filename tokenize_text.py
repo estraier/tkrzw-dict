@@ -19,108 +19,22 @@
 # and limitations under the License.
 #--------------------------------------------------------------------------------------------------
 
-import MeCab
-import regex
 import sys
 import tkrzw_dict
-import unicodedata
 
 
 logger = tkrzw_dict.GetLogger()
-
-
-def SplitSentences(text):
-  text = regex.sub(r'(^|\W)(Mr\.|Mrs\.|Dr\.|Prof\.|Esq\.)', r'\1\2{_XxX_}', text)
-  text = regex.sub(r'(^|\W)(e\.g\.|eg\.|i\.e\.|ie\.|p\.s\.|ps\.)',
-                   r'\1\2{_XxX_}', text, flags=regex.IGNORECASE)
-  text = regex.sub(r'(^|\W)(\p{Lu}\.) *(\p{Lu}\.) *(\p{Lu}\.) *(\p{Lu}\.)', r'\1\2\3\4\5', text)
-  text = regex.sub(r'(^|\W)(\p{Lu}\.) *(\p{Lu}\.) *(\p{Lu}\.)', r'\1\2\3\4', text)
-  text = regex.sub(r'(^|\W)(\p{Lu}\.) *(\p{Lu}\.)', r'\1\2\3', text)
-  text = regex.sub(r'([.?!]) +([\"\p{Lu}\p{Lo}])', '\\1\n\\2', text)
-  text = regex.sub(r'{_XxX_}', '', text)
-  text = regex.sub('。', '。\n', text)
-  sentences = []
-  for sentence in text.split('\n'):
-    sentence = sentence.strip()
-    if sentence:
-      sentences.append(sentence)
-  return sentences
-
-
-def RemoveDiacritic(text):
-  decomposed = unicodedata.normalize('NFD', text)
-  stripped = ""
-  removable = True
-  for c in decomposed:
-    if unicodedata.combining(c) == 0:
-      removable = bool(regex.match(r"\p{Latin}", c))
-      stripped += c
-    elif not removable:
-      stripped += c
-  return unicodedata.normalize('NFC', stripped)
-
-
-def NormalizeWords(text):
-  text = regex.sub(r"(^|\W)(\p{Ll})\.(\p{Ll})\.(\p{Ll})\.(\p{Ll})\.", r"\1\2\3\4\5", text)
-  text = regex.sub(r"(^|\W)(\p{Ll})\.(\p{Ll})\.(\p{Ll})\.", r"\1\2\3\4", text)
-  text = regex.sub(r"(^|\W)(\p{Ll})\.(\p{Ll})\.", r"\1\2\3", text)
-  text = regex.sub(r"[\p{Ps}\p{Pd}\p{Pi}\p{Pf}\p{S}~!@#$%^&*+|\\:;,/?]", " ", text)
-  text = text.replace("\u30FB", "\u00B7")
-  return text
-
-
-def GetWordsEn(sentence):
-  words = []
-  for word in regex.findall(r"[\p{Latin}0-9]+[-_'\p{Latin}0-9]*", sentence):
-    words.append(word)
-  return words
-
-
-tagger = MeCab.Tagger(r"--node-format=%m\t%ps\t%pe\n")
-def GetWordsJa(sentence):
-  words = []
-  last_word = None
-  last_end = -1
-  for token in tagger.parse(sentence).split("\n"):
-    fields = token.split("\t")
-    if len(fields) != 3: continue
-    word = fields[0]
-    begin = int(fields[1])
-    end = int(fields[2])
-    if (last_word and begin == last_end and
-        regex.search(r"[-_'\p{Latin}0-9]$", last_word) and
-        regex.search(r"^[-_'\p{Latin}0-9]", word)):
-      last_word += word
-    else:
-      if last_word:
-        words.append(last_word)
-      last_word = word
-    last_end = end
-  if last_word:
-    words.append(word)
-  good_words = []
-  for word in words:
-    if regex.search(r"[\p{Katakana}\p{Hiragana}ー\p{Han}\p{Latin}0-9]", word):
-      good_words.append(word)
-  return good_words
 
 
 def ProcessTSV(language, max_sentences, tsv):
   num_sentences, num_words = 0, 0
   sentences = []
   for section in tsv.split("\t"):
-    sentences.extend(SplitSentences(section))
+    sentences.extend(tkrzw_dict.SplitSentences(section))
   sentences = sentences[:max_sentences]
   output_fields = []
   for sentence in sentences:
-    sentence = RemoveDiacritic(sentence.lower())
-    sentence = NormalizeWords(sentence)
-    if language == "en":
-      words = GetWordsEn(sentence)
-    elif language == "ja":
-      words = GetWordsJa(sentence)
-    else:
-      raise ValueError("unsupported language: " + language)
+    words = tkrzw_dict.TokenizeSentence(language, sentence)
     if words:
       output_fields.append(" ".join(words))
       num_sentences += 1

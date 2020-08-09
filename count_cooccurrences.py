@@ -213,21 +213,22 @@ class WordCountBatch:
         cur_word_weight = 1.0
         if tkrzw_dict.IsNumericWord(cur_word):
           cur_word_weight = tkrzw_dict.NUMERIC_WORD_WEIGHT
-        elif tkrzw_dict.IsStopWord(cur_word, self.language):
+        elif tkrzw_dict.IsStopWord(self.language, cur_word):
           cur_word_weight = tkrzw_dict.STOP_WORD_WEIGHT
         cooc_words = []
       if cur_word_count * cur_word_weight >= min_word_count:
         cooc_count = struct.unpack(">q", self.mem_word_count.Get(cooc_word))[0]
         cooc_weight = 1.0
         if tkrzw_dict.IsNumericWord(cooc_word):
-          cooc_weight *= tkrzw_dict.NUMERIC_WORD_WEIGHT
-        elif tkrzw_dict.IsStopWord(cooc_word, self.language):
-          cooc_weight *= tkrzw_dict.STOP_WORD_WEIGHT
+          cooc_weight = tkrzw_dict.NUMERIC_WORD_WEIGHT
+        elif tkrzw_dict.IsStopWord(self.language, cooc_word):
+          cooc_weight = tkrzw_dict.STOP_WORD_WEIGHT
         cooc_prob = cooc_count / self.num_sentences
         cooc_idf = min(math.log(cooc_prob) * -1, tkrzw_dict.MAX_IDF_WEIGHT)
         score = count * (cooc_idf ** tkrzw_dict.IDF_POWER)
+        score *= cur_word_weight * cooc_weight
         if (cooc_count * cooc_weight >= min_word_count and
-            count * cur_word_weight * cooc_weight < min_count):
+            count * cur_word_weight * cooc_weight >= min_count):
           cooc_words.append((cooc_word, count, score))
       it.Remove()
     if cur_word and cooc_words:
@@ -294,12 +295,12 @@ class WordCountBatch:
         cur_word_weight = 1.0
         if tkrzw_dict.IsNumericWord(cur_word):
           cur_word_weight = tkrzw_dict.NUMERIC_WORD_WEIGHT
-        elif tkrzw_dict.IsStopWord(cur_word, self.language):
+        elif tkrzw_dict.IsStopWord(self.language, cur_word):
           cur_word_weight = tkrzw_dict.STOP_WORD_WEIGHT
       cooc_word_weight = 1.0
       if tkrzw_dict.IsNumericWord(cooc_word):
         cur_word_weight = tkrzw_dict.NUMERIC_WORD_WEIGHT
-      elif tkrzw_dict.IsStopWord(cooc_word, self.language):
+      elif tkrzw_dict.IsStopWord(self.language, cooc_word):
         cur_word_weight = tkrzw_dict.STOP_WORD_WEIGHT
       if count * cur_word_weight * cooc_word_weight < min_count:
         it.Remove()

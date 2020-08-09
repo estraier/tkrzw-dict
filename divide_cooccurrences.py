@@ -149,7 +149,7 @@ class DivideCountBatch:
           score = prob * (cooc_idf ** tkrzw_dict.IDF_POWER)
           if tkrzw_dict.IsNumericWord(cooc_word):
             score *= tkrzw_dict.NUMERIC_WORD_WEIGHT
-          elif tkrzw_dict.IsStopWord(cooc_word, self.language):
+          elif tkrzw_dict.IsStopWord(self.language, cooc_word):
             score *= tkrzw_dict.STOP_WORD_WEIGHT
           cooc_words.append((cooc_word, prob, score))
       it.Next()
