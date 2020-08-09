@@ -74,7 +74,7 @@ def main_cgi():
 <style type="text/css">
 html {{ background: #ffffff; }}
 body {{ margin: 2ex 2ex; }}
-.result_table td {{ min-width: 50ex; }}
+.result_table td {{ min-width: 50ex; vertical-align: top; }}
 a,a:visited {{ text-decoration: none; }}
 a:hover {{ text-decoration: underline; }}
 h1 a {{ color: #000000; }}
