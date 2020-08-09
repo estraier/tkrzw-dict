@@ -29,8 +29,8 @@ COOC_BASE_SCORE = 1000
 NUMERIC_WORD_WEIGHT = 0.2
 STOP_WORD_WEIGHT = 0.5
 MAX_IDF_WEIGHT = 10.0
-#IDF_POWER = 1.5
-IDF_POWER = 1.0
+IDF_POWER = 1.5
+MAX_PROB_SCORE = 0.05
 
 
 def GetLogger():
@@ -185,11 +185,10 @@ def IsStopWord(language, word):
 
 
 class RelatedWordsPredictor:
-  SELF_WORD_PROB = 0.1
-  TRACE_COOC_WORDS = 16
-  CHECK_COOC_WORDS = 20
-  CHECK_REL_WORDS = 100
-  NUM_FEATURES = 32
+  TRACE_COOC_WORDS = 32
+  CHECK_COOC_WORDS = 16
+  CHECK_REL_WORDS = 128
+  NUM_FEATURES = 128
   
   def __init__(self, data_prefix, language):
     self.language = language
@@ -202,7 +201,10 @@ class RelatedWordsPredictor:
 
   def Predict(self, text):
     words = set(TokenizeSentence(self.language, text))
-    print(words)
+    if len(words) > 1:
+      norm_text = RemoveDiacritic(text.lower())
+      norm_text = NormalizeWords(text)
+      words.add(norm_text)
     cooc_words = {}
     for word in words:
       for cooc_word, cooc_score in self.GetCoocWords(word):
@@ -231,18 +233,13 @@ class RelatedWordsPredictor:
       if rel_word in check_words: continue
       check_words.add(rel_word)
       num_rel_checked += 1
-
-    print(sorted_cooc_words)
-      
     scored_rel_words = []
     for rel_word in check_words:
       rel_cooc_words = self.GetCoocWords(rel_word)
       score = self.GetSimilarity(sorted_cooc_words, rel_cooc_words)
       scored_rel_words.append((rel_word, score))
     scored_rel_words = sorted(scored_rel_words, key=operator.itemgetter(1), reverse=True)
-
-    for rel_word, rel_score in scored_rel_words[:20]:
-      print(rel_word, rel_score)
+    return scored_rel_words, sorted_cooc_words
       
   def GetCoocWords(self, word):
     cooc_words = []
@@ -250,7 +247,7 @@ class RelatedWordsPredictor:
     if not tsv: return cooc_words
     fields = tsv.split("\t")
     idf = int(fields[0])
-    score = self.SELF_WORD_PROB * idf * idf / (COOC_BASE_SCORE ** 2)
+    score = MAX_PROB_SCORE * idf * idf / (COOC_BASE_SCORE ** 2)
     if IsNumericWord(word):
       score *= NUMERIC_WORD_WEIGHT
     elif IsStopWord(self.language, word):
