@@ -88,7 +88,7 @@ def NormalizeWords(text):
   text = regex.sub(r"(^|\W)(\p{Ll})\.(\p{Ll})\.(\p{Ll})\.(\p{Ll})\.", r"\1\2\3\4\5", text)
   text = regex.sub(r"(^|\W)(\p{Ll})\.(\p{Ll})\.(\p{Ll})\.", r"\1\2\3\4", text)
   text = regex.sub(r"(^|\W)(\p{Ll})\.(\p{Ll})\.", r"\1\2\3", text)
-  text = regex.sub(r"[\p{Ps}\p{Pd}\p{Pi}\p{Pf}\p{S}~!@#$%^&*+|\\:;,/?]", " ", text)
+  text = regex.sub(r"[\p{Ps}\p{Pe}\p{Pi}\p{Pf}\p{S}~!@#$%^&*+|\\:;,/?]", " ", text)
   text = text.replace("\u30FB", "\u00B7")
   return text
 
