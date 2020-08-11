@@ -28,7 +28,7 @@ import tkrzw
 import tkrzw_dict
 
 
-MAX_COOC_PER_WORD = 128
+MAX_COOC_PER_WORD = 256
 PROB_CACHE_CAPACITY = 50000
 
 
