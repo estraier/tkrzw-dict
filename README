@@ -8,6 +8,26 @@ Please read the following documents.
   CONTRIBUTING.md   - how to contribute
   doc/index.xhtml   - main document
 
+To use this package, the following software is necessary.
+
+  Tkrzw:
+    Install the source package.  See https://dbmx.net/tkrzw/ .
+
+  regex:
+    Install pip3 and run "pip3 install regex".
+
+  NLTK:
+    For Ubuntu, run "apt-get install python3-nltk".
+    Then, kick the interactive installation for data packates.
+      $ python3
+      >>> import nltk
+      >>> nltk.download('punkt')
+      >>> nltk.download('wordnet')
+      >>> nltk.download('averaged_perceptron_tagger')
+
+  MeCab:
+    For Ubuntu, run "apt-get install mecab mecab-ipadic-utf8 libmecab2-dev python3-mecab".
+
 Thanks.
 
 == END OF FILE ==

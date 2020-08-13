@@ -4,8 +4,8 @@
 # Script to score coocurrences
 #
 # Usage:
-# $ ./score_coocurrences.py enwiki en
-# $ ./score_coocurrences.py jawiki ja
+# $ ./score_coocurrences.py --data_prefix enwiki --language en
+# $ ./score_coocurrences.py --data_prefix jawiki --language ja
 #
 # Copyright 2020 Google LLC
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
@@ -17,6 +17,7 @@
 # and limitations under the License.
 #--------------------------------------------------------------------------------------------------
 
+import logging
 import math
 import operator
 import os
@@ -134,10 +135,15 @@ class CoocScoreBatch:
     
 
 def main():
-  data_prefix = sys.argv[1] if len(sys.argv) > 1 else "result"
-  language = sys.argv[2] if len(sys.argv) > 2 else "en"
+  args = sys.argv[1:]
+  data_prefix = tkrzw_dict.GetCommandFlag(args, "--data_prefix", 1) or "result"
+  language = tkrzw_dict.GetCommandFlag(args, "--language", 1) or "en"
+  if tkrzw_dict.GetCommandFlag(args, "--quiet", 0):
+    logger.setLevel(logging.ERROR)
+  if args:
+    raise RuntimeError("unknown arguments: {}".format(str(args)))
   CoocScoreBatch(data_prefix, language).Run()
-        
+
 
 if __name__=="__main__":
   main()

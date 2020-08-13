@@ -17,6 +17,7 @@
 # and limitations under the License.
 #--------------------------------------------------------------------------------------------------
 
+import logging
 import sys
 import tkrzw_dict
 import xml.sax
@@ -76,6 +77,11 @@ class XMLHandler(xml.sax.handler.ContentHandler):
 	
 
 def main():
+  args = sys.argv[1:]
+  if tkrzw_dict.GetCommandFlag(args, "--quiet", 0):
+    logger.setLevel(logging.ERROR)
+  if args:
+    raise RuntimeError("unknown arguments: {}".format(str(args)))
   logger.info("Process started")
   parser = xml.sax.make_parser()
   handler = XMLHandler()

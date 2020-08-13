@@ -5,9 +5,9 @@
 #
 # Usage:
 # $ bzcat enwiki-20200701-pages-articles-multistream.xml.bz2 |
-#   ./parse_wikipedia.py 0.11 | bzip2 -c > enwiki-raw.tsv.bz2
+#   ./parse_wikipedia.py --sampling 0.11 | bzip2 -c > enwiki-raw.tsv.bz2
 # $ bzcat jawiki-20200701-pages-articles-multistream.xml.bz2 |
-#   ./parse_wikipedia.py 0.61 | bzip2 -c > jawiki-raw.tsv.bz2
+#   ./parse_wikipedia.py --sampling 0.61 | bzip2 -c > jawiki-raw.tsv.bz2
 #
 # Copyright 2020 Google LLC
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
@@ -19,6 +19,7 @@
 # and limitations under the License.
 #--------------------------------------------------------------------------------------------------
 
+import logging
 import random
 import regex
 import sys
@@ -125,12 +126,17 @@ class XMLHandler(xml.sax.handler.ContentHandler):
 
 
 def main():
-  sampling_ratio = float(sys.argv[1]) if len(sys.argv) > 1 else 1.0
-  max_outputs = int(sys.argv[2]) if len(sys.argv) > 2 else sys.maxsize
+  args = sys.argv[1:]
+  sampling_ratio = float(tkrzw_dict.GetCommandFlag(args, "--sampling", 1) or 1.0)
+  max_outputs = int(tkrzw_dict.GetCommandFlag(args, "--max", 1) or sys.maxsize)
+  if tkrzw_dict.GetCommandFlag(args, "--quiet", 0):
+    logger.setLevel(logging.ERROR)
+  if args:
+    raise RuntimeError("unknown arguments: {}".format(str(args)))
   if sampling_ratio <= 0 or sampling_ratio > 1:
     raise ValueError("invalid sampling ratio")
   if max_outputs < 0:
-    raise ValueError("invalid max articles")
+    raise ValueError("invalid max outputs")
   logger.info("Process started")
   parser = xml.sax.make_parser()
   handler = XMLHandler(sampling_ratio, max_outputs)

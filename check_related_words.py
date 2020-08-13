@@ -4,9 +4,8 @@
 # Script to count words and their cooccurrences
 #
 # Usage:
-# $ ./check_related_words enwiki en barack obama
-# $ ./check_related_words enwiki ja バラク オバマ
-# $ bzcat jawiki-tokenized.tsv.bz2 | ./count_cooccurrences.py jawiki ja
+# $ ./check_related_words --data_prefix enwiki --language en barack obama
+# $ ./check_related_words --data_prefix jawiki --language ja バラク オバマ
 #
 # Copyright 2020 Google LLC
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
@@ -24,22 +23,22 @@ import html
 import os
 import sys
 import tkrzw_dict
+import tkrzw_related_word_predictor
 import urllib
 
 
-#CGI_DATA_PREFIX = "result"
-#CGI_LANGUAGE = "en"
-CGI_DATA_PREFIX = "/home/mikio/result-full/result-jawiki"
-CGI_LANGUAGE = "ja"
+CGI_DATA_PREFIX = "result"
+CGI_LANGUAGE = "en"
 
 
 def main():
-  if len(sys.argv) < 4:
-    raise RuntimeError("usage: check_related_words.py data_prefix language words...")
-  data_prefix = sys.argv[1]
-  language = sys.argv[2]
-  text = " ".join(sys.argv[3:])
-  predictor = tkrzw_dict.RelatedWordsPredictor(data_prefix, language)
+  args = sys.argv[1:]
+  data_prefix = tkrzw_dict.GetCommandFlag(args, "--data_prefix", 1) or "result"
+  language = tkrzw_dict.GetCommandFlag(args, "--language", 1) or "en"
+  text = " ".join(args)
+  if not text:
+    raise RuntimeError("words are not specified")
+  predictor = tkrzw_related_word_predictor.RelatedWordsPredictor(data_prefix, language)
   rel_words, features = predictor.Predict(text)
   print("==== FEATURES ====")
   for feat_word, feat_score in features[:16]:
@@ -57,8 +56,6 @@ def esc(expr):
 
     
 def main_cgi():
-  data_prefix = "result"
-  language = "en"
   script_name = os.environ.get("SCRIPT_NAME", sys.argv[0])
   params = {}
   form = cgi.FieldStorage()
@@ -74,8 +71,10 @@ def main_cgi():
 <style type="text/css">
 html {{ background: #ffffff; }}
 body {{ margin: 2ex 2ex; }}
-.result_table td {{ min-width: 50ex; vertical-align: top; }}
+.result_table td {{ min-width: 40ex; vertical-align: top; }}
+ul {{ padding-left: 2.5ex; color: #444444; }}
 a,a:visited {{ text-decoration: none; }}
+a {{ color: #0022aa; }}
 a:hover {{ text-decoration: underline; }}
 h1 a {{ color: #000000; }}
 </style>

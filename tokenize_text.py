@@ -4,10 +4,15 @@
 # Script to tokenize sentences in TSV
 #
 # Usage:
-# $ bzcat enwiki-raw.tsv.bz2 |
-#   ./tokenize_text.py en 100 | bzip2 -c > enwiki-tokenized.tsv.bz2
-# $ bzcat jawiki-raw.tsv.bz2 |
-#   ./tokenize_text.py ja 100 | bzip2 -c > jawiki-tokenized.tsv.bz2
+#   tokenize_text.py [--language str] [--lower] [--stem] [--max_sentences num]
+#
+# Example:
+#   $ bzcat enwiki-raw.tsv.bz2 |
+#     ./tokenize_text.py --language en --lower --stem |
+#     bzip2 -c > enwiki-tokenized-stem.tsv.bz2
+#   $ bzcat jawiki-raw.tsv.bz2 |
+#     ./tokenize_text.py --language ja --lower --stem |
+#     bzip2 -c > jawiki-tokenized-stem.tsv.bz2
 #
 # Copyright 2020 Google LLC
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
@@ -19,22 +24,24 @@
 # and limitations under the License.
 #--------------------------------------------------------------------------------------------------
 
+import logging
 import sys
 import tkrzw_dict
+import tkrzw_tokenizer
 
 
 logger = tkrzw_dict.GetLogger()
 
 
-def ProcessTSV(language, max_sentences, tsv):
+def ProcessTSV(tokenizer, language, lowering, stemming, max_sentences, tsv):
   num_sentences, num_words = 0, 0
   sentences = []
   for section in tsv.split("\t"):
-    sentences.extend(tkrzw_dict.SplitSentences(section))
+    sentences.extend(tkrzw_tokenizer.SplitSentences(section))
   sentences = sentences[:max_sentences]
   output_fields = []
   for sentence in sentences:
-    words = tkrzw_dict.TokenizeSentence(language, sentence)
+    words = tokenizer.Tokenize(language, sentence, lowering, stemming)
     if words:
       output_fields.append(" ".join(words))
       num_sentences += 1
@@ -46,17 +53,25 @@ def ProcessTSV(language, max_sentences, tsv):
     
       
 def main():
-  language = sys.argv[1] if len(sys.argv) > 1 else "en"
-  max_sentences = int(sys.argv[2]) if len(sys.argv) > 2 else 100000
-  logger.info("Process started: language={}, max_sentences_per_doc={}".format(
-    language, max_sentences))
+  args = sys.argv[1:]
+  language = tkrzw_dict.GetCommandFlag(args, "--language", 1) or "en"
+  lowering = tkrzw_dict.GetCommandFlag(args, "--lower", 0)
+  stemming = tkrzw_dict.GetCommandFlag(args, "--stem", 0)
+  max_sentences = int(tkrzw_dict.GetCommandFlag(args, "--max_sentences", 1) or "1000000")
+  if tkrzw_dict.GetCommandFlag(args, "--quiet", 0):
+    logger.setLevel(logging.ERROR)
+  if args:
+    raise RuntimeError("unknown arguments: {}".format(str(args)))
+  logger.info("Process started: language={}, lower={}, stem={}, max_sentences_per_doc={}".format(
+    language, lowering, stemming, max_sentences))
+  tokenizer = tkrzw_tokenizer.Tokenizer()
   count = 0
   num_records, num_sentences, num_words = 0, 0, 0
   for line in sys.stdin:
     line = line.strip()
     if not line: continue
     count += 1
-    stats = ProcessTSV(language, max_sentences, line)
+    stats = ProcessTSV(tokenizer, language, lowering, stemming, max_sentences, line)
     if stats:
       num_records += 1
       num_sentences += stats[0]

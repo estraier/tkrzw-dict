@@ -17,6 +17,7 @@
 # and limitations under the License.
 #--------------------------------------------------------------------------------------------------
 
+import logging
 import math
 import operator
 import os
@@ -343,8 +344,13 @@ class WordCountBatch:
 
 
 def main():
-  data_prefix = sys.argv[1] if len(sys.argv) > 1 else "result"
-  language = sys.argv[2] if len(sys.argv) > 2 else "en"
+  args = sys.argv[1:]
+  data_prefix = tkrzw_dict.GetCommandFlag(args, "--data_prefix", 1) or "result"
+  language = tkrzw_dict.GetCommandFlag(args, "--language", 1) or "en"
+  if tkrzw_dict.GetCommandFlag(args, "--quiet", 0):
+    logger.setLevel(logging.ERROR)
+  if args:
+    raise RuntimeError("unknown arguments: {}".format(str(args)))
   WordCountBatch(data_prefix, language).Run()
  
 
