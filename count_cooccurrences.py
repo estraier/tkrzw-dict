@@ -4,8 +4,14 @@
 # Script to count words and their cooccurrences
 #
 # Usage:
-# $ bzcat enwiki-tokenized.tsv.bz2 | ./count_cooccurrences.py enwiki en
-# $ bzcat jawiki-tokenized.tsv.bz2 | ./count_cooccurrences.py jawiki ja
+#   count_cooccurrences.py [--data_prefix str] [--language str]
+#   (It reads the standard input and makes files in the data directory.)
+#
+# Example:
+#   $ bzcat enwiki-tokenized.tsv.bz2 |
+#     ./count_cooccurrences.py --data_prefix enwiki --language en
+#   $ bzcat jawiki-tokenized.tsv.bz2 |
+#     ./count_cooccurrences.py --data_prefix jawiki --language ja
 #
 # Copyright 2020 Google LLC
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file

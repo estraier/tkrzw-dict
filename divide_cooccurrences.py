@@ -4,8 +4,12 @@
 # Script to divide word counts to calculate probability
 #
 # Usage:
-# $ ./divide_cooccurrences.py enwiki en
-# $ ./divide_cooccurrences.py jawiki ja
+#   divide_cooccurrences.py [--data_prefix str] [--language str]
+#   (It reads and makes files in the data directory.)
+#
+# Example:
+#   $ ./divide_cooccurrences.py --data_prefix enwiki --language en
+#   $ ./divide_cooccurrences.py --data_prefix jawiki --language ja
 #
 # Copyright 2020 Google LLC
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file

@@ -4,8 +4,12 @@
 # Script to count the number of articles in a Wikipedia XML stream
 #
 # Usage:
-# $ bzcat enwiki-20200701-pages-articles-multistream.xml.bz2 |
-#   ./count_wikipedia.py
+#   count_wikipedia.py [--quiet]
+#   (It reads the standard input and prints the result on the standard output.)
+# 
+# Example:
+#   $ bzcat enwiki-20200701-pages-articles-multistream.xml.bz2 |
+#     ./count_wikipedia.py
 #
 # Copyright 2020 Google LLC
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file

@@ -4,10 +4,14 @@
 # Script to parse Wikipedia XML stream and export raw text TSV of articles.
 #
 # Usage:
-# $ bzcat enwiki-20200701-pages-articles-multistream.xml.bz2 |
-#   ./parse_wikipedia.py --sampling 0.11 | bzip2 -c > enwiki-raw.tsv.bz2
-# $ bzcat jawiki-20200701-pages-articles-multistream.xml.bz2 |
-#   ./parse_wikipedia.py --sampling 0.61 | bzip2 -c > jawiki-raw.tsv.bz2
+#   parse_wikipedia [--sampling num] [--max num] [--quiet]
+#   (It reads the standard input and prints the result on the standard output.)
+#
+# Example:
+#   $ bzcat enwiki-20200701-pages-articles-multistream.xml.bz2 |
+#     ./parse_wikipedia.py --sampling 0.11 | bzip2 -c > enwiki-raw.tsv.bz2
+#   $ bzcat jawiki-20200701-pages-articles-multistream.xml.bz2 |
+#     ./parse_wikipedia.py --sampling 0.61 | bzip2 -c > jawiki-raw.tsv.bz2
 #
 # Copyright 2020 Google LLC
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file

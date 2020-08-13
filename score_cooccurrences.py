@@ -4,8 +4,12 @@
 # Script to score coocurrences
 #
 # Usage:
-# $ ./score_coocurrences.py --data_prefix enwiki --language en
-# $ ./score_coocurrences.py --data_prefix jawiki --language ja
+#   score_cooccurrences.py [--data_prefix str] [--language str]
+#   (It reads and makes files in the data directory.)
+#
+# Example:
+#   $ ./score_cooccurrences.py --data_prefix enwiki --language en
+#   $ ./score_cooccurrences.py --data_prefix jawiki --language ja
 #
 # Copyright 2020 Google LLC
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file

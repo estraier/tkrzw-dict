@@ -4,7 +4,8 @@
 # Script to tokenize sentences in TSV
 #
 # Usage:
-#   tokenize_text.py [--language str] [--lower] [--stem] [--max_sentences num]
+#   tokenize_text.py [--language str] [--lower] [--stem] [--max_sentences num] [--quiet]
+#   (It reads the standard input and prints the result on the standard output.)
 #
 # Example:
 #   $ bzcat enwiki-raw.tsv.bz2 |
