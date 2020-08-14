@@ -1,11 +1,14 @@
 #! /usr/bin/python3
 # -*- coding: utf-8 -*-
 #--------------------------------------------------------------------------------------------------
-# Script to count words and their cooccurrences
+# Script to check related words
 #
 # Usage:
-# $ ./check_related_words --data_prefix enwiki --language en barack obama
-# $ ./check_related_words --data_prefix jawiki --language ja バラク オバマ
+#   check_related_words [--data_prefix str] [--language str]
+#
+# Example:
+#   $ ./check_related_words.py --data_prefix enwiki --language en barack obama
+#   $ ./check_related_words.py --data_prefix jawiki --language ja バラク オバマ
 #
 # Copyright 2020 Google LLC
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
