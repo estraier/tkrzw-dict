@@ -4,7 +4,7 @@
 # Script to check related words
 #
 # Usage:
-#   check_related_words [--data_prefix str] [--language str]
+#   check_related_words [--data_prefix str] [--language str] words...
 #
 # Example:
 #   $ ./check_related_words.py --data_prefix enwiki --language en barack obama

@@ -13,7 +13,6 @@
 # and limitations under the License.
 #--------------------------------------------------------------------------------------------------
 
-
 import math
 import operator
 import tkrzw

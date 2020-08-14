@@ -8,13 +8,15 @@ Please read the following documents.
   CONTRIBUTING.md   - how to contribute
   doc/index.xhtml   - main document
 
-To use this package, the following software is necessary.
+To use this package in general, the following software is necessary.
 
   Tkrzw:
     Install the source package.  See https://dbmx.net/tkrzw/ .
 
   regex:
     Install pip3 and run "pip3 install regex".
+
+To run tokenize_text.py, the following software is necessary.
 
   NLTK:
     For Ubuntu, run "apt-get install python3-nltk".
@@ -27,6 +29,8 @@ To use this package, the following software is necessary.
 
   MeCab:
     For Ubuntu, run "apt-get install mecab mecab-ipadic-utf8 libmecab2-dev python3-mecab".
+
+To build WordNet databases, WordNet 3.0 and Japanese WordNet 1.1 are necessary.
 
 Thanks.
 
