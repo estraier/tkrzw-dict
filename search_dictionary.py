@@ -167,7 +167,7 @@ def main_cgi():
 
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
-<title>Related Words</title>
+<title>Dictionary Search</title>
 <style type="text/css">
 html {{ margin: 0ex; padding: 0ex; background: #ffffff; }}
 body {{ margin: 0ex; padding: 0ex; text-align: center; }}
