@@ -169,7 +169,7 @@ def main_cgi():
 <head>
 <title>Dictionary Search</title>
 <style type="text/css">
-html {{ margin: 0ex; padding: 0ex; background: #ffffff; }}
+html {{ margin: 0ex; padding: 0ex; background: #eeeeee; }}
 body {{ margin: 0ex; padding: 0ex; text-align: center; }}
 article {{ display: inline-block; width: 100ex; text-align: left; padding-bottom: 3ex; }}
 a,a:visited {{ text-decoration: none; }}
@@ -181,7 +181,7 @@ h2 {{ position: absolute; right: 1ex; font-size: 90%; color: #aaaaaa;
    margin: 0ex; font-weight: normal; }}
 h3 {{ font-size: 105%; margin: 1ex 0ex 0ex 1ex; }}
 .query_form,.entry,.note,.license {{ border: 1px solid #dddddd; border-radius: 0.5ex;
-  margin: 1ex 0ex; padding: 0.5ex 1ex; 1ex 1ex; position: relative; }}
+  margin: 1ex 0ex; padding: 0.8ex 1ex 1.3ex 1ex; background: #ffffff; position: relative; }}
 .pos {{ margin-left: 0.5ex; font-size: 90%; color: #666666; font-weight: normal; }}
 .translation,.gross {{ margin-left: 5ex; }}
 .relword {{ margin-left: 7ex; font-size: 95%; }}
