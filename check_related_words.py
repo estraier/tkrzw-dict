@@ -93,7 +93,7 @@ Query: <input type="text" name="q" value="{}"/>
 </form>
 </div>""".format(esc(script_name), esc(query)))
   if query:
-    predictor = tkrzw_dict.RelatedWordsPredictor(CGI_DATA_PREFIX, CGI_LANGUAGE)
+    predictor = tkrzw_related_word_predictor.RelatedWordsPredictor(CGI_DATA_PREFIX, CGI_LANGUAGE)
     rel_words, features = predictor.Predict(query)
     print('<table class="result_table">')
     print('<tr>')
