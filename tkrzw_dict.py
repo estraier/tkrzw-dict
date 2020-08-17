@@ -100,7 +100,7 @@ def IsNumericWord(word):
 
 _regex_stop_word_num = re.compile(r"[0-9]")
 _set_en_stop_words = set(("the", "a", "an"))
-_regex_stop_word_ja_hiragana = regex.compile(r"^[\p{Hiragana}ー]*$")
+_regex_stop_word_ja_hiragana = regex.compile(r"^[\p{Hiragana}ー]+$")
 _regex_stop_word_ja_date = re.compile(r"^[年月日]*$")
 _regex_stop_word_ja_latin = regex.compile(r"[\p{Latin}]")
 def IsStopWord(language, word):

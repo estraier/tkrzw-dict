@@ -19,6 +19,7 @@ import operator
 import regex
 import tkrzw
 import tkrzw_dict
+import tkrzw_tokenizer
 
 
 _regex_predict_japanese = regex.compile(r"[\p{Hiragana}\p{Katakana}ー\p{Han}]")
@@ -26,6 +27,27 @@ def PredictLanguage(text):
   if _regex_predict_japanese.search(text):
     return "ja"
   return "en"
+
+
+_regex_katakana_only = regex.compile(r"^[\p{Katakana}ー]+$")
+def DeduplicateWords(words):
+  uniq_words = []
+  norm_uniq_words = []
+  for word in words:
+    norm_word = tkrzw_tokenizer.RemoveDiacritic(word.lower())
+    dup = False
+    uniq_min_dist_ratio = 0.21
+    if _regex_katakana_only.search(word):
+      uniq_min_dist_ratio = 0.41
+    for norm_uniq_word in norm_uniq_words:
+      dist = tkrzw.Utility.EditDistanceLev(norm_word, norm_uniq_word)
+      dist_ratio = dist / max(len(norm_word), len(norm_uniq_word))
+      if dist_ratio < uniq_min_dist_ratio:
+        dup = True
+    if not dup:
+      uniq_words.append(word)
+      norm_uniq_words.append(norm_word)
+  return uniq_words
 
 
 class DictionarySearcher:
@@ -88,6 +110,17 @@ class DictionarySearcher:
             entry["items"] = items
             result.append((src_word, entry))
     if len(result) > 1:
-      result = sorted(
-        result, key=lambda rec: float(rec[1].get("score") or 0.0), reverse=True)
+      for record in result:
+        entry = record[1]
+        score = float(entry.get("score") or 0.0)
+        for item in entry["items"]:
+          tran_scores = item.get("translation_score")
+          if tran_scores:
+            value = tran_scores.get(text)
+            if value:
+              value = float(value)
+              if value > score:
+                score = value
+        entry["search_score"] = score
+      result = sorted(result, key=lambda rec: rec[1]["search_score"], reverse=True)
     return result

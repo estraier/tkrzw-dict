@@ -97,7 +97,7 @@ class IndexTranslationsBatch:
 
 def main():
   args = sys.argv[1:]
-  input_path = tkrzw_dict.GetCommandFlag(args, "--input", 1) or "wordnet-body.thk"
+  input_path = tkrzw_dict.GetCommandFlag(args, "--input", 1) or "wordnet-body.tkh"
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "wordnet-tran-index.tkh"
   if tkrzw_dict.GetCommandFlag(args, "--quiet", 0):
     logger.setLevel(logging.ERROR)

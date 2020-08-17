@@ -48,6 +48,9 @@ def PrintResultWord(key, entry, show_details):
     score = entry.get("score")
     if score:
       print("score: {:.6f}".format(float(score)))
+    search_score = entry.get("search_score")
+    if search_score:
+      print("search_score: {:.6f}".format(float(search_score)))
   for item in entry["items"]:
     print()
     title = item.get("surface") or key
@@ -57,6 +60,7 @@ def PrintResultWord(key, entry, show_details):
     print("  {}".format(title))
     translations = item.get("translation")
     if translations:
+      translations = tkrzw_dictionary_searcher.DeduplicateWords(translations)
       if not show_details:
         translations = translations[:5]
       PrintWrappedText(format(", ".join(translations)), 4, True)
@@ -125,6 +129,7 @@ def PrintResultWordCGI(key, entry, show_details):
     print('</h3>')
     translations = item.get("translation")
     if translations:
+      translations = tkrzw_dictionary_searcher.DeduplicateWords(translations)
       translations = translations[:5]
       print('<div class="translation">', end='')
       esc_trans = []
