@@ -78,12 +78,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         if self.num_articles % 1000 == 0:
           logger.info("Article {}".format(self.num_articles))
         if random.random() <= self.sampling_ratio:
-          sentences = self.getSentences(self.text)
-          if sentences:
-            self.num_outputs += 1
-            if self.num_outputs % 100 == 0:
-              logger.info("Output {}".format(self.num_outputs))
-            print('\t'.join(sentences))
+          self.processText()
       self.model = None
       self.format = None
     self.tags.pop()
@@ -98,6 +93,14 @@ class XMLHandler(xml.sax.handler.ContentHandler):
       self.format += content
     if self.tags == ['mediawiki', 'page', 'revision', 'text']:
       self.text += content
+
+  def processText(self):
+    sentences = self.getSentences(self.text)
+    if sentences:
+      self.num_outputs += 1
+      if self.num_outputs % 100 == 0:
+        logger.info("Output {}".format(self.num_outputs))
+      print('\t'.join(sentences))
 
   def getSentences(self, text):
     text = regex.sub(r'<!--(.*?)-->', '', text)
