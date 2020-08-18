@@ -4,7 +4,7 @@
 # Script to parse Wikipedia XML stream and export raw text TSV of articles.
 #
 # Usage:
-#   parse_wikipedia [--sampling num] [--max num] [--quiet]
+#   parse_wikipedia.py [--sampling num] [--max num] [--quiet]
 #   (It reads the standard input and prints the result on the standard output.)
 #
 # Example:
