@@ -65,10 +65,10 @@ class XMLHandler(xml.sax.handler.ContentHandler):
       self.has_restrictions = True
     if self.tags == ['mediawiki', 'page', 'revision', 'model']:
       self.model = ""
-    if self.tags == ['mediawiki', 'page', 'revision', 'model']:
-      self.text = ""
     if self.tags == ['mediawiki', 'page', 'revision', 'format']:
       self.format = ""
+    if self.tags == ['mediawiki', 'page', 'revision', 'text']:
+      self.text = ""
 
   def endElement(self, name):
     if self.tags == ['mediawiki', 'page', 'revision']:
@@ -81,6 +81,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           self.processText()
       self.model = None
       self.format = None
+      self.text = None
     self.tags.pop()
     if self.num_outputs >= self.max_outputs:
       logger.info("reached max outputs ({})".format(self.max_outputs))
