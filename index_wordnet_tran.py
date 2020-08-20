@@ -1,13 +1,13 @@
 #! /usr/bin/python3
 # -*- coding: utf-8 -*-
 #--------------------------------------------------------------------------------------------------
-# Script to make an index of translations of a dictionary
+# Script to make an index of translations of a WordNet dictionary
 #
 # Usage:
-#   index_translations.py [--input str] [--output str] [--quiet]
+#   index_wordnet_tran.py [--input str] [--output str] [--quiet]
 #
 # Example:
-#   ./index_translations.py --input wordnet-body.tkh --output wordnet-tran-index.tkh
+#   ./index_wordnet_tran.py --input wordnet-body.tkh --output wordnet-tran-index.tkh
 #
 # Copyright 2020 Google LLC
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file

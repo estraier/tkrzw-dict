@@ -4,10 +4,10 @@
 # Script to search a WordNet dictionary
 #
 # Usage:
-#   search_dictionary.py [--data_prefix str] [--direction str] [--max num] [--details] words...
+#   search_wordnet.py [--data_prefix str] [--direction str] [--max num] [--details] words...
 #
 # Example:
-#   ./search_dictionary.py --data_prefix wordnet united states
+#   ./search_wordnet.py --data_prefix wordnet united states
 #
 # Copyright 2020 Google LLC
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
