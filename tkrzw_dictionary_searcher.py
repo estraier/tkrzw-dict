@@ -96,7 +96,7 @@ class DictionarySearcher:
         entry = self.SearchBody(src_word)
         if entry:
           items = []
-          for item in entry["items"]:
+          for item in entry["item"]:
             hit = False
             translations = item.get("translation")
             if translations:
@@ -107,13 +107,13 @@ class DictionarySearcher:
             if hit:
               items.append(item)
           if items:
-            entry["items"] = items
+            entry["item"] = items
             result.append((src_word, entry))
     if len(result) > 1:
       for record in result:
         entry = record[1]
         score = float(entry.get("score") or 0.0)
-        for item in entry["items"]:
+        for item in entry["item"]:
           tran_scores = item.get("translation_score")
           if tran_scores:
             value = tran_scores.get(text)

@@ -51,7 +51,7 @@ def PrintResultWord(key, entry, show_details):
     search_score = entry.get("search_score")
     if search_score:
       print("search_score: {:.6f}".format(float(search_score)))
-  for item in entry["items"]:
+  for item in entry["item"]:
     print()
     title = item.get("surface") or key
     pos = item.get("pos")
@@ -117,7 +117,7 @@ def esc(expr):
 def PrintResultWordCGI(key, entry, show_details):
   print('<div class="entry">')
   print('<h2>{}</h2>'.format(esc(key)))
-  for item in entry["items"]:
+  for item in entry["item"]:
     print('<div class="item">')
     surface = item.get("surface") or key
     print('<h3>', end='')

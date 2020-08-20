@@ -192,7 +192,7 @@ class BuildWordNetDBBatch:
           for attr_name, attr_value in item.items():
             if isinstance(attr_value, list) and len(attr_value) > 1:
               item[attr_name] = self.SortWordsByProb(prob_dbm, attr_value)
-      entry["items"] = items        
+      entry["item"] = items        
       serialized = json.dumps(entry, separators=(",", ":"), ensure_ascii=False)
       word_dbm.Set(key, serialized).OrDie()
       num_words += 1

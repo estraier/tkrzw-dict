@@ -56,7 +56,7 @@ class IndexTranslationsBatch:
       if not record: break
       key, serialized = record
       entry = json.loads(serialized)
-      for item in entry["items"]:
+      for item in entry["item"]:
         translations = item.get("translation")
         if translations:
           for tran in translations:

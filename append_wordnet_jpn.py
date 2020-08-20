@@ -107,7 +107,7 @@ class AppendWordnetJPNBatch:
       if not record: break
       key, serialized = record
       entry = json.loads(serialized)
-      items = entry["items"]
+      items = entry["item"]
       for item in items:
         surface = item["surface"]
         item_translations = translations.get(item["synset"])
@@ -125,7 +125,7 @@ class AppendWordnetJPNBatch:
           if item_score > 0.0:
             item["score"] = "{:.6f}".format(item_score).replace("0.", ".")
       if word_prob_dbm:
-        entry["items"] = sorted(
+        entry["item"] = sorted(
           items, key=lambda item: float(item.get("score") or 0.0), reverse=True)
       serialized = json.dumps(entry, separators=(",", ":"), ensure_ascii=False)
       output_dbm.Set(key, serialized).OrDie()
