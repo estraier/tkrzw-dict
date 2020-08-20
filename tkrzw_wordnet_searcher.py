@@ -1,7 +1,7 @@
 #! /usr/bin/python3
 # -*- coding: utf-8 -*-
 #--------------------------------------------------------------------------------------------------
-# Dictionary searcher
+# Dictionary searcher of WordNet
 #
 # Copyright 2020 Google LLC
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
@@ -50,7 +50,7 @@ def DeduplicateWords(words):
   return uniq_words
 
 
-class DictionarySearcher:
+class WordNetSearcher:
   def __init__(self, data_prefix):
     body_path = data_prefix + "-body.tkh"
     self.body_dbm = tkrzw.DBM()

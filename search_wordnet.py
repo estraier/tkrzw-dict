@@ -1,7 +1,7 @@
 #! /usr/bin/python3
 # -*- coding: utf-8 -*-
 #--------------------------------------------------------------------------------------------------
-# Script to search a dictionary
+# Script to search a WordNet dictionary
 #
 # Usage:
 #   search_dictionary.py [--data_prefix str] [--direction str] [--max num] [--details] words...
@@ -26,7 +26,7 @@ import os
 import sys
 import textwrap
 import tkrzw_dict
-import tkrzw_dictionary_searcher
+import tkrzw_wordnet_searcher
 import urllib
 
 
@@ -60,7 +60,7 @@ def PrintResultWord(key, entry, show_details):
     print("  {}".format(title))
     translations = item.get("translation")
     if translations:
-      translations = tkrzw_dictionary_searcher.DeduplicateWords(translations)
+      translations = tkrzw_wordnet_searcher.DeduplicateWords(translations)
       if not show_details:
         translations = translations[:5]
       PrintWrappedText(format(", ".join(translations)), 4, True)
@@ -93,10 +93,10 @@ def main():
     raise RuntimeError("words are not specified")
   reverse = False
   if direction == "auto":
-    reverse = tkrzw_dictionary_searcher.PredictLanguage(text) != "en"
+    reverse = tkrzw_wordnet_searcher.PredictLanguage(text) != "en"
   elif direction == "reverse":
     reverse = True
-  searcher = tkrzw_dictionary_searcher.DictionarySearcher(data_prefix)
+  searcher = tkrzw_wordnet_searcher.WordNetSearcher(data_prefix)
   if reverse:
     result = searcher.SearchReverse(text)
   else:
@@ -129,7 +129,7 @@ def PrintResultWordCGI(key, entry, show_details):
     print('</h3>')
     translations = item.get("translation")
     if translations:
-      translations = tkrzw_dictionary_searcher.DeduplicateWords(translations)
+      translations = tkrzw_wordnet_searcher.DeduplicateWords(translations)
       translations = translations[:5]
       print('<div class="translation">', end='')
       esc_trans = []
@@ -172,7 +172,7 @@ def main_cgi():
 
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
-<title>Dictionary Search</title>
+<title>WordNet Search</title>
 <style type="text/css">
 html {{ margin: 0ex; padding: 0ex; background: #eeeeee; }}
 body {{ margin: 0ex; padding: 0ex; text-align: center; }}
@@ -197,7 +197,7 @@ h3 {{ font-size: 105%; margin: 1ex 0ex 0ex 1ex; }}
 </head>
 <body>
 <article>
-<h1><a href="{}">Dictionary Search</a></h1>
+<h1><a href="{}">WordNet Search</a></h1>
 <div class="query_form">
 <form method="get" name="form">
 <div>
@@ -207,8 +207,8 @@ Query: <input type="text" name="q" value="{}"/>
 </form>
 </div>""".format(esc(script_name), esc(query)))
   if query:
-    reverse = tkrzw_dictionary_searcher.PredictLanguage(query) != "en"
-    searcher = tkrzw_dictionary_searcher.DictionarySearcher(CGI_DATA_PREFIX)
+    reverse = tkrzw_wordnet_searcher.PredictLanguage(query) != "en"
+    searcher = tkrzw_wordnet_searcher.WordNetSearcher(CGI_DATA_PREFIX)
     if reverse:
       result = searcher.SearchReverse(query)
     else:
