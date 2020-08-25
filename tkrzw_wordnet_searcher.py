@@ -34,7 +34,7 @@ def DeduplicateWords(words):
   uniq_words = []
   norm_uniq_words = []
   for word in words:
-    norm_word = tkrzw_tokenizer.RemoveDiacritic(word.lower())
+    norm_word = tkrzw_dict.NormalizeWord(word)
     dup = False
     uniq_min_dist_ratio = 0.21
     if _regex_katakana_only.search(word):

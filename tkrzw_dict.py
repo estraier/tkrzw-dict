@@ -86,9 +86,26 @@ def GetCoocProbPath(data_prefix):
 def GetCoocScorePath(data_prefix):
     return "{}-cooc-score.tkh".format(data_prefix)
 
-
+  
 def GetCoocIndexPath(data_prefix):
     return "{}-cooc-index.tkh".format(data_prefix)
+
+
+def RemoveDiacritic(text):
+  decomposed = unicodedata.normalize('NFD', text)
+  stripped = ""
+  removable = True
+  for c in decomposed:
+    if unicodedata.combining(c) == 0:
+      removable = bool(regex.match(r"\p{Latin}", c))
+      stripped += c
+    elif not removable:
+      stripped += c
+  return unicodedata.normalize('NFC', stripped)
+
+
+def NormalizeWord(text):
+  return RemoveDiacritic(text.lower())
 
 
 _regex_numeric_word = re.compile(r"^[-0-9.]+$")

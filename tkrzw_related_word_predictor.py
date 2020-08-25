@@ -39,7 +39,7 @@ class RelatedWordsPredictor:
   def Predict(self, text):
     words = set(self.tokenizer.Tokenize(self.language, text, True, False))
     if len(words) > 1:
-      words.add(tkrzw_tokenizer.RemoveDiacritic(text.lower()))
+      words.add(tkrzw_dict.NormalizeWord(text))
     cooc_words = {}
     for word in words:
       for cooc_word, cooc_score in self.GetCoocWords(word):

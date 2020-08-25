@@ -17,6 +17,7 @@
 import importlib
 import re
 import regex
+import tkrzw_dict
 import unicodedata
 
 
@@ -75,7 +76,7 @@ class Tokenizer:
     else:
       raise ValueError("unsupported language: " + language)
     if lowering:
-      words = [RemoveDiacritic(x.lower()) for x in words]
+      words = [tkrzw_dict.NormalizeWord(x) for x in words]
     return words
 
   def NormalizeSentence(self, text):
