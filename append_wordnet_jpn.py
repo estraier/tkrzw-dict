@@ -109,13 +109,13 @@ class AppendWordnetJPNBatch:
       entry = json.loads(serialized)
       items = entry["item"]
       for item in items:
-        surface = item["surface"]
+        word = item["word"]
         item_translations = translations.get(item["synset"])
         if item_translations:
           item_score = 0.0
           if word_prob_dbm or tran_prob_dbm:
             item_translations, item_score, tran_scores = (self.SortWordsByScore(
-              surface, item_translations, word_prob_dbm, tokenizer, tran_prob_dbm))
+              word, item_translations, word_prob_dbm, tokenizer, tran_prob_dbm))
           item["translation"] = item_translations[:MAX_TRANSLATIONS_PER_WORD]
           if tran_scores:
             tran_score_map = {}
@@ -154,16 +154,16 @@ class AppendWordnetJPNBatch:
     return min_prob
 
   _regex_stop_word_katakana = regex.compile(r"^[\p{Katakana}ー]+$")
-  def GetTranProb(self, tran_prob_dbm, surface, tran):
+  def GetTranProb(self, tran_prob_dbm, word, tran):
     max_prob = 0.0
-    key = tkrzw_tokenizer.RemoveDiacritic(surface.lower())
+    key = tkrzw_dict.NormalizeWord(word)
     tsv = tran_prob_dbm.GetStr(key)
     norm_tran = tran.lower()
     if tsv:
       fields = tsv.split("\t")
       for i in range(0, len(fields), 3):
         src, trg, prob = fields[i], fields[i + 1], fields[i + 2]
-        if src == surface and trg.lower() == norm_tran:
+        if src == word and trg.lower() == norm_tran:
           prob = float(prob)
           if self._regex_stop_word_katakana.search(trg):
             prob **= 1.2
@@ -172,7 +172,7 @@ class AppendWordnetJPNBatch:
 
   _regex_stop_word_hiragana = regex.compile(r"^[\p{Hiragana}ー]+$")
   _regex_stop_word_single = regex.compile(r"^.$")
-  def SortWordsByScore(self, surface, translations, word_prob_dbm, tokenizer, tran_prob_dbm):
+  def SortWordsByScore(self, word, translations, word_prob_dbm, tokenizer, tran_prob_dbm):
     scored_translations = []
     pure_translation_scores = []
     max_score = 0.0
@@ -186,7 +186,7 @@ class AppendWordnetJPNBatch:
           prob_score *= 0.5
       tran_score = 0.0
       if tran_prob_dbm:
-        tran_score = self.GetTranProb(tran_prob_dbm, surface, tran)
+        tran_score = self.GetTranProb(tran_prob_dbm, word, tran)
         if tran_score:
           pure_translation_scores.append((tran, tran_score))
       score = max(prob_score, tran_score)

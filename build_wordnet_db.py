@@ -140,7 +140,7 @@ class BuildWordNetDBBatch:
         key = word.lower()
         item = {}
         item["synset"] = synset_id
-        item["surface"] = word
+        item["word"] = word
         item["pos"] = pos
         item["gross"] = gross
         if len(words) > 1:

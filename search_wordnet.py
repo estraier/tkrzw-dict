@@ -53,7 +53,7 @@ def PrintResultWord(key, entry, show_details):
       print("search_score: {:.6f}".format(float(search_score)))
   for item in entry["item"]:
     print()
-    title = item.get("surface") or key
+    title = item.get("word") or key
     pos = item.get("pos")
     if pos:
       title += " [{}]".format(pos)
@@ -119,10 +119,10 @@ def PrintResultWordCGI(key, entry, show_details):
   print('<h2>{}</h2>'.format(esc(key)))
   for item in entry["item"]:
     print('<div class="item">')
-    surface = item.get("surface") or key
+    word = item.get("word") or key
     print('<h3>', end='')
-    print('<a href="?q={}" class="surface">{}</a>'.format(
-      esc(urllib.parse.quote(surface)), esc(surface)))
+    print('<a href="?q={}" class="word">{}</a>'.format(
+      esc(urllib.parse.quote(word)), esc(word)))
     pos = item.get("pos")
     if pos:
       print('<span class="pos">[{}]</span>'.format(esc(pos)), end='')

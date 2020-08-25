@@ -60,7 +60,7 @@ class IndexTranslationsBatch:
         translations = item.get("translation")
         if translations:
           for tran in translations:
-            norm_tran = tkrzw_tokenizer.RemoveDiacritic(tran.lower())
+            norm_tran = tkrzw_dict.NormalizeWord(tran)
             mem_index.Append(norm_tran, key, "\t").OrDie()
           num_translations += len(translations)
       num_entries += 1
