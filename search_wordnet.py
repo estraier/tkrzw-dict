@@ -4,7 +4,7 @@
 # Script to search a WordNet dictionary
 #
 # Usage:
-#   search_wordnet.py [--data_prefix str] [--direction str] [--max num] [--details] words...
+#   search_wordnet.py [--data_prefix str] [--direction str] [--details] words...
 #
 # Example:
 #   ./search_wordnet.py --data_prefix wordnet united states
@@ -60,7 +60,7 @@ def PrintResultWord(key, entry, show_details):
     print("  {}".format(title))
     translations = item.get("translation")
     if translations:
-      translations = tkrzw_wordnet_searcher.DeduplicateWords(translations)
+      translations = tkrzw_dict.DeduplicateWords(translations)
       if not show_details:
         translations = translations[:5]
       PrintWrappedText(format(", ".join(translations)), 4, True)
@@ -93,14 +93,14 @@ def main():
     raise RuntimeError("words are not specified")
   reverse = False
   if direction == "auto":
-    reverse = tkrzw_wordnet_searcher.PredictLanguage(text) != "en"
+    reverse = tkrzw_dict.PredictLanguage(text) != "en"
   elif direction == "reverse":
     reverse = True
   searcher = tkrzw_wordnet_searcher.WordNetSearcher(data_prefix)
   if reverse:
     result = searcher.SearchReverse(text)
   else:
-    result = searcher.SearchFullMatch(text)
+    result = searcher.SearchExact(text)
   if result:
     for key, entry in result:
       PrintResultWord(key, entry, show_details)
@@ -129,7 +129,7 @@ def PrintResultWordCGI(key, entry, show_details):
     print('</h3>')
     translations = item.get("translation")
     if translations:
-      translations = tkrzw_wordnet_searcher.DeduplicateWords(translations)
+      translations = tkrzw_dict.DeduplicateWords(translations)
       translations = translations[:5]
       print('<div class="translation">', end='')
       esc_trans = []
@@ -207,12 +207,12 @@ Query: <input type="text" name="q" value="{}"/>
 </form>
 </div>""".format(esc(script_name), esc(query)))
   if query:
-    reverse = tkrzw_wordnet_searcher.PredictLanguage(query) != "en"
+    reverse = tkrzw_dict.PredictLanguage(query) != "en"
     searcher = tkrzw_wordnet_searcher.WordNetSearcher(CGI_DATA_PREFIX)
     if reverse:
       result = searcher.SearchReverse(query)
     else:
-      result = searcher.SearchFullMatch(query)
+      result = searcher.SearchExact(query)
     if result:
       show_details = not reverse
       for key, entry in result:

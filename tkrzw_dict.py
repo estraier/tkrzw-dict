@@ -21,6 +21,7 @@ import random
 import re
 import regex
 import sys
+import tkrzw
 import unicodedata
 
 
@@ -65,6 +66,28 @@ def GetCommandFlag(args, flag, num_args):
   args.clear()
   args.extend(rest_args)
   return value
+
+
+def GetUnusedFlag(args):
+  for arg in args:
+    if arg == "--":
+      break
+    elif arg.startswith("--"):
+      return arg
+  return None
+
+
+def GetArguments(args):
+  result = []
+  fixed = False
+  for arg in args:
+    if fixed:
+      result.append(arg)
+    elif arg == "--":
+      fixed = True
+    else:
+      result.append(arg)
+  return result
 
 
 def GetWordCountPath(data_prefix):
@@ -134,3 +157,31 @@ def IsStopWord(language, word):
     if _regex_stop_word_ja_latin.search(word):
       return True
   return False
+
+
+_regex_predict_japanese = regex.compile(r"[\p{Hiragana}\p{Katakana}ー\p{Han}]")
+def PredictLanguage(text):
+  if _regex_predict_japanese.search(text):
+    return "ja"
+  return "en"
+
+
+_regex_katakana_only = regex.compile(r"^[\p{Katakana}ー]+$")
+def DeduplicateWords(words):
+  uniq_words = []
+  norm_uniq_words = []
+  for word in words:
+    norm_word = NormalizeWord(word)
+    dup = False
+    uniq_min_dist_ratio = 0.21
+    if _regex_katakana_only.search(word):
+      uniq_min_dist_ratio = 0.41
+    for norm_uniq_word in norm_uniq_words:
+      dist = tkrzw.Utility.EditDistanceLev(norm_word, norm_uniq_word)
+      dist_ratio = dist / max(len(norm_word), len(norm_uniq_word))
+      if dist_ratio < uniq_min_dist_ratio:
+        dup = True
+    if not dup:
+      uniq_words.append(word)
+      norm_uniq_words.append(norm_word)
+  return uniq_words

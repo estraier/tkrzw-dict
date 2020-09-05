@@ -24,6 +24,7 @@ import json
 import logging
 import operator
 import os
+import re
 import sys
 import time
 import tkrzw
@@ -79,6 +80,7 @@ class BuildWordNetDBBatch:
           for i in range(0, num_words):
             word = fields[field_index]
             word = word.replace("_", " ")
+            word = re.sub(r"\(.*?\)", "", word).strip()
             words.append(word)
             field_index += 2
             num_word_entries += 1

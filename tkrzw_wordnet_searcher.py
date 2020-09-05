@@ -22,34 +22,6 @@ import tkrzw_dict
 import tkrzw_tokenizer
 
 
-_regex_predict_japanese = regex.compile(r"[\p{Hiragana}\p{Katakana}ー\p{Han}]")
-def PredictLanguage(text):
-  if _regex_predict_japanese.search(text):
-    return "ja"
-  return "en"
-
-
-_regex_katakana_only = regex.compile(r"^[\p{Katakana}ー]+$")
-def DeduplicateWords(words):
-  uniq_words = []
-  norm_uniq_words = []
-  for word in words:
-    norm_word = tkrzw_dict.NormalizeWord(word)
-    dup = False
-    uniq_min_dist_ratio = 0.21
-    if _regex_katakana_only.search(word):
-      uniq_min_dist_ratio = 0.41
-    for norm_uniq_word in norm_uniq_words:
-      dist = tkrzw.Utility.EditDistanceLev(norm_word, norm_uniq_word)
-      dist_ratio = dist / max(len(norm_word), len(norm_uniq_word))
-      if dist_ratio < uniq_min_dist_ratio:
-        dup = True
-    if not dup:
-      uniq_words.append(word)
-      norm_uniq_words.append(norm_word)
-  return uniq_words
-
-
 class WordNetSearcher:
   def __init__(self, data_prefix):
     body_path = data_prefix + "-body.tkh"
@@ -79,7 +51,7 @@ class WordNetSearcher:
       result.extend(tsv.split("\t"))
     return result
 
-  def SearchFullMatch(self, text):
+  def SearchExact(self, text):
     text = self.NormalizeText(text)
     result = []
     entry = self.SearchBody(text)
