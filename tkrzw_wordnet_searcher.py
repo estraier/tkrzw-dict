@@ -32,6 +32,7 @@ class WordNetSearcher:
     self.tran_index_dbm.Open(tran_index_path, False, dbm="HashDBM").OrDie()
 
   def __del__(self):
+    self.tran_index_dbm.Close().OrDie()
     self.body_dbm.Close().OrDie()
 
   _regex_spaces = regex.compile(r"[\s]+")
