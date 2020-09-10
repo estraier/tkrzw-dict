@@ -185,3 +185,26 @@ def DeduplicateWords(words):
       uniq_words.append(word)
       norm_uniq_words.append(norm_word)
   return uniq_words
+
+
+def TwiddleWords(words, query):
+  scored_words = []
+  for i, word in enumerate(words):
+    score = 10 / (10 + i)
+    if word == query:
+      score *= 1.6
+    elif len(query) > 1 and word.startswith(query):
+      score *= 1.4
+    elif len(word) > 1 and query.startswith(word):
+      score *= 1.3
+    elif word.find(query) >= 0 or query.find(word) >= 0:
+      score *= 1.2
+    else:
+      dist = tkrzw.Utility.EditDistanceLev(word, query) / max(len(word), len(query))
+      if dist <= 0.3:
+        score *= 1.2
+      elif dist <= 0.5:
+        score *= 1.1
+    scored_words.append((word, score))
+  scored_words = sorted(scored_words, key=lambda x: x[1], reverse=True)
+  return [x[0] for x in scored_words]

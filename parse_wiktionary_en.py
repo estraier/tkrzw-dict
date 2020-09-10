@@ -135,10 +135,12 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         submode = ""
       elif regex.search(r"^===([^=]+)===$", line):
         mode = regex.sub(r"^===([^=]+)===$", r"\1", line).strip()
+        mode = regex.sub(r":.*", "", mode).strip()
         sections.append((mode,[]))
         submode = ""
       elif regex.search(r"^====+([^=]+)=+===$", line):
         submode = regex.sub(r"^====([^=]+)====$", r"\1", line).strip()
+        submode = regex.sub(r":.*", "", submode).strip()
         if submode in ("{{noun}}", "{{name}}", "Noun",
                        "{{verb}}", "Verb",
                        "{{adj}}", "{{adjective}}", "Adjective",
@@ -439,7 +441,11 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     text = regex.sub(r"^--+", "", text)
     text = regex.sub(r"(\{\{[^{}]+)\{\{[^{}]+\}\}([^}]*\}\})", r"\1\2", text)
     text = regex.sub(r"\{\{(context|lb|l|tag|label|infl)\|[^\}]*\}\}", "", text)
+    text = regex.sub(r"\{\{abbreviation of(\|en)?\|([^|}]+)([^}])+\}\}", r"\2", text)
     text = regex.sub(r"\{\{w\|(lang=[a-z]+\|)?([^\}\|]*)(\|[^\}]*)?\}\}", r"\2", text)
+    text = regex.sub(r"\{\{m\|[a-z]+\|([^\|\}]+)(\|[^\}\|]+)*\}\}", r"\1", text)
+    text = regex.sub(r"\{\{rfdate[a-z]+\|[a-z]+\|([^\|\}]+)(\|[^\}\|]+)*\}\}", r"\1", text)
+    text = regex.sub(r"\{\{(RQ|R):([^\|\}]+)(\|[^\}\|]+)*\}\}", r"\2", text)
     text = regex.sub(r"\{\{[^}]*\}\}", r"", text)
     text = regex.sub(r"\}\}", r"", text)
     text = regex.sub(r"\[\[w:[a-z]+:([^\]\|]+)(\|[^\]\|]+)\]\]", r"\1", text)
@@ -453,6 +459,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     text = regex.sub(r"</?[a-z]+[^>]*>", "", text)
     text = regex.sub(r"<!-- *", "(", text)
     text = regex.sub(r" *-->", ")", text)
+    text = regex.sub(r"^ *[,:;] *", "", text)
     return regex.sub(r"\s+", " ", text).strip()
 
   def TrimInflections(self, values):
