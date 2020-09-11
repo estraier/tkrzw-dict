@@ -4,7 +4,7 @@
 # Script to build a union database by merging TSV dictionaries
 #
 # Usage:
-#   build_union_db.py [--output str] [--quiet] [--top str]
+#   build_union_db.py [--output str] [--quiet] [--top str] [--slim str] [--rank str]
 #     [--word_prob str] [--tran_prob str] [--rev_prob str] [--min_prob str] inputs...
 #   (An input specified as "label:tsv_file".
 #
@@ -41,13 +41,15 @@ logger = tkrzw_dict.GetLogger()
 
 
 class BuildUnionDBBatch:
-  def __init__(self, input_confs, output_path, gross_label,
-               surfeit_label, top_label, tran_list_label,
+  def __init__(self, input_confs, output_path, gross_labels,
+               surfeit_label, top_labels, rank_labels, slim_labels, tran_list_label,
                word_prob_path, tran_prob_path, rev_prob_path, min_prob_map):
     self.input_confs = input_confs
     self.output_path = output_path
-    self.gross_label = gross_label
-    self.top_label = top_label
+    self.gross_labels = gross_labels
+    self.top_labels = top_labels
+    self.rank_labels = rank_labels
+    self.slim_labels = slim_labels
     self.surfeit_label = surfeit_label
     self.tran_list_label = tran_list_label
     self.word_prob_path = word_prob_path
@@ -62,12 +64,13 @@ class BuildUnionDBBatch:
       str(self.input_confs), self.output_path))
     word_dicts = []
     for label, input_path in self.input_confs:
-      word_dict = self.ReadInput(input_path)
+      slim = label in self.slim_labels
+      word_dict = self.ReadInput(input_path, slim)
       word_dicts.append((label, word_dict))
     self.SaveWords(word_dicts)
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
-  def ReadInput(self, input_path):
+  def ReadInput(self, input_path, slim):
     poses = ("noun", "verb", "adjective", "adverb",
              "pronoun", "auxverb", "preposition", "determiner", "article", "interjection",
              "prefix", "suffix", "abbreviation")
@@ -96,7 +99,10 @@ class BuildUnionDBBatch:
             name = regex.sub(r"^[a-z]+_", "", name)
             inflections[name] = inflections.get(name) or value
           elif name in poses:
-            texts.append((name, value))
+            if slim:
+              value = regex.sub(r" \[-+\] .*", "", value).strip()
+            if value:
+              texts.append((name, value))
         if not ipa and sampa:
           ipa = tkrzw_pron_util.SampaToIPA(sampa)
         if word and (ipa or texts or inflections):
@@ -161,21 +167,32 @@ class BuildUnionDBBatch:
 
   def MakeRecord(self, key, word_dicts, word_prob_dbm, tran_prob_dbm, rev_prob_dbm):
     word_entries = {}
+    word_ranks = {}
+    num_words = 0
     for label, word_dict in word_dicts:
       dict_entries = word_dict.get(key)
       if not dict_entries: continue
-      for entry in dict_entries:
+      for i, entry in enumerate(dict_entries):
+        num_words += 1
         word = entry["word"]
         entries = word_entries.get(word) or []
         entries.append((label, entry))
         word_entries[word] = entries
+        old_rank = word_ranks.get(word) or sys.maxsize
+        if label in self.rank_labels:
+          rank = num_words / 10000
+        else:
+          rank = num_words
+        word_ranks[word] = min(old_rank, rank)
+    sorted_word_ranks = sorted(word_ranks.items(), key=lambda x: x[1])
     merged_entry = []
     top_names = ("pronunciation", "noun_plural",
                  "verb_singular", "verb_present_participle",
                  "verb_past", "verb_past_participle",
                  "adjective_comparative", "adjective_superative",
                  "adverb_comparative", "adverb_superative")
-    for word, entries in word_entries.items():
+    for word, rank in sorted_word_ranks:
+      entries = word_entries[word]
       word_entry = {}
       word_entry["word"] = word
       effective_labels = set()
@@ -183,7 +200,7 @@ class BuildUnionDBBatch:
         if label != self.surfeit_label:
           effective_labels.add(label)
         for top_name in top_names:
-          if label != self.top_label and top_name in word_entry: continue
+          if label not in self.top_labels and top_name in word_entry: continue
           value = entry.get(top_name)
           if value:
             word_entry[top_name] = value
@@ -264,15 +281,15 @@ class BuildUnionDBBatch:
       label = item["label"]
       sections = item["text"].split(" [-] ")
       section_index = 1
-      if (label == self.gross_label and
+      if (label in self.gross_labels and
           regex.search(r"[\p{Han}\p{Hiragana}\p{Katakana}ー]", sections[0])):
         weight = body_weight
         body_weight *= 0.9
         text = sections[0]
-        if regex.search(r"[\(（\{\(]([^)）\}\]]+[・、])?" +
-                        r"(俗|俗語|スラング|卑|卑語|隠語|古|古語|廃|廃用)[)）\}\]]", text):
+        if regex.search(r"[\(（《\{\(]([^)）\}\]]+[・、])?" +
+                        r"(俗|俗語|スラング|卑|卑語|隠語|古|古語|廃|廃用|廃語)+[)）》\}\]]", text):
           weight *= 0.1
-        text = regex.sub(r"[\(（\{\(].*?[)）\}\]]", "", text)
+        text = regex.sub(r"[\(（《\{\(].*?[)）》\}\]]", "", text)
         text = regex.sub(r"[･・]", "", text)
         text = regex.sub(r"\s+", " ", text).strip()
         if regex.search(
@@ -284,13 +301,16 @@ class BuildUnionDBBatch:
           continue
         if regex.search(r"の(動名詞|異綴|異体|古語)", text):
           continue
+        text = regex.sub(r" \[-+\] .*", "", text).strip()
+        text = regex.sub(r" -+ .*", "", text).strip()
         for tran in regex.split("[。|、|；|,|;]", text):
           if len(translations) > 1:
-            if tran in ("または", "又は"):
+            if tran in ("また", "または", "又は"):
               continue
           tran = regex.sub(r"[-～] *(が|の|を|に|へ|と|より|から|で|や)", "", tran)
           tran = regex.sub(r"[～]", "", tran)
-          tokens = self.tokenizer.Tokenize("ja", tran, False, False)[:6]
+          tokens = self.tokenizer.Tokenize("ja", tran, False, False)
+          tokens = tokens[:6]
           tran = " ".join(tokens)
           tran = regex.sub(r"([\p{Han}\p{Hiragana}\p{Katakana}ー]) +", r"\1", tran)
           tran = regex.sub(r" +([\p{Han}\p{Hiragana}\p{Katakana}ー])", r"\1", tran)
@@ -371,8 +391,10 @@ class BuildUnionDBBatch:
 def main():
   args = sys.argv[1:]
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "wiktionary.tkh"
-  gross_label = tkrzw_dict.GetCommandFlag(args, "--gross", 1) or "wj"
-  top_label = tkrzw_dict.GetCommandFlag(args, "--top", 1) or "we"
+  gross_labels = set((tkrzw_dict.GetCommandFlag(args, "--gross", 1) or "wj").split(","))
+  top_labels = set((tkrzw_dict.GetCommandFlag(args, "--top", 1) or "we").split(","))
+  rank_labels = set((tkrzw_dict.GetCommandFlag(args, "--rank", 1) or "wn").split(","))
+  slim_labels = set((tkrzw_dict.GetCommandFlag(args, "--slim", 1) or "we").split(","))
   surfeit_label = tkrzw_dict.GetCommandFlag(args, "--surfeit", 1) or "we"
   tran_list_label = tkrzw_dict.GetCommandFlag(args, "--tran_list", 1) or "wn"
   word_prob_path = tkrzw_dict.GetCommandFlag(args, "--word_prob", 1) or ""
@@ -398,8 +420,8 @@ def main():
     if len(input_conf) != 2:
       raise RuntimeError("invalid input: " + input)
     input_confs.append(input_conf)
-  BuildUnionDBBatch(input_confs, output_path, gross_label,
-                    surfeit_label, top_label, tran_list_label,
+  BuildUnionDBBatch(input_confs, output_path, gross_labels,
+                    surfeit_label, top_labels, rank_labels, slim_labels, tran_list_label,
                     word_prob_path, tran_prob_path, rev_prob_path, min_prob_map).Run()
  
 

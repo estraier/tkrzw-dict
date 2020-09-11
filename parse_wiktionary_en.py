@@ -224,6 +224,8 @@ class XMLHandler(xml.sax.handler.ContentHandler):
             verb_present_participle = self.title + "ing"
           elif len(values) == 1:
             verb_present_participle = values[0] + "ing"
+            verb_past = values[0] + "ed"
+            verb_past_participle = values[0] + "ed"
           elif len(values) == 2 and values[1] == "es":
             verb_singular = values[0] + "es"
             verb_present_participle = values[0] + "ing"
@@ -445,6 +447,8 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     text = regex.sub(r"\{\{w\|(lang=[a-z]+\|)?([^\}\|]*)(\|[^\}]*)?\}\}", r"\2", text)
     text = regex.sub(r"\{\{m\|[a-z]+\|([^\|\}]+)(\|[^\}\|]+)*\}\}", r"\1", text)
     text = regex.sub(r"\{\{rfdate[a-z]+\|[a-z]+\|([^\|\}]+)(\|[^\}\|]+)*\}\}", r"\1", text)
+    text = regex.sub(r"\{\{(RQ|Q):([^\|\}]+)(\|[^\|\}]+)*\|passage=([^\|\}]+)(\|[^\|\}]+)*\}\}",
+                     r"\2 -- \4", text)
     text = regex.sub(r"\{\{(RQ|R):([^\|\}]+)(\|[^\}\|]+)*\}\}", r"\2", text)
     text = regex.sub(r"\{\{[^}]*\}\}", r"", text)
     text = regex.sub(r"\}\}", r"", text)

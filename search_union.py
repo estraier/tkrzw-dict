@@ -217,8 +217,8 @@ def PrintResultCGI(result, query, details):
           translations = tkrzw_dict.TwiddleWords(translations, query)
         fields = []
         for tran in translations[:6]:
-          tran = esc(tran)
-          value = '<span class="tran">{}</span>'.format(tran)
+          tran_url = "?q={}".format(urllib.parse.quote(tran))
+          value = '<a href="{}" class="tran">{}</a>'.format(esc(tran_url), esc(tran))
           fields.append(value)
         if fields:
           P('<div class="attr attr_tran">', end="")
@@ -268,8 +268,20 @@ def PrintResultCGI(result, query, details):
             subsections = section.split(" [--] ")
             P('<div class="item_text item_text2">')
             if subattr_label:
-              P('<span class="subattr_label">{}</span>', subattr_label)
-            P('<span class="text">{}</span>', subsections[0])
+              fields = []
+              for subword in subsections[0].split(","):
+                subword = subword.strip()
+                if subword:
+                  subword_url = "?q={}".format(urllib.parse.quote(subword))
+                  fields.append('<a href="{}" class="subword">{}</a>'.format(
+                    esc(subword_url), esc(subword)))
+              if fields:
+                P('<span class="subattr_label">{}</span>', subattr_label)
+                P('<span class="text">', end="")
+                print(", ".join(fields))
+                P('</span>')
+            else:
+              P('<span class="text">{}</span>', subsections[0])
             P('</div>')
             for subsection in subsections[1:]:
               subsubsections = subsection.split(" [---] ")
@@ -302,8 +314,8 @@ def PrintResultCGIList(result, query):
           translations = tkrzw_dict.TwiddleWords(translations, query)
         fields = []
         for tran in translations[:6]:
-          tran = esc(tran)
-          value = '<span class="list_tran">{}</span>'.format(tran)
+          tran_url = "?q={}".format(urllib.parse.quote(tran))
+          value = '<a href="{}" class="list_tran">{}</a>'.format(esc(tran_url), esc(tran))
           fields.append(value)
         P('<span class="list_text">', end="")
         print(", ".join(fields), end="")
@@ -332,7 +344,6 @@ html {{ margin: 0ex; padding: 0ex; background: #eeeeee; }}
 body {{ margin: 0ex; padding: 0ex; text-align: center; }}
 article {{ display: inline-block; width: 100ex; text-align: left; padding-bottom: 3ex; }}
 a,a:visited {{ text-decoration: none; }}
-a {{ color: #000000; }}
 a:hover {{ color: #0011ee; text-decoration: underline; }}
 h1 a,h2 a {{ color: #000000; text-decoration: none; }}
 h1 {{ font-size: 110%; }}
@@ -340,8 +351,15 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
 .query_form,.entry,.list,.note,.license {{
   border: 1px solid #dddddd; border-radius: 0.5ex;
   margin: 1ex 0ex; padding: 0.8ex 1ex 1.3ex 1ex; background: #ffffff; position: relative; }}
+#query_line {{ color: #333333; }}
+#query_input {{ color: #111111; width: 30ex; }}
+#search_mode_box,#view_mode_box {{ color: #111111; width: 14ex; }}
+#submit_button {{ color: #111111; width: 10ex; }}
 .license {{ opacity: 0.7; }}
-.attr,.item {{ color: #888888; }}
+.license a {{ color: #001166; }}
+.attr,.item {{ color: #999999; }}
+.attr a,.item a {{ color: #111111; }}
+.attr a:hover,.item a:hover {{ color: #0011ee; }}
 .attr {{ margin-left: 3ex; }}
 .item_text1 {{ margin-left: 3ex; }}
 .item_text2 {{ margin-left: 7ex; font-size: 95%; }}
@@ -350,17 +368,19 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
 .item_omit {{ margin-left: 4ex; opacity: 0.6; font-size: 90%; }}
 .attr_prob {{ margin-left: 3ex; font-size: 95%; }}
 .attr_label,.label,.pos,.subattr_label {{
-  display: inline-block; border: solid 1px #888888; border-radius: 0.5ex;
+  display: inline-block; border: solid 1px #999999; border-radius: 0.5ex;
   font-size: 65%; min-width: 3.3ex; text-align: center;
   color: #111111; background: #eeeeee; opacity: 0.8; }}
 .tran {{ color: #000000; }}
 .attr_value {{ color: #111111; }}
 .text {{ margin-left: 0.3ex; color: #111111; }}
 .list {{ padding: 1.2ex 1ex 1.5ex 1.8ex; }}
-.list_item {{ margin: 0.2ex 0.3ex; color: #888888; }}
-.list_head {{ font-weight: bold; }}
+.list_item {{ margin: 0.2ex 0.3ex; color: #999999; }}
+.list_head {{ font-weight: bold; color: #000000; }}
+.list_head:hover {{ color: #0011ee; }}
 .list_text {{ font-size: 95%; }}
 .list_tran {{ color: #333333; }}
+.list_tran:hover {{ color: #0011ee; }}
 </style>
 </head>
 <body>
@@ -369,23 +389,23 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
 """.format(esc(script_name), esc(query)), end="")
   P('<div class="query_form">')
   P('<form method="get" name="form">')
-  P('<div class="query_line">')
-  P('Query: <input type="text" name="q" value="{}"/>', query)
-  P('<select name="s">')
-  for value, label in (("a", "auto mode"), ("e", "En-to-Ja"), ("r", "Ja-to-En")):
+  P('<div id="query_line">')
+  P('Query: <input type="text" name="q" value="{}" id="query_input"/>', query)
+  P('<select name="s" id="search_mode_box">')
+  for value, label in (("a", "Auto Mode"), ("e", "En-to-Ja"), ("r", "Ja-to-En")):
     P('<option value="{}"', esc(value), end="")
     if value == search_mode:
       P(' selected="selected"', end="")
     P('>{}</option>', label)
   P('</select>')
-  P('<select name="v">')
-  for value, label in (("a", "auto view"), ("f", "Full"), ("s", "Simple"), ("l", "List")):
+  P('<select name="v" id="view_mode_box">')
+  for value, label in (("a", "Auto View"), ("f", "Full"), ("s", "Simple"), ("l", "List")):
     P('<option value="{}"', esc(value), end="")
     if value == view_mode:
       P(' selected="selected"', end="")
     P('>{}</option>', label)
   P('</select>')
-  P('<input type="submit" value="search"/>')
+  P('<input type="submit" value="search" id="submit_button"/>')
   P('</div>')
   P('</form>')
   P('</div>')
@@ -424,6 +444,7 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
     P('<div class="license">')
     P('<p>This site demonstrats a search system on a English-Japanese dictionary.  If you input an English word, entries whose titles match it are shown.  If you input a Japanese word, entries whose translations match it are shown.</p>')
     P('<p>This service uses data from <a href="https://ja.wiktionary.org/">Japanese Wiktionary</a>, <a href="https://en.wiktionary.org/">English Wiktionary</a>, <a href="https://wordnet.princeton.edu/">WordNet</a>, and <a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">Japanese WordNet.</a></p>')
+    P('<p>This service is implemented with <a href="https://dbmx.net/tkrzw/">Tkrzw</a>, which is a high performance DBM library.  <a href="https://github.com/estraier/tkrzw-dict">The code base</a> is published on GitHub.</p>')
     P('</div>')
   print("""</article>
 </body>
