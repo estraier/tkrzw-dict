@@ -66,7 +66,22 @@ class IndexTranslationsBatch:
       for word_entry in entry:
         word_trans = word_entry.get("translation")
         if word_trans:
-          for tran in word_trans:
+          dup_word_trans = word_trans
+          for word_tran in word_trans:
+            match = regex.search(
+              r"([\p{Han}\p{Katakana}ー]{2,})(する|すること|される|されること)$", word_tran)
+            if match:
+              short_word_tran = word_tran[:-len(match.group(2))]
+              if short_word_tran:
+                dup_word_trans.append(short_word_tran)
+            else:
+              match = regex.search(
+                r"([\p{Han}]{2,})(が|の|を|に|へ|と|より|から|で|や|な|なる|たる)$", word_tran)
+              if match:
+                short_word_tran = word_tran[:-len(match.group(2))]
+                if short_word_tran:
+                  dup_word_trans.append(short_word_tran)
+          for tran in dup_word_trans:
             norm_tran = tkrzw_dict.NormalizeWord(tran)
             if norm_tran in uniq_trans: continue
             uniq_trans.add(norm_tran)
@@ -133,14 +148,19 @@ class IndexTranslationsBatch:
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
   def GetPhraseProb(self, word_prob_dbm, language, word):
-    min_prob = 1.0
     tokens = self.tokenizer.Tokenize(language, word, True, True)
+    probs = []
     for token in tokens:
       token = tkrzw_dict.NormalizeWord(token)
       prob = float(word_prob_dbm.GetStr(token) or 0.0)
-      min_prob = min(min_prob, prob)
+      probs.append(prob)
+    probs = sorted(probs)
+    min_prob = 0.0
+    if probs:
+      min_prob =probs[0]
+    for prob in probs[1:]:
+      min_prob *= min(prob ** 0.5, 0.2)
     min_prob = max(min_prob, 0.000001)
-    min_prob *= 0.3 ** (len(tokens) - 1)
     return min_prob
 
   def GetTranProb(self, tran_prob_dbm, src_text, trg_text):

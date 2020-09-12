@@ -130,7 +130,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         sections.append((mode,[]))
         submode = ""
       elif regex.search(r"^====+([^=]+)=+===$", line):
-        submode = regex.sub(r"^====([^=]+)====$", r"\1", line).strip()
+        submode = regex.sub(r"^====+([^=]+)=+===$", r"\1", line).strip()
         submode = regex.sub(r":.*", "", submode).strip()
         if submode in ("{{noun}}", "{{name}}", "名詞", "固有名詞", "人名", "地名",
                        "{{verb}}", "動詞", "自動詞", "他動詞",
@@ -257,9 +257,11 @@ class XMLHandler(xml.sax.handler.ContentHandler):
               plural = self.title + "s"
               if len(values) == 1 and values[0] == "es":
                 plural = self.title + "es"
-              elif len(values) == 1 and values[0] == "-":
+              elif len(values) == 1 and values[0] in ("-", "~"):
                 plural = None
-              elif (len(values) == 2 and (values[0] == "-" or values[0] == "~") and
+              elif len(values) == 1:
+                plural = values[0]
+              elif (len(values) == 2 and values[0] in ("-", "~") and
                     values[1] != "s" and values[1] != "es"):
                 plural = values[1]
               elif len(values) == 2 and values[1] == "es":
@@ -308,6 +310,11 @@ class XMLHandler(xml.sax.handler.ContentHandler):
                 present_participle = values[0] + "ing"
                 past = values[0] + "ed"
                 past_participle = values[0] + "ed"
+              elif len(values) == 2 and values[1] == "ies":
+                singular = values[0] + "ies"
+                present_participle = values[0] + "ying"
+                past = values[0] + "ied"
+                past_participle = values[0] + "ied"
               elif len(values) == 2 and values[1] == "d":
                 singular = values[0] + "s"
                 present_participle = values[0] + "ing"

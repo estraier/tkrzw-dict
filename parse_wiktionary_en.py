@@ -123,6 +123,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     mode = ""
     submode = ""
     sections = []
+    translations = {}
     for line in fulltext.split("\n"):
       line = line.strip()
       if regex.search(r"^==([^=]+)==$", line):
@@ -139,7 +140,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         sections.append((mode,[]))
         submode = ""
       elif regex.search(r"^====+([^=]+)=+===$", line):
-        submode = regex.sub(r"^====([^=]+)====$", r"\1", line).strip()
+        submode = regex.sub(r"^====+([^=]+)=+===$", r"\1", line).strip()
         submode = regex.sub(r":.*", "", submode).strip()
         if submode in ("{{noun}}", "{{name}}", "Noun",
                        "{{verb}}", "Verb",
@@ -149,9 +150,20 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           mode = submode
           sections.append((mode,[]))
           submode = ""
-      elif is_eng and sections and not submode:
-        section = sections[-1]
-        section[1].append(line)
+      elif is_eng:
+        if sections and not submode:
+          section = sections[-1]
+          section[1].append(line)
+        if mode and submode in ("Translation", "Translations"):
+          prefix = regex.sub(r"^([#\*:]+).*", r"\1", line)
+          level = len(prefix)
+          text = line[level:].strip()
+          if text.startswith("Japanese:"):
+            text = regex.sub(r"^[^:]+:", "", text).strip()
+            if text:
+              old_values = translations.get(mode) or []
+              old_values.append(text)
+              translations[mode] = old_values
       if regex.search(r"\{\{ipa\|en\|([^}]+)\}\}", line, regex.IGNORECASE):
         value = regex.sub(r".*\{\{ipa\|en\|([^}]+)\}\}.*", r"\1",
                           line, flags=regex.IGNORECASE)
@@ -183,9 +195,11 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           noun_plural = self.title + "s"
           if len(values) == 1 and values[0] == "es":
             noun_plural = self.title + "es"
-          elif len(values) == 1 and values[0] == "-":
+          elif len(values) == 1 and values[0] in ("-", "~"):
             noun_plural = None
-          elif (len(values) == 2 and (values[0] == "-" or values[0] == "~") and
+          elif len(values) == 1:
+            noun_plural = values[0]
+          elif (len(values) == 2 and values[0] in ("-", "~") and
                 values[1] != "s" and values[1] != "es"):
             noun_plural = values[1]
           elif len(values) == 2 and values[1] == "es":
@@ -231,6 +245,11 @@ class XMLHandler(xml.sax.handler.ContentHandler):
             verb_present_participle = values[0] + "ing"
             verb_past = values[0] + "ed"
             verb_past_participle = values[0] + "ed"
+          elif len(values) == 2 and values[1] == "ies":
+            verb_singular = values[0] + "ies"
+            verb_present_participle = values[0] + "ying"
+            verb_past = values[0] + "ied"
+            verb_past_participle = values[0] + "ied"
           elif len(values) == 2 and values[1] == "d":
             verb_singular = values[0] + "es"
             verb_present_participle = values[0] + "ing"
@@ -382,6 +401,9 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     if adverb_superative:
       output.append("inflection_adverb_superative={}".format(adverb_superative))
     for mode, lines in sections:
+      translation = translations.get(mode)
+      if translation:
+        del translations[mode]
       mode = regex.sub(r":.*", "", mode).strip().lower()
       mode = regex.sub(r"[0-9]+$", "", mode).strip()
       if mode in ("{{noun}}", "{{name}}", "noun", "proper noun"):
@@ -404,6 +426,28 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         mode = "interjection"
       else:
         continue
+      if translation:
+        trans = []
+        for field in translation:
+          for expr in regex.findall(r"\{\{t\+?\|ja\|.*?\}\}", field):
+            tran = regex.sub(r"\{\{t\+?\|ja\|([^\|\}]+).*\}\}", r"\1", expr)
+            tran = self.MakePlainText(tran)
+            if tran:
+              trans.append(tran)
+            if regex.search(r"\{\{t\+?\|ja\|.*\|alt=([^\|\}]+).*\}\}", expr):
+              tran = regex.sub(r"\{\{t\+?\|ja\|.*\|alt=([^\|\}]+).*\}\}", r"\1", expr)
+              if tran:
+                trans.append(tran)
+        uniq_trans = set()
+        out_trans = []
+        for tran in trans:
+          norm_tran = tran.lower()
+          if norm_tran in uniq_trans:
+            continue
+          uniq_trans.add(norm_tran)
+          out_trans.append(tran)
+        if out_trans:
+          output.append("{}=[translation]: {}".format(mode, ", ".join(out_trans)))
       cat_lines = []
       for line in lines:
         if cat_lines and line.startswith("|"):
@@ -433,8 +477,10 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           else:
             sep = "[---]"
           current_text += " " + sep + " " + text
-      if regex.search(r"([\p{Latin}0-9]{2,}|[\p{Han}\p{Hiragana}\p{Katakana}])", current_text):
-        output.append("{}={}".format(mode, current_text))
+      if not regex.search(
+          r"([\p{Latin}0-9]{2,}|[\p{Han}\p{Hiragana}\p{Katakana}])", current_text):
+        continue        
+      output.append("{}={}".format(mode, current_text))
     if output:
       print("word={}\t{}".format(self.title, "\t".join(output)))
           

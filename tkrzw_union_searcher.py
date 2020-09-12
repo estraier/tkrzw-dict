@@ -76,7 +76,7 @@ class UnionSearcher:
             if translations:
               for tran in translations:
                 tran = self.NormalizeText(tran)
-                if tran == text:
+                if tran.find(text) >= 0:
                   match = True
             if match:
               match_entries.append(entry)

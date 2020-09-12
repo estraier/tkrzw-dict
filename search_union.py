@@ -251,11 +251,34 @@ def PrintResultCGI(result, query, details):
         pos = item.get("pos") or "misc"
         pos = POSES.get(pos) or pos
         sections = item["text"].split(" [-] ")
+        section = sections[0]
+        subattr_label = None
+        attr_match = regex.search(r"^\[([a-z]+)\]: ", section)
+        if attr_match:
+          subattr_label = WORDNET_ATTRS.get(attr_match.group(1))
+          if subattr_label:
+            section = section[len(attr_match.group(0)):].strip()
         P('<div class="item item_{}">', label)
         P('<div class="item_text item_text1">')
         P('<span class="label">{}</span>', label.upper())
         P('<span class="pos">{}</span>', pos)
-        P('<span class="text">{}</span>', sections[0])
+        P('<span class="text">', end="")
+        if subattr_label:
+          fields = []
+          for subword in section.split(","):
+            subword = subword.strip()
+            if subword:
+              subword_url = "?q={}".format(urllib.parse.quote(subword))
+              fields.append('<a href="{}" class="subword">{}</a>'.format(
+                esc(subword_url), esc(subword)))
+          if fields:
+            P('<span class="subattr_label">{}</span>', subattr_label)
+            P('<span class="text">', end="")
+            print(", ".join(fields))
+            P('</span>')
+        else:
+          P('<span class="text">{}</span>', section)
+        P('</span>')
         P('</div>')
         if details:
           for section in sections[1:]:

@@ -10,8 +10,9 @@
 #
 # Example:
 #   ./build_union_db.py --output union-body.tkh \
-#     --word_prob enwiki-word-prob.tkh --tran_prob tran-prob.tkh --min_prob we:0.00001 \
-#     wj:wiktionary-ja.tsv we:wiktionary-en.tsv wn:wordnet.tsv
+#     --word_prob enwiki-word-prob.tkh --tran_prob tran-prob.tkh \
+#     --rev_prob jawiki-word-prob.tkh --min_prob we:0.00001 \
+#     wj:wiktionary-ja.tsv wn:wordnet.tsv we:wiktionary-en.tsv 
 #
 # Copyright 2020 Google LLC
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
@@ -42,16 +43,16 @@ logger = tkrzw_dict.GetLogger()
 
 class BuildUnionDBBatch:
   def __init__(self, input_confs, output_path, gross_labels,
-               surfeit_label, top_labels, rank_labels, slim_labels, tran_list_label,
+               surfeit_labels, top_labels, rank_labels, slim_labels, tran_list_labels,
                word_prob_path, tran_prob_path, rev_prob_path, min_prob_map):
     self.input_confs = input_confs
     self.output_path = output_path
     self.gross_labels = gross_labels
+    self.surfeit_labels = surfeit_labels
     self.top_labels = top_labels
     self.rank_labels = rank_labels
     self.slim_labels = slim_labels
-    self.surfeit_label = surfeit_label
-    self.tran_list_label = tran_list_label
+    self.tran_list_labels = tran_list_labels
     self.word_prob_path = word_prob_path
     self.tran_prob_path = tran_prob_path
     self.rev_prob_path = rev_prob_path
@@ -197,7 +198,7 @@ class BuildUnionDBBatch:
       word_entry["word"] = word
       effective_labels = set()
       for label, entry in entries:
-        if label != self.surfeit_label:
+        if label not in self.surfeit_labels:
           effective_labels.add(label)
         for top_name in top_names:
           if label not in self.top_labels and top_name in word_entry: continue
@@ -233,14 +234,19 @@ class BuildUnionDBBatch:
     return merged_entry
 
   def GetPhraseProb(self, word_prob_dbm, language, word):
-    min_prob = 1.0
     tokens = self.tokenizer.Tokenize(language, word, True, True)
+    probs = []
     for token in tokens:
       token = tkrzw_dict.NormalizeWord(token)
       prob = float(word_prob_dbm.GetStr(token) or 0.0)
-      min_prob = min(min_prob, prob)
+      probs.append(prob)
+    probs = sorted(probs)
+    min_prob = 0.0
+    if probs:
+      min_prob =probs[0]
+    for prob in probs[1:]:
+      min_prob *= min(prob ** 0.5, 0.2)
     min_prob = max(min_prob, 0.000001)
-    min_prob *= 0.3 ** (len(tokens) - 1)
     return min_prob
 
   def SetTranslations(self, entry, tran_prob_dbm, rev_prob_dbm):
@@ -307,7 +313,7 @@ class BuildUnionDBBatch:
           if len(translations) > 1:
             if tran in ("また", "または", "又は"):
               continue
-          tran = regex.sub(r"[-～] *(が|の|を|に|へ|と|より|から|で|や)", "", tran)
+          tran = regex.sub(r"[-～‥…] *(が|の|を|に|へ|と|より|から|で|や)", "", tran)
           tran = regex.sub(r"[～]", "", tran)
           tokens = self.tokenizer.Tokenize("ja", tran, False, False)
           tokens = tokens[:6]
@@ -318,8 +324,8 @@ class BuildUnionDBBatch:
           if tran:
             Vote(tran, weight, label)
             weight *= 0.8
-      if label == self.tran_list_label:
-        for section in sections[1:]:
+      if label in self.tran_list_labels:
+        for section in sections:
           if not section.startswith("[translation]: "): continue
           weight = tran_weight
           tran_weight *= 0.9
@@ -395,8 +401,8 @@ def main():
   top_labels = set((tkrzw_dict.GetCommandFlag(args, "--top", 1) or "we").split(","))
   rank_labels = set((tkrzw_dict.GetCommandFlag(args, "--rank", 1) or "wn").split(","))
   slim_labels = set((tkrzw_dict.GetCommandFlag(args, "--slim", 1) or "we").split(","))
-  surfeit_label = tkrzw_dict.GetCommandFlag(args, "--surfeit", 1) or "we"
-  tran_list_label = tkrzw_dict.GetCommandFlag(args, "--tran_list", 1) or "wn"
+  surfeit_labels = set((tkrzw_dict.GetCommandFlag(args, "--surfeit", 1) or "we").split(","))
+  tran_list_labels = set((tkrzw_dict.GetCommandFlag(args, "--tran_list", 1) or "wn,we").split(","))
   word_prob_path = tkrzw_dict.GetCommandFlag(args, "--word_prob", 1) or ""
   tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
   rev_prob_path = tkrzw_dict.GetCommandFlag(args, "--rev_prob", 1) or ""
@@ -421,7 +427,7 @@ def main():
       raise RuntimeError("invalid input: " + input)
     input_confs.append(input_conf)
   BuildUnionDBBatch(input_confs, output_path, gross_labels,
-                    surfeit_label, top_labels, rank_labels, slim_labels, tran_list_label,
+                    surfeit_labels, top_labels, rank_labels, slim_labels, tran_list_labels,
                     word_prob_path, tran_prob_path, rev_prob_path, min_prob_map).Run()
  
 
