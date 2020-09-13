@@ -203,9 +203,11 @@ class XMLHandler(xml.sax.handler.ContentHandler):
                 values[1] != "s" and values[1] != "es"):
             noun_plural = values[1]
           elif len(values) == 2 and values[1] == "es":
-            noun_plural = values[0] + "es"
+            stem = self.title if values[0] in ("-", "~") else values[0]
+            noun_plural = stem + "es"
           elif len(values) == 2 and values[1] == "ies":
-            noun_plural = values[0] + "ies"
+            stem = self.title if values[0] in ("-", "~") else values[0]
+            noun_plural = stem + "ies"
           elif len(values) == 1 and values[0].startswith("pl="):
             noun_plural = regex.sub(".*=", "", values[0])
           elif len(values) == 2 and values[0].startswith("sg=") and values[1] == "es":

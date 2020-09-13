@@ -79,6 +79,16 @@ WORDNET_ATTRS = {
   "region": "地域",
   "usage": "用法",
 }
+TEXT_ATTRS = {
+  "可算": "c",
+  "不可算": "u",
+  "自動詞": "vi",
+  "他動詞": "vt",
+  "countable": "c",
+  "uncountable": "u",
+  "intransitive": "vi",
+  "transitive": "vt",
+}
 
 
 def PrintWrappedText(text, indent):
@@ -252,18 +262,17 @@ def PrintResultCGI(result, query, details):
         pos = POSES.get(pos) or pos
         sections = item["text"].split(" [-] ")
         section = sections[0]
-        subattr_label = None
+        attr_label = None
         attr_match = regex.search(r"^\[([a-z]+)\]: ", section)
         if attr_match:
-          subattr_label = WORDNET_ATTRS.get(attr_match.group(1))
-          if subattr_label:
+          attr_label = WORDNET_ATTRS.get(attr_match.group(1))
+          if attr_label:
             section = section[len(attr_match.group(0)):].strip()
         P('<div class="item item_{}">', label)
         P('<div class="item_text item_text1">')
         P('<span class="label">{}</span>', label.upper())
         P('<span class="pos">{}</span>', pos)
-        P('<span class="text">', end="")
-        if subattr_label:
+        if attr_label:
           fields = []
           for subword in section.split(","):
             subword = subword.strip()
@@ -272,13 +281,23 @@ def PrintResultCGI(result, query, details):
               fields.append('<a href="{}" class="subword">{}</a>'.format(
                 esc(subword_url), esc(subword)))
           if fields:
-            P('<span class="subattr_label">{}</span>', subattr_label)
+            P('<span class="subattr_label">{}</span>', attr_label)
             P('<span class="text">', end="")
             print(", ".join(fields))
             P('</span>')
         else:
-          P('<span class="text">{}</span>', section)
-        P('</span>')
+          attr_label = None
+          attr_match = regex.search(r"^[\(（]([^\)）]+)[\)）]", section)
+          if attr_match:
+            for name in regex.split(r"[ ,、]", attr_match.group(1)):
+              attr_label = TEXT_ATTRS.get(name)
+              if attr_label: break
+            if attr_label:
+              section = section[len(attr_match.group(0)):].strip()
+              P('<span class="subattr_label">{}</span>', attr_label)
+          P('<span class="text">', end="")
+          print(esc(section))
+          P('</span>')
         P('</div>')
         if details:
           for section in sections[1:]:
