@@ -177,7 +177,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         value = regex.sub(r"[\[\]]", "", value)
         value = value.strip()
         if value:
-          if line.find("|US") >= 0:
+          if line.find("|US") >= 0 or line.find("|GA") >= 0:
             if not ipa_us:
               ipa_us = value
           else:
@@ -487,22 +487,29 @@ class XMLHandler(xml.sax.handler.ContentHandler):
   def MakePlainText(self, text):
     text = regex.sub(r"^[#\*]+", "", text)
     text = regex.sub(r"^--+", "", text)
+    text = regex.sub(r"\{\{lb\|\en(\|\w+)*(\|countable)(\|\w+)*\}\}", r"(countable)", text)
+    text = regex.sub(r"\{\{lb\|\en(\|\w+)*(\|uncountable)(\|\w+)*\}\}", r"(uncountable)", text)
+    text = regex.sub(r"\{\{lb\|\en(\|\w+)*(\|transitive)(\|\w+)*\}\}", r"(transitive)", text)
+    text = regex.sub(r"\{\{lb\|\en(\|\w+)*(\|intransitive)(\|\w+)*\}\}", r"(intransitive)", text)
     text = regex.sub(r"(\{\{[^{}]+)\{\{[^{}]+\}\}([^}]*\}\})", r"\1\2", text)
     text = regex.sub(r"\{\{(context|lb|l|tag|label|infl)\|[^\}]*\}\}", "", text)
     text = regex.sub(r"\{\{abbreviation of(\|en)?\|([^|}]+)([^}])+\}\}", r"\2", text)
     text = regex.sub(r"\{\{w\|(lang=[a-z]+\|)?([^\}\|]*)(\|[^\}]*)?\}\}", r"\2", text)
-    text = regex.sub(r"\{\{m\|[a-z]+\|([^\|\}]+)(\|[^\}\|]+)*\}\}", r"\1", text)
+    text = regex.sub(r"\{\{(m|ux)\|[a-z]+\|([^\|\}]+)(\|[^\}\|]+)*\}\}", r"\2", text)
     text = regex.sub(r"\{\{rfdate[a-z]+\|[a-z]+\|([^\|\}]+)(\|[^\}\|]+)*\}\}", r"\1", text)
     text = regex.sub(r"\{\{(RQ|Q):([^\|\}]+)(\|[^\|\}]+)*\|passage=([^\|\}]+)(\|[^\|\}]+)*\}\}",
                      r"\2 -- \4", text)
     text = regex.sub(r"\{\{(RQ|R):([^\|\}]+)(\|[^\}\|]+)*\}\}", r"\2", text)
     text = regex.sub(r"\{\{[^}]*\}\}", r"", text)
+    text = regex.sub(r"\{\}", r"", text)
     text = regex.sub(r"\}\}", r"", text)
     text = regex.sub(r"\[\[w:[a-z]+:([^\]\|]+)(\|[^\]\|]+)\]\]", r"\1", text)
     text = regex.sub(r"\[\[(category):[^\]]*\]\]", "", text, regex.IGNORECASE)
     text = regex.sub(r"\[\[([^\]\|]+\|)?([^\]]*)\]\]", r"\2", text)
     text = regex.sub(r"\[(https?://[^ ]+ +)([^\]]+)\]", r"\2", text)
     text = regex.sub(r"\[https?://.*?\]", r"", text)
+    text = regex.sub(r"\[\[", r"", text)
+    text = regex.sub(r"\]\]", r"", text)
     text = regex.sub(r"'''", "", text)
     text = regex.sub(r"''", "", text)
     text = regex.sub(r"\( *\)", "", text)
