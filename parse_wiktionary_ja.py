@@ -116,6 +116,12 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     submode = ""
     infl_modes = set()
     sections = []
+    synonyms = []
+    hypernyms = []
+    hyponyms = []
+    antonyms = []
+    derivations = []
+    relations = []
     for line in fulltext.split("\n"):
       line = line.strip()
       if regex.search(r"^==([^=]+)==$", line):
@@ -153,13 +159,39 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           is_eng_cat = True
         elif regex.search(r"^\{\{[a-z]{2,3}\}\}$", lang) or lang.find("語") >= 0:
           is_eng_cat = False
-      elif (is_eng_head or is_eng_cat) and sections and not submode:
-        section = sections[-1]
-        section[1].append(line)
+      elif (is_eng_head or is_eng_cat):
+        if sections and not submode:
+          section = sections[-1]
+          section[1].append(line)
+        def CheckMode(labels):
+          if mode and submode in labels:
+            return True
+          if mode in labels and not submode:
+            return True
+          return False
+        rel_words = None
+        if CheckMode(("{{syn}}", "synonym", "類義語")):
+          rel_words = synonyms
+        elif CheckMode(("{{hyper}}", "hypernym", "上位語")):
+          rel_words = hypernyms
+        elif CheckMode(("{{hypo}}", "hyponym", "下位語")):
+          rel_words = hyponyms
+        elif CheckMode(("{{ant}}", "antonym", "対義語")):
+          rel_words = antonyms
+        elif CheckMode(("{{derived}}", "derived terms", "derived term", "派生語")):
+          rel_words = derivations
+        elif CheckMode(("{{rel}}", "related terms", "related term", "関連語")):
+          rel_words = relations
+        if rel_words != None:
+          for rel_word in regex.findall(r"\{\{l\|en\|([- \p{Latin}]+?)\}\}", line):
+            rel_words.append(rel_word)
+          for rel_word in regex.findall(r"\[\[([- \p{Latin}]+?)\]\]", line):
+            rel_words.append(rel_word)
     pronunciation_ipa_us = ""
     pronunciation_ipa_misc = ""
     pronunciation_sampa_us = ""
     pronunciation_sampa_misc = ""
+    alternatives = []
     for mode, lines in sections:
       mode = regex.sub(r":.*", "", mode).strip()
       mode = regex.sub(r"[0-9]+$", "", mode).strip()
@@ -173,45 +205,30 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         mode = "adjective"
       elif mode in ("{{adv}}", "{{adverb}}", "adverb", "副詞"):
         mode = "adverb"
-      elif mode in ("{{pronoun}}", "代名詞", "人称代名詞", "指示代名詞",
+      elif mode in ("{{pronoun}}", "pronoun", "代名詞", "人称代名詞", "指示代名詞",
                     "疑問代名詞", "関係代名詞"):
         mode = "pronoun"
-      elif mode in ("{{aux}}", "{{auxverb}}", "助動詞"):
+      elif mode in ("{{aux}}", "{{auxverb}}", "auxiliary verb", "助動詞"):
         mode = "auxverb"
-      elif mode in ("{{prep}}", "{{preposition}}", "前置詞"):
+      elif mode in ("{{prep}}", "{{preposition}}", "preposition", "前置詞"):
         mode = "preposition"
-      elif mode in ("{{det}}", "{{determiner}}", "限定詞"):
+      elif mode in ("{{det}}", "{{determiner}}", "determiner", "限定詞"):
         mode = "determiner"
       elif mode in ("{{article}}", "冠詞"):
         mode = "article"
-      elif mode in ("{{interj}}", "{{interjection}}", "間投詞", "感動詞"):
+      elif mode in ("{{interj}}", "{{interjection}}", "interjection", "間投詞", "感動詞"):
         mode = "interjection"
-      elif mode in ("{{pref}}", "{{prefix}}", "接頭辞"):
+      elif mode in ("{{pref}}", "{{prefix}}", "prefix", "接頭辞"):
         mode = "prefix"
-      elif mode in ("{{suf}}", "{{suffix}}", "設備時"):
+      elif mode in ("{{suf}}", "{{suffix}}", "suffix", "設備時"):
         mode = "suffix"
-      elif mode in ("{{abbr}}", "{{abbreviation}}", "略語"):
+      elif mode in ("{{abbr}}", "{{abbreviation}}", "abbreviation", "略語"):
         mode = "abbreviation"
-      elif mode in ("{{drv}}", "派生", "派生語"):
-        mode = "derivative"
-      elif mode in ("{{alter}}", "代替", "代替語"):
+      elif mode in ("{{alter}}", "alternative", "alternative forms", "alternative form",
+                    "代替", "代替語", "別表記", "異表記", "異綴", "異体"):
         mode = "alternative"
-      elif mode in ("{{syn}}", "類義語"):
-        mode = "synonym"
-      elif mode in ("{{ant}}", "対義語"):
-        mode = "antonym"
-      elif mode in ("{{rel}}", "{{related}}", "関連語"):
-        mode = "related"
       else:
-        mode = self.MakePlainText(mode)
-        if mode in ("alt", "別表記", "異表記", "異綴", "異体"):
-          mode = "alternative"
-        elif mode in ("rel", "related", "関連語", "類義語"):
-          mode = "related"
-        elif mode in ("etym", "etym2", "etymology", "語源"):
-          mode = ""
-        else:
-          mode = ""
+        mode = ""
       if mode == "pronunciation":
         for line in lines:
           if regex.search(r"\{\{ipa[0-9]?\|([^}|]+)(\|[^}|]+)*\}\}", line, regex.IGNORECASE):
@@ -252,6 +269,12 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           if line.find("{{lb|en|obsolete}}") >= 0: continue
           if ((regex.search("[^は]廃(語|用)", line) or line.find("{{label|en|archaic}}") >= 0) and
               not regex.search("(または|又は)", line)):
+            continue
+          if mode == "alternative":
+            for alt in regex.findall(r"\{\{l\|en\|([- \p{Latin}]+?)\}\}", line):
+              alternatives.append(alt)
+            for alt in regex.findall(r"\[\[([- \p{Latin}]+?)\]\]", line):
+              alternatives.append(alt)
             continue
           if regex.search(r"\{\{en-noun\|?([^\}]*)\}\}", line):
             if "noun" in infl_modes: continue
@@ -542,6 +565,18 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         continue
       num_effective_records += 1
     if num_effective_records:
+      if alternatives:
+        uniq_alts = set()
+        out_alts = []
+        for alt in alternatives:
+          if alt in uniq_alts: continue
+          uniq_alts.add(alt)
+          out_alts.append(alt)
+        output.append("alternative={}".format(", ".join(out_alts)))
+      for rel in ((synonyms, "synonym"), (hypernyms, "hypernym"), (hyponyms, "hyponym"),
+                  (antonyms, "antonym"), (derivations, "derivation"), (relations, "relation")):
+        if rel[0]:
+          output.append("{}={}".format(rel[1], ", ".join(rel[0])))
       print("word={}\t{}".format(title, "\t".join(output)))
 
   def MakePlainText(self, text):
@@ -587,6 +622,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     text = regex.sub(r"\{\{lb\|\en(\|\w+)*(\|intransitive\+?)(\|\w+)*\}\}", r"（他動詞）", text)
     text = regex.sub(r"\{\{タグ\|en\|自動詞\}\}", r"（自動詞）", text)
     text = regex.sub(r"\{\{タグ\|en\|他動詞\}\}", r"（他動詞）", text)
+    text = regex.sub(r"\{\{\.\.\.\}\}", "...", text)
     text = regex.sub(r"(\{\{[^{}]+)\{\{[^{}]+\}\}([^}]*\}\})", r"\1\2", text)
     text = regex.sub(r"\{\{l\|[^\}\|]+\|([^\}]+)?\}\}", r"\1", text)
     text = regex.sub(r"\{\{(context|lb|タグ|tag|label|infl)\|[^\}]*\}\}", "", text)

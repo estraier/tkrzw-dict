@@ -74,6 +74,7 @@ class ExtractWordNetTSVBatch:
           if values:
             gross += " [-] [{}]: {}".format(attribute, ", ".join(values[:5]))
         output.append("{}={}".format(pos, gross))
+        output.append("synset={}".format(item["synset"]))
       print("\t".join(output))
 
 

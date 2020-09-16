@@ -129,6 +129,12 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     mode = ""
     submode = ""
     sections = []
+    synonyms = []
+    hypernyms = []
+    hyponyms = []
+    antonyms = []
+    derivations = []
+    relations = []
     translations = {}
     for line in fulltext.split("\n"):
       line = line.strip()
@@ -166,6 +172,30 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         if sections and not submode:
           section = sections[-1]
           section[1].append(line)
+        def CheckMode(labels):
+          if mode and submode in labels:
+            return True
+          if mode in labels and not submode:
+            return True
+          return False
+        rel_words = None
+        if CheckMode(("{{syn}}", "synonym", "synonyms")):
+          rel_words = synonyms
+        elif CheckMode(("{{hyper}}", "hypernym", "hypernyms")):
+          rel_words = hypernyms
+        elif CheckMode(("{{hypo}}", "hyponym", "hyponyms")):
+          rel_words = hyponyms
+        elif CheckMode(("{{ant}}", "antonym", "antonyms")):
+          rel_words = antonyms
+        elif CheckMode(("{{derived}}", "derived terms", "derived term", "派生語")):
+          rel_words = derivations
+        elif CheckMode(("{{rel}}", "related terms", "related term", "関連語")):
+          rel_words = relations
+        if rel_words != None:
+          for rel_word in regex.findall(r"\{\{l\|en\|([- \p{Latin}]+?)\}\}", line):
+            rel_words.append(rel_word)
+          for rel_word in regex.findall(r"\[\[([- \p{Latin}]+?)\]\]", line):
+            rel_words.append(rel_word)
         if mode and submode in ("translation", "translations"):
           for tr, expr in regex.findall(r"\{\{(trans-top|checktrans-top)\|(.*?)\}\}", line):
             tran_top = regex.sub(r"^id=[^\|]+\|", "", expr)
@@ -428,6 +458,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
       output.append("inflection_adverb_comparative={}".format(adverb_comparative))
     if adverb_superative:
       output.append("inflection_adverb_superative={}".format(adverb_superative))
+    alternatives = []
     for mode, lines in sections:
       translation = translations.get(mode)
       if translation:
@@ -452,6 +483,14 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         mode = "article"
       elif mode in ("{{interj}}", "interjection"):
         mode = "interjection"
+      elif mode in ("{{pref}}", "{{prefix}}", "prefix"):
+        mode = "prefix"
+      elif mode in ("{{suf}}", "{{suffix}}", "suffix"):
+        mode = "suffix"
+      elif mode in ("{{abbr}}", "{{abbreviation}}", "abbreviation"):
+        mode = "abbreviation"
+      elif mode in ("{{alter}}", "alternative", "alternative forms", "alternative form"):
+        mode = "alternative"
       else:
         continue
       if translation:
@@ -469,6 +508,12 @@ class XMLHandler(xml.sax.handler.ContentHandler):
       last_prefix = ""
       for line in cat_lines:
         if line.find("{{lb|en|obsolete}}") >= 0: continue
+        if mode == "alternative":
+          for alt in regex.findall(r"\{\{l\|en\|([- \p{Latin}]+?)\}\}", line):
+            alternatives.append(alt)
+          for alt in regex.findall(r"\[\[([- \p{Latin}]+?)\]\]", line):
+            alternatives.append(alt)
+          continue
         if not regex.search(r"^[#\*:]", line):
           last_level = 0
           last_prefix = ""
@@ -506,6 +551,18 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         continue        
       output.append("{}={}".format(mode, current_text))
     if output:
+      if alternatives:
+        uniq_alts = set()
+        out_alts = []
+        for alt in alternatives:
+          if alt in uniq_alts: continue
+          uniq_alts.add(alt)
+          out_alts.append(alt)
+        output.append("alternative={}".format(", ".join(out_alts)))
+      for rel in ((synonyms, "synonym"), (hypernyms, "hypernym"), (hyponyms, "hyponym"),
+                  (antonyms, "antonym"), (derivations, "derivation"), (relations, "relation")):
+        if rel[0]:
+          output.append("{}={}".format(rel[1], ", ".join(rel[0])))
       if tran_mode:
         output.append("mode=translation")
       print("word={}\t{}".format(title, "\t".join(output)))
@@ -554,6 +611,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     text = regex.sub(r"\{\{lb\|\en(\|\w+)*(\|transitive\+?)(\|\w+)*\}\}", r"(transitive)", text)
     text = regex.sub(r"\{\{lb\|\en(\|\w+)*(\|intransitive\+?)(\|\w+)*\}\}",
                      r"(intransitive)", text)
+    text = regex.sub(r"\{\{\.\.\.\}\}", "...", text)
     text = regex.sub(r"(\{\{[^{}]+)\{\{[^{}]+\}\}([^}]*\}\})", r"\1\2", text)
     text = regex.sub(r"\{\{(context|lb|tag|label|infl)\|[^\}]*\}\}", "", text)
     text = regex.sub(r"\{\{abbreviation of(\|en)?\|([^|}]+)([^}])+\}\}", r"\2", text)

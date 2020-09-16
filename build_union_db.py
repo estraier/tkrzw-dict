@@ -342,7 +342,7 @@ class BuildUnionDBBatch:
         text = regex.sub(r" -+ .*", "", text).strip()
         for tran in regex.split("[。|、|；|,|;]", text):
           if len(translations) > 1:
-            if tran in ("また", "または", "又は"):
+            if tran in ("また", "または", "又は", "しばしば"):
               continue
           tran = regex.sub(r"[-～‥…] *(が|の|を|に|へ|と|より|から|で|や)", "", tran)
           tran = regex.sub(r"[～]", "", tran)
