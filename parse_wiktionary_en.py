@@ -102,8 +102,13 @@ class XMLHandler(xml.sax.handler.ContentHandler):
       self.text += content
 
   def processText(self):
-    if self.title.find(":") >= 0: return
-    if not regex.match(r"^[-\p{Latin}0-9 ]+$", self.title): return
+    title = self.title
+    if title.find(":") >= 0: return
+    tran_mode = False
+    if regex.match(r"^[-\p{Latin}0-9 ]+/translations$", title):
+      title = regex.sub(r"/.*", "", title)
+      tran_mode = True
+    if not regex.match(r"^[-\p{Latin}0-9 ]+$", title): return
     fulltext = html.unescape(self.text)
     fulltext = regex.sub(r"<!--.*?-->", "", fulltext)
     fulltext = regex.sub(r"(\n==+[^=]+==+)", "\\1\n", fulltext)
@@ -119,6 +124,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     adjective_superative = ""
     adverb_comparative = ""
     adverb_superative = ""
+    infl_modes = set()
     is_eng = False
     mode = ""
     submode = ""
@@ -128,42 +134,52 @@ class XMLHandler(xml.sax.handler.ContentHandler):
       line = line.strip()
       if regex.search(r"^==([^=]+)==$", line):
         lang = regex.sub(r"^==([^=]+)==$", r"\1", line).strip()
-        if lang in ("{{en}}", "{{eng}}", "English"):
+        lang = lang.lower()
+        if lang in ("{{en}}", "{{eng}}", "english"):
           is_eng = True
         else:
           is_eng = False
         mode = ""
         submode = ""
+        tran_top = ""
       elif regex.search(r"^===([^=]+)===$", line):
         mode = regex.sub(r"^===([^=]+)===$", r"\1", line).strip()
         mode = regex.sub(r":.*", "", mode).strip()
+        mode = mode.lower()
         sections.append((mode,[]))
         submode = ""
+        tran_top = ""
       elif regex.search(r"^====+([^=]+)=+===$", line):
         submode = regex.sub(r"^====+([^=]+)=+===$", r"\1", line).strip()
         submode = regex.sub(r":.*", "", submode).strip()
-        if submode in ("{{noun}}", "{{name}}", "Noun",
-                       "{{verb}}", "Verb",
-                       "{{adj}}", "{{adjective}}", "Adjective",
-                       "{{adv}}", "{{adverb}}", "Adverb",
-                       "Pronoun", "Preposition", "Article", "Interjection"):
+        submode = submode.lower()
+        if submode in ("{{noun}}", "{{name}}", "noun",
+                       "{{verb}}", "verb",
+                       "{{adj}}", "{{adjective}}", "adjective",
+                       "{{adv}}", "{{adverb}}", "adverb",
+                       "pronoun", "preposition", "article", "interjection"):
           mode = submode
           sections.append((mode,[]))
           submode = ""
+          tran_top = ""
       elif is_eng:
         if sections and not submode:
           section = sections[-1]
           section[1].append(line)
-        if mode and submode in ("Translation", "Translations"):
-          prefix = regex.sub(r"^([#\*:]+).*", r"\1", line)
-          level = len(prefix)
-          text = line[level:].strip()
-          if text.startswith("Japanese:"):
-            text = regex.sub(r"^[^:]+:", "", text).strip()
-            if text:
-              old_values = translations.get(mode) or []
-              old_values.append(text)
-              translations[mode] = old_values
+        if mode and submode in ("translation", "translations"):
+          for tr, expr in regex.findall(r"\{\{(trans-top|checktrans-top)\|(.*?)\}\}", line):
+            tran_top = regex.sub(r"^id=[^\|]+\|", "", expr)
+            break
+          if regex.search(r"^[#\*:]", line):
+            prefix = regex.sub(r"^([#\*:]+).*", r"\1", line)
+            level = len(prefix)
+            text = line[level:].strip()
+            if level in (1, 2) and text.startswith("Japanese:"):
+              text = regex.sub(r"^[^:]+:", "", text).strip()
+              if text:
+                old_values = translations.get(mode) or []
+                old_values.append((tran_top, text))
+                translations[mode] = old_values
       if regex.search(r"\{\{ipa\|en\|([^}]+)\}\}", line, regex.IGNORECASE):
         value = regex.sub(r".*\{\{ipa\|en\|([^}]+)\}\}.*", r"\1",
                           line, flags=regex.IGNORECASE)
@@ -184,60 +200,66 @@ class XMLHandler(xml.sax.handler.ContentHandler):
             if not ipa_misc:
               ipa_misc = value
       if regex.search(r"\{\{en-noun\|?([^\}]*)\}\}", line):
+        if "noun" in infl_modes: continue
+        infl_modes.add("noun")
         value = regex.sub(r".*\{\{en-noun\|?([^\}]*)\}\}.*", r"\1", line).strip()
         values = value.split("|") if value else []
-        values = self.TrimInflections(values)
+        values = self.TrimInflections(values)        
         stop = False
         for value in values:
           if value.startswith("head="):
             stop = True
         if not stop:
-          noun_plural = self.title + "s"
+          noun_plural = title + "s"
           if len(values) == 1 and values[0] == "es":
-            noun_plural = self.title + "es"
-          elif len(values) == 1 and values[0] in ("-", "~"):
+            noun_plural = title + "es"
+          elif len(values) == 1 and values[0] == "~":
+            pass
+          elif len(values) == 1 and values[0] == "-":
             noun_plural = None
           elif len(values) == 1:
             noun_plural = values[0]
           elif (len(values) == 2 and values[0] in ("-", "~") and
-                values[1] != "s" and values[1] != "es"):
+                values[1] != "s" and values[1] != "es" and values[1] != "?"):
             noun_plural = values[1]
           elif len(values) == 2 and values[1] == "es":
-            stem = self.title if values[0] in ("-", "~") else values[0]
+            stem = title if values[0] in ("-", "~") else values[0]
             noun_plural = stem + "es"
           elif len(values) == 2 and values[1] == "ies":
-            stem = self.title if values[0] in ("-", "~") else values[0]
+            stem = title if values[0] in ("-", "~") else values[0]
             noun_plural = stem + "ies"
           elif len(values) == 1 and values[0].startswith("pl="):
             noun_plural = regex.sub(".*=", "", values[0])
           elif len(values) == 2 and values[0].startswith("sg=") and values[1] == "es":
-            noun_plural = self.title + "es"
+            noun_plural = title + "es"
           elif len(values) == 2 and values[0].startswith("sg=") and values[1].startswith("pl="):
             noun_plural = regex.sub(".*=", "", values[1])
       if regex.search(r"\{\{en-verb\|?([^\}]*)\}\}", line):
+        if "verb" in infl_modes: continue
+        infl_modes.add("verb")
         value = regex.sub(r".*\{\{en-verb\|?([^\}]*)\}\}.*", r"\1", line).strip()
         values = value.split("|") if value else []
         values = self.TrimInflections(values)
         stop = False
         if values and values[0].startswith("head="):
-          if values[0][5:] != self.title:
+          if values[0][5:] != title:
             stop = True
           values.pop(0)
         for value in values:
           if value.startswith("head="):
             stop = True
         if not stop:
-          verb_singular = self.title + "s"
-          verb_present_participle = self.title + "ing"
-          verb_past = self.title + "ed"
-          verb_past_participle = self.title + "ed"
+          verb_singular = title + "s"
+          verb_present_participle = title + "ing"
+          verb_past = title + "ed"
+          verb_past_participle = title + "ed"
           if len(values) == 1 and values[0] == "es":
-            verb_singular = self.title + "es"
+            verb_singular = title + "es"
           elif len(values) == 1 and values[0] == "d":
-            verb_past = self.title + "d"
-            verb_past_participle = self.title + "d"
+            verb_past = title + "d"
+            verb_past_participle = title + "d"
           elif len(values) == 1 and values[0] == "ing":
-            verb_present_participle = self.title + "ing"
+            verb_present_participle = title + "ing"
           elif len(values) == 1:
             verb_present_participle = values[0] + "ing"
             verb_past = values[0] + "ed"
@@ -265,7 +287,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           elif len(values) == 2:
             verb_singular = values[0]
             verb_present_participle = values[1]
-            stem = regex.sub(r"e$", "", self.title)
+            stem = regex.sub(r"e$", "", title)
             verb_past = stem + "ed"
             verb_past_participle = stem + "ed"
           elif len(values) == 3 and values[2] == "es":
@@ -302,12 +324,14 @@ class XMLHandler(xml.sax.handler.ContentHandler):
             verb_past = values[2]
             verb_past_participle = values[3]
       if regex.search(r"\{\{en-adj\|?([^\}]*)\}\}", line):
+        if "adjective" in infl_modes: continue
+        infl_modes.add("adjective")
         value = regex.sub(r".*\{\{en-adj\|?([^\}]*)\}\}.*", r"\1", line).strip()
         values = value.split("|") if value else []
         values = self.TrimInflections(values)
         stop = False
         if values and values[0].startswith("head="):
-          if values[0][5:] != self.title:
+          if values[0][5:] != title:
             stop = True
           values.pop(0)
         for value in values:
@@ -317,7 +341,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           adjective_comparative = None
           adjective_superative = None
           if len(values) == 1 and values[0] == "er":
-            stem = self.title
+            stem = title
             stem = regex.sub(r"e$", "", stem)
             stem = regex.sub(r"([^aeiou])y]$", r"\1i", stem)
             adjective_comparative = stem + "er"
@@ -329,10 +353,10 @@ class XMLHandler(xml.sax.handler.ContentHandler):
             adjective_comparative = values[0] + "er"
             adjective_superative = values[0] + "est"
           elif len(values) == 2 and values[0] == "r" and values[1] == "more":
-            adjective_comparative = self.title + "r"
+            adjective_comparative = title + "r"
             adjective_superative = ""
           elif len(values) == 2 and values[0] == "er" and values[1] == "more":
-            adjective_comparative = self.title + "er"
+            adjective_comparative = title + "er"
             adjective_superative = ""
           elif len(values) == 2:
             adjective_comparative = values[0]
@@ -342,12 +366,14 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           if adjective_superative == "-":
             adjective_superative = ""
       if regex.search(r"\{\{en-adv\|?([^\}]*)\}\}", line):
+        if "adverb" in infl_modes: continue
+        infl_modes.add("adverb")
         value = regex.sub(r".*\{\{en-adv\|?([^\}]*)\}\}.*", r"\1", line).strip()
         values = value.split("|") if value else []
         values = self.TrimInflections(values)
         stop = False
         if values and values[0].startswith("head="):
-          if values[0][5:] != self.title:
+          if values[0][5:] != title:
             stop = True
           values.pop(0)
         for value in values:
@@ -357,7 +383,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           adverb_comparative = None
           adverb_superative = None
           if len(values) == 1 and values[0] == "er":
-            stem = self.title
+            stem = title
             stem = regex.sub(r"e$", "", stem)
             stem = regex.sub(r"([^aeiou])y]$", r"\1i", stem)
             adverb_comparative = stem + "er"
@@ -369,10 +395,10 @@ class XMLHandler(xml.sax.handler.ContentHandler):
             adverb_comparative = values[0] + "er"
             adverb_superative = values[0] + "est"
           elif len(values) == 2 and values[0] == "r" and values[1] == "more":
-            adverb_comparative = self.title + "r"
+            adverb_comparative = title + "r"
             adverb_superative = ""
           elif len(values) == 2 and values[0] == "er" and values[1] == "more":
-            adverb_comparative = self.title + "er"
+            adverb_comparative = title + "er"
             adverb_superative = ""
           elif len(values) == 2:
             adverb_comparative = values[0]
@@ -384,7 +410,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     ipa = ipa_us or ipa_misc  
     if ipa:
       output.append("pronunciation_ipa={}".format(ipa))
-    if noun_plural:
+    if noun_plural and not regex.match("[\?\!]", noun_plural):
       output.append("inflection_noun_plural={}".format(noun_plural))
     if verb_singular:
       output.append("inflection_verb_singular={}".format(verb_singular))
@@ -406,7 +432,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
       translation = translations.get(mode)
       if translation:
         del translations[mode]
-      mode = regex.sub(r":.*", "", mode).strip().lower()
+      mode = regex.sub(r":.*", "", mode).strip()
       mode = regex.sub(r"[0-9]+$", "", mode).strip()
       if mode in ("{{noun}}", "{{name}}", "noun", "proper noun"):
         mode = "noun"
@@ -429,27 +455,9 @@ class XMLHandler(xml.sax.handler.ContentHandler):
       else:
         continue
       if translation:
-        trans = []
-        for field in translation:
-          for expr in regex.findall(r"\{\{t\+?\|ja\|.*?\}\}", field):
-            tran = regex.sub(r"\{\{t\+?\|ja\|([^\|\}]+).*\}\}", r"\1", expr)
-            tran = self.MakePlainText(tran)
-            if tran:
-              trans.append(tran)
-            if regex.search(r"\{\{t\+?\|ja\|.*\|alt=([^\|\}]+).*\}\}", expr):
-              tran = regex.sub(r"\{\{t\+?\|ja\|.*\|alt=([^\|\}]+).*\}\}", r"\1", expr)
-              if tran:
-                trans.append(tran)
-        uniq_trans = set()
-        out_trans = []
-        for tran in trans:
-          norm_tran = tran.lower()
-          if norm_tran in uniq_trans:
-            continue
-          uniq_trans.add(norm_tran)
-          out_trans.append(tran)
-        if out_trans:
-          output.append("{}=[translation]: {}".format(mode, ", ".join(out_trans)))
+        self.OutputTranslation(mode, translation, output)
+      last_mode = mode
+      last_tran = translation
       cat_lines = []
       for line in lines:
         if cat_lines and line.startswith("|"):
@@ -457,15 +465,29 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         else:
           cat_lines.append(line)
       current_text = ""
+      last_level = 0
+      last_prefix = ""
       for line in cat_lines:
         if line.find("{{lb|en|obsolete}}") >= 0: continue
-        if not regex.search(r"^[#\*:]", line): continue
+        if not regex.search(r"^[#\*:]", line):
+          last_level = 0
+          last_prefix = ""
+          continue
         prefix = regex.sub(r"^([#\*:]+).*", r"\1", line)
         level = len(prefix)
         text = line[level:]
+        if prefix == last_prefix:
+          level = last_level
+        else:
+          level = min(level, last_level + 1)
+        last_level = level
+        last_prefix = prefix
         if text.find("{{quote") >= 0: continue
         text = self.MakePlainText(text)
-        if not regex.search(r"(\p{Latin}{2,})|([\p{Han}\p{Hiragana}|\p{Katakana}ー])", text):
+        eff_text = regex.sub(r"\(.*?\)", "", text).strip()
+        if not regex.search(r"(\p{Latin}{2,})|([\p{Han}\p{Hiragana}|\p{Katakana}ー])", eff_text):
+          last_level = 0
+          last_prefix = ""
           continue
         if level <= 1:
           if current_text:
@@ -484,20 +506,59 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         continue        
       output.append("{}={}".format(mode, current_text))
     if output:
-      print("word={}\t{}".format(self.title, "\t".join(output)))
+      if tran_mode:
+        output.append("mode=translation")
+      print("word={}\t{}".format(title, "\t".join(output)))
+
+  def OutputTranslation(self, mode, translation, output):
+    tran_map = {}
+    for source, target in translation:
+      values = tran_map.get(source) or []
+      values.append(target)
+      tran_map[source] = values
+    for source, targets in tran_map.items():
+      source = self.MakePlainText(source)
+      source = regex.sub(r"\(.*?\)", "", source)
+      source = regex.sub(r"[\s+\(\)\[\]\{\}]", " ", source).strip()
+      trans = []
+      for target in targets:
+        for tr, expr in regex.findall(r"\{\{(t|t\+|t-simple)\|ja\|(.*?)\}\}", target):
+          fields = expr.split("|")
+          tran = self.MakePlainText(fields[0])
+          if tran:
+            trans.append(tran)
+          for field in fields[1:]:
+            if field.startswith("alt="):
+              tran = self.MakePlainText(regex.sub(r"[a-z]+=", "", field))
+              if tran:
+                trans.append(tran)
+      uniq_trans = set()
+      out_trans = []
+      for tran in trans:
+        norm_tran = tran.lower()
+        if norm_tran in uniq_trans:
+          continue
+        uniq_trans.add(norm_tran)
+        out_trans.append(tran)
+      if out_trans:
+        if source:
+          output.append("{}=[translation]: ({}) {}".format(mode, source, ", ".join(out_trans)))
+        else:
+          output.append("{}=[translation]: {}".format(mode, ", ".join(out_trans)))
           
   def MakePlainText(self, text):
     text = regex.sub(r"^[#\*]+", "", text)
     text = regex.sub(r"^--+", "", text)
     text = regex.sub(r"\{\{lb\|\en(\|\w+)*(\|countable)(\|\w+)*\}\}", r"(countable)", text)
     text = regex.sub(r"\{\{lb\|\en(\|\w+)*(\|uncountable)(\|\w+)*\}\}", r"(uncountable)", text)
-    text = regex.sub(r"\{\{lb\|\en(\|\w+)*(\|transitive)(\|\w+)*\}\}", r"(transitive)", text)
-    text = regex.sub(r"\{\{lb\|\en(\|\w+)*(\|intransitive)(\|\w+)*\}\}", r"(intransitive)", text)
+    text = regex.sub(r"\{\{lb\|\en(\|\w+)*(\|transitive\+?)(\|\w+)*\}\}", r"(transitive)", text)
+    text = regex.sub(r"\{\{lb\|\en(\|\w+)*(\|intransitive\+?)(\|\w+)*\}\}",
+                     r"(intransitive)", text)
     text = regex.sub(r"(\{\{[^{}]+)\{\{[^{}]+\}\}([^}]*\}\})", r"\1\2", text)
-    text = regex.sub(r"\{\{(context|lb|l|tag|label|infl)\|[^\}]*\}\}", "", text)
+    text = regex.sub(r"\{\{(context|lb|tag|label|infl)\|[^\}]*\}\}", "", text)
     text = regex.sub(r"\{\{abbreviation of(\|en)?\|([^|}]+)([^}])+\}\}", r"\2", text)
     text = regex.sub(r"\{\{w\|(lang=[a-z]+\|)?([^\}\|]*)(\|[^\}]*)?\}\}", r"\2", text)
-    text = regex.sub(r"\{\{(m|ux)\|[a-z]+\|([^\|\}]+)(\|[^\}\|]+)*\}\}", r"\2", text)
+    text = regex.sub(r"\{\{(m|ux|l)\|[a-z]+\|([^\|\}]+)(\|[^\}\|]+)*\}\}", r"\2", text)
     text = regex.sub(r"\{\{rfdate[a-z]+\|[a-z]+\|([^\|\}]+)(\|[^\}\|]+)*\}\}", r"\1", text)
     text = regex.sub(r"\{\{(RQ|Q):([^\|\}]+)(\|[^\|\}]+)*\|passage=([^\|\}]+)(\|[^\|\}]+)*\}\}",
                      r"\2 -- \4", text)

@@ -86,6 +86,7 @@ class BuildUnionDBBatch:
         sampa = ""
         texts = []
         inflections = {}
+        mode = ""
         for field in line.strip().split("\t"):
           columns = field.split("=", 1)
           if len(columns) < 2: continue
@@ -104,6 +105,8 @@ class BuildUnionDBBatch:
               value = regex.sub(r" \[-+\] .*", "", value).strip()
             if value:
               texts.append((name, value))
+          elif name == "mode":
+            mode = value
         if not ipa and sampa:
           ipa = tkrzw_pron_util.SampaToIPA(sampa)
         if word and (ipa or texts or inflections):
@@ -115,6 +118,8 @@ class BuildUnionDBBatch:
             entry[name] = value
           if texts:
             entry["texts"] = texts
+          if mode:
+            key += "\t" + mode
           word_dict[key].append(entry)
           num_entries += 1
         if num_entries % 1000 == 0:
@@ -128,6 +133,7 @@ class BuildUnionDBBatch:
     logger.info("Extracting keys")
     for label, word_dict in word_dicts:
       for key in word_dict.keys():
+        if key.find("\t") >= 0: continue
         keys.add(key)
     logger.info("Extracting keys done: num_keys={}".format(len(keys)))
     start_time = time.time()
@@ -169,6 +175,7 @@ class BuildUnionDBBatch:
   def MakeRecord(self, key, word_dicts, word_prob_dbm, tran_prob_dbm, rev_prob_dbm):
     word_entries = {}
     word_ranks = {}
+    word_trans = {}
     num_words = 0
     for label, word_dict in word_dicts:
       dict_entries = word_dict.get(key)
@@ -185,6 +192,17 @@ class BuildUnionDBBatch:
         else:
           rank = num_words
         word_ranks[word] = min(old_rank, rank)
+      dict_entries = word_dict.get(key + "\ttranslation")
+      if dict_entries:
+        for entry in dict_entries:
+          word = entry["word"]
+          tran_texts = entry.get("texts")
+          if not tran_texts: continue
+          for tran_pos, tran_text in tran_texts:
+            tran_key = word + "\t" + label + "\t" + tran_pos
+            trans = word_trans.get(tran_key) or []
+            trans.append(tran_text)
+            word_trans[tran_key] = trans
     sorted_word_ranks = sorted(word_ranks.items(), key=lambda x: x[1])
     merged_entry = []
     top_names = ("pronunciation", "noun_plural",
@@ -209,8 +227,15 @@ class BuildUnionDBBatch:
         texts = entry.get("texts")
         if not texts: continue
         for pos, text in texts:
-          item = {"label": label, "pos": pos, "text": text}
           items = word_entry.get("item") or []
+          tran_key = word + "\t" + label + "\t" + pos
+          trans = word_trans.get(tran_key)
+          if trans:
+            del word_trans[tran_key]
+            for tran_text in trans:
+              tran_item = {"label": label, "pos": pos, "text": tran_text}
+              items.append(tran_item)
+          item = {"label": label, "pos": pos, "text": text}
           items.append(item)
           word_entry["item"] = items
       if "item" not in word_entry: continue
@@ -218,13 +243,19 @@ class BuildUnionDBBatch:
         prob = self.GetPhraseProb(word_prob_dbm, "en", word)
         word_entry["probability"] = "{:.6f}".format(prob).replace("0.", ".")
         if self.min_prob_map:
-          new_items = []
+          has_good_label = False
           for item in word_entry["item"]:
-            for label, min_prob in self.min_prob_map.items():
-              if prob < min_prob and item["label"] == label:
-                continue
-              new_items.append(item)
-          word_entry["item"] = new_items
+              if item["label"] not in self.min_prob_map:
+                has_good_label = True
+                break
+          if not has_good_label:
+            new_items = []
+            for item in word_entry["item"]:
+              for label, min_prob in self.min_prob_map.items():
+                if prob < min_prob and item["label"] == label:
+                  continue
+                new_items.append(item)
+            word_entry["item"] = new_items
       if not word_entry.get("item"):
         continue
       if merged_entry and not effective_labels:
@@ -330,6 +361,7 @@ class BuildUnionDBBatch:
           weight = tran_weight
           tran_weight *= 0.9
           text = regex.sub(r"^[^:]+: ", "", section)
+          text = regex.sub(r"\(.*?\)", "", text).strip()
           for tran in text.split(","):
             tran = tran.strip()
             if tran:
@@ -372,13 +404,13 @@ class BuildUnionDBBatch:
       bias = 1.0
       for prev_tran, prev_score in deduped_translations:
         if len(prev_tran) >= 2 and norm_tran.startswith(prev_tran):
-          bias = min(bias, 0.4 if len(prev_tran) >=3 else 0.6)
+          bias = min(bias, 0.4 if len(prev_tran) >= 2 else 0.6)
         elif len(norm_tran) >= 2 and prev_tran.startswith(norm_tran):
-          bias = min(bias, 0.6 if len(norm_tran) >=3 else 0.7)
+          bias = min(bias, 0.6 if len(norm_tran) >= 2 else 0.7)
         elif len(prev_tran) >= 2 and norm_tran.find(prev_tran) >= 0:
-          bias = min(bias, 0.8 if len(prev_tran) >=3 else 0.9)
+          bias = min(bias, 0.8 if len(prev_tran) >= 2 else 0.9)
         elif len(norm_tran) >= 2 and prev_tran.find(norm_tran) >= 0:
-          bias = min(bias, 0.8 if len(norm_tran) >=3 else 0.9)
+          bias = min(bias, 0.8 if len(norm_tran) >= 2 else 0.9)
         dist = tkrzw.Utility.EditDistanceLev(norm_tran, prev_tran)
         dist /= max(len(norm_tran), len(prev_tran))
         if dist < 0.3:
@@ -388,7 +420,7 @@ class BuildUnionDBBatch:
     deduped_translations = sorted(deduped_translations, key=lambda x: x[1], reverse=True)
     final_translations = []
     for tran, score in deduped_translations:
-      if len(final_translations) <= 10 or score >= 0.001:
+      if len(final_translations) <= 16 or score >= 0.001:
         final_translations.append(tran)
     if final_translations:
       entry["translation"] = final_translations

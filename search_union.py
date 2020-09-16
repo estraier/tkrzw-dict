@@ -274,6 +274,11 @@ def PrintResultCGI(result, query, details):
         P('<span class="pos">{}</span>', pos)
         if attr_label:
           fields = []
+          bracket = ""
+          bracket_match = regex.search(r"^\(.*?\)", section)
+          if bracket_match:
+            bracket = bracket_match.group(0)
+            section = section[len(bracket):].strip()
           for subword in section.split(","):
             subword = subword.strip()
             if subword:
@@ -283,6 +288,8 @@ def PrintResultCGI(result, query, details):
           if fields:
             P('<span class="subattr_label">{}</span>', attr_label)
             P('<span class="text">', end="")
+            if bracket:
+              P("{} ", bracket)
             print(", ".join(fields))
             P('</span>')
         else:
@@ -411,11 +418,14 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
 .attr_prob {{ margin-left: 3ex; font-size: 95%; }}
 .attr_label,.label,.pos,.subattr_label {{
   display: inline-block; border: solid 1px #999999; border-radius: 0.5ex;
-  font-size: 65%; min-width: 3.3ex; text-align: center;
-  color: #111111; background: #eeeeee; opacity: 0.8; }}
+  font-size: 65%; min-width: 3.3ex; text-align: center; margin-right: -0.5ex;
+  color: #111111; background: #eeeeee; opacity: 0.85; }}
+.item_wj .label {{ background: #ddeeff; opacity: 0.7; }}
+.item_we .label {{ background: #ffddee; opacity: 0.7; }}
+.item_wn .label {{ background: #eeffdd; opacity: 0.7; }}
 .tran {{ color: #000000; }}
-.attr_value {{ color: #111111; }}
-.text {{ margin-left: 0.3ex; color: #111111; }}
+.attr_value {{ margin-left: 0.3ex; color: #111111; }}
+.text {{ margin-left: 0.5ex; color: #111111; }}
 .list {{ padding: 1.2ex 1ex 1.5ex 1.8ex; }}
 .list_item {{ margin: 0.2ex 0.3ex; color: #999999; }}
 .list_head {{ font-weight: bold; color: #000000; }}
