@@ -27,6 +27,7 @@
 import collections
 import json
 import logging
+import math
 import operator
 import os
 import regex
@@ -39,6 +40,20 @@ import tkrzw_tokenizer
 
 
 logger = tkrzw_dict.GetLogger()
+poses = ("noun", "verb", "adjective", "adverb",
+         "pronoun", "auxverb", "preposition", "determiner", "article", "interjection",
+         "prefix", "suffix", "abbreviation")
+top_names = ("pronunciation", "noun_plural",
+             "verb_singular", "verb_present_participle",
+             "verb_past", "verb_past_participle",
+             "adjective_comparative", "adjective_superative",
+             "adverb_comparative", "adverb_superative")
+rel_weights = {"synonym": 1.0,
+               "hypernym": 0.7,
+               "hyponym": 0.6,
+               "antonym": 0.2,
+               "derivation": 0.6,
+               "relation": 0.5}
 
 
 class BuildUnionDBBatch:
@@ -72,9 +87,6 @@ class BuildUnionDBBatch:
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
   def ReadInput(self, input_path, slim):
-    poses = ("noun", "verb", "adjective", "adverb",
-             "pronoun", "auxverb", "preposition", "determiner", "article", "interjection",
-             "prefix", "suffix", "abbreviation")
     start_time = time.time()
     logger.info("Reading an input file: input_path={}".format(input_path))
     word_dict = collections.defaultdict(list)
@@ -87,6 +99,7 @@ class BuildUnionDBBatch:
         texts = []
         inflections = {}
         mode = ""
+        rel_words = {}
         for field in line.strip().split("\t"):
           columns = field.split("=", 1)
           if len(columns) < 2: continue
@@ -105,6 +118,8 @@ class BuildUnionDBBatch:
               value = regex.sub(r" \[-+\] .*", "", value).strip()
             if value:
               texts.append((name, value))
+          elif name in rel_weights:
+            rel_words[name] = value
           elif name == "mode":
             mode = value
         if not ipa and sampa:
@@ -117,7 +132,9 @@ class BuildUnionDBBatch:
           for name, value in inflections.items():
             entry[name] = value
           if texts:
-            entry["texts"] = texts
+            entry["text"] = texts
+          for rel_name, rel_value in rel_words.items():
+            entry[rel_name] = rel_value
           if mode:
             key += "\t" + mode
           word_dict[key].append(entry)
@@ -196,7 +213,7 @@ class BuildUnionDBBatch:
       if dict_entries:
         for entry in dict_entries:
           word = entry["word"]
-          tran_texts = entry.get("texts")
+          tran_texts = entry.get("text")
           if not tran_texts: continue
           for tran_pos, tran_text in tran_texts:
             tran_key = word + "\t" + label + "\t" + tran_pos
@@ -205,11 +222,6 @@ class BuildUnionDBBatch:
             word_trans[tran_key] = trans
     sorted_word_ranks = sorted(word_ranks.items(), key=lambda x: x[1])
     merged_entry = []
-    top_names = ("pronunciation", "noun_plural",
-                 "verb_singular", "verb_present_participle",
-                 "verb_past", "verb_past_participle",
-                 "adjective_comparative", "adjective_superative",
-                 "adverb_comparative", "adverb_superative")
     for word, rank in sorted_word_ranks:
       entries = word_entries[word]
       word_entry = {}
@@ -222,9 +234,9 @@ class BuildUnionDBBatch:
           if label not in self.top_labels and top_name in word_entry: continue
           value = entry.get(top_name)
           if value:
-            word_entry[top_name] = value
+            word_entry[top_name] = value            
       for label, entry in entries:
-        texts = entry.get("texts")
+        texts = entry.get("text")
         if not texts: continue
         for pos, text in texts:
           items = word_entry.get("item") or []
@@ -261,6 +273,7 @@ class BuildUnionDBBatch:
       if merged_entry and not effective_labels:
         continue
       self.SetTranslations(word_entry, tran_prob_dbm, rev_prob_dbm)
+      self.SetRelations(word_entry, entries, word_dicts, word_prob_dbm, tran_prob_dbm)
       merged_entry.append(word_entry)
     return merged_entry
 
@@ -323,10 +336,11 @@ class BuildUnionDBBatch:
         weight = body_weight
         body_weight *= 0.9
         text = sections[0]
-        if regex.search(r"[\(（《\{\(]([^)）\}\]]+[・、])?" +
-                        r"(俗|俗語|スラング|卑|卑語|隠語|古|古語|廃|廃用|廃語)+[)）》\}\]]", text):
+        if regex.search(r"[\(（《〔\{\(]([^)）》〕\}\]]+[・、])?" +
+                        r"(俗|俗語|スラング|卑|卑語|隠語|古|古語|廃|廃用|廃語)+[)）》〕\}\]]",
+                        text):
           weight *= 0.1
-        text = regex.sub(r"[\(（《\{\(].*?[)）》\}\]]", "", text)
+        text = regex.sub(r"[\(（《〔\{\(].*?[)）》〕\}\]]", "", text)
         text = regex.sub(r"[･・]", "", text)
         text = regex.sub(r"\s+", " ", text).strip()
         if regex.search(
@@ -347,7 +361,8 @@ class BuildUnionDBBatch:
           tran = regex.sub(r"[-～‥…] *(が|の|を|に|へ|と|より|から|で|や)", "", tran)
           tran = regex.sub(r"[～]", "", tran)
           tokens = self.tokenizer.Tokenize("ja", tran, False, False)
-          tokens = tokens[:6]
+          if len(tokens) > 6:
+            continue
           tran = " ".join(tokens)
           tran = regex.sub(r"([\p{Han}\p{Hiragana}\p{Katakana}ー]) +", r"\1", tran)
           tran = regex.sub(r" +([\p{Han}\p{Hiragana}\p{Katakana}ー])", r"\1", tran)
@@ -418,12 +433,124 @@ class BuildUnionDBBatch:
       score *= bias
       deduped_translations.append((tran, score))
     deduped_translations = sorted(deduped_translations, key=lambda x: x[1], reverse=True)
+    uniq_trans = set()
     final_translations = []
+    max_elems = int(min(max(math.log2(len(entry["item"])), 2), 6) * 4)
     for tran, score in deduped_translations:
-      if len(final_translations) <= 16 or score >= 0.001:
+      norm_tran = tkrzw_dict.NormalizeWord(tran)
+      if norm_tran in uniq_trans:
+        continue
+      uniq_trans.add(norm_tran)
+      if len(final_translations) < max_elems or score >= 0.001:
         final_translations.append(tran)
     if final_translations:
       entry["translation"] = final_translations
+
+  def SetRelations(self, word_entry, entries, word_dicts, word_prob_dbm, tran_prob_dbm):
+    word = word_entry["word"]
+    scores = {}
+    def Vote(rel_word, label, weight):
+      values = scores.get(rel_word) or []
+      values.append((weight, label))
+      scores[rel_word] = values
+    for label, entry in entries:
+      for rel_name, rel_weight in rel_weights.items():
+        ent_rel_words = []
+        expr = entry.get(rel_name)
+        if expr:
+          for rel_word in expr.split(","):
+            rel_word = rel_word.strip()
+            ent_rel_words.append(rel_word)
+          if ent_rel_words:
+            scored_rel_words = []
+            for i, rel_word in enumerate(ent_rel_words):
+              weight = 30 / (min(i, 30) + 30)
+              weight *= rel_weight
+              Vote(rel_word, label, weight)
+        texts = entry.get("text")
+        if texts:
+          base_weight = 1.1
+          for text in texts:
+            for field in text[1].split(" [-] "):
+              if not field.startswith("[" + rel_name + "]: "): continue
+              field = regex.sub(r"^[^:]+: ", "", field)
+              field = regex.sub(r"\(.*?\) *", "", field)
+              for i, rel_word in enumerate(field.split(",")):
+                rel_word = rel_word.strip()
+                if rel_word:
+                  weight = 30 / (min(i, 30) + 30)
+                  weight *= rel_weight * base_weight
+                  Vote(rel_word, label, weight)
+            base_weight *= 0.95
+    translations = list(word_entry.get("translation") or [])
+    if tran_prob_dbm:
+      key = tkrzw_dict.NormalizeWord(word)
+      tsv = tran_prob_dbm.GetStr(key)
+      if tsv:
+        fields = tsv.split("\t")
+        for i in range(0, len(fields), 3):
+          src, trg, prob = fields[i], fields[i + 1], float(fields[i + 2])
+          translations.append(trg)
+    translations = set([tkrzw_dict.NormalizeWord(x) for x in translations])
+    rel_words = []
+    for rel_word, votes in scores.items():
+      label_weights = {}
+      for weight, label in votes:
+        old_weight = label_weights.get(label) or 0.0
+        label_weights[label] = max(old_weight, weight)
+      total_weight = 0
+      for label, weight in label_weights.items():
+        total_weight += weight
+      if tran_prob_dbm:
+        key = tkrzw_dict.NormalizeWord(rel_word)
+        tsv = tran_prob_dbm.GetStr(key)
+        if tsv:
+          bonus = 0.0
+          fields = tsv.split("\t")
+          for i in range(0, len(fields), 3):
+            src, trg, prob = fields[i], fields[i + 1], float(fields[i + 2])
+            norm_tran = tkrzw_dict.NormalizeWord(trg)
+            for dict_tran in translations:
+              if dict_tran == norm_tran:
+                bonus = max(bonus, 1.0)
+              elif len(dict_tran) >= 2 and norm_tran.startswith(dict_tran):
+                bonus = max(bonus, 0.3)
+              elif len(norm_tran) >= 2 and dict_tran.startswith(norm_tran):
+                bonus = max(bonus, 0.2)
+              elif len(dict_tran) >= 2 and norm_tran.find(dict_tran) >= 0:
+                bonus = max(bonus, 0.1)
+              elif len(norm_tran) >= 2 and dict_tran.find(norm_tran) >= 0:
+                bonus = max(bonus, 0.1)
+              dist = tkrzw.Utility.EditDistanceLev(dict_tran, norm_tran)
+              dist /= max(len(dict_tran), len(norm_tran))
+              if dist < 0.3:
+                bonus = max(bonus, 0.3)
+          total_weight += bonus
+      score = 1.0
+      if word_prob_dbm:
+        prob = self.GetPhraseProb(word_prob_dbm, "en", rel_word) ** 0.5
+        score += min(prob, 0.5)
+      score *= total_weight
+      rel_words.append((rel_word, score))
+    rel_words = sorted(rel_words, key=lambda x: x[1], reverse=True)
+    uniq_words = set()
+    final_rel_words = []
+    for rel_word, score in rel_words:
+      norm_rel_word = tkrzw_dict.NormalizeWord(rel_word)
+      if not norm_rel_word: continue
+      if norm_rel_word in uniq_words: continue
+      uniq_words.add(norm_rel_word)
+      hit = False
+      for label, word_dict in word_dicts:
+        if label in self.surfeit_labels: continue
+        if norm_rel_word in word_dict:
+          hit = True
+          break
+      if not hit: continue
+      final_rel_words.append(rel_word)
+    if final_rel_words:
+      max_elems = int(min(max(math.log2(len(word_entry["item"])), 2), 6) * 6)
+      word_entry["related"] = final_rel_words[:max_elems]
 
 
 def main():

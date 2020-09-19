@@ -117,7 +117,7 @@ def PrintResult(key, entries, mode, query):
     if translations:
       if tkrzw_dict.PredictLanguage(query) != "en":
         translations = tkrzw_dict.TwiddleWords(translations, query)
-      title += "  \"{}\"".format(", ".join(translations[:6]))
+      title += "  \"{}\"".format(", ".join(translations[:8]))
     if mode != "list":
       pron = entry.get("pronunciation")
       if pron:
@@ -151,6 +151,7 @@ def PrintResult(key, entries, mode, query):
           for section in sections[1:]:
             attr_match = regex.search(r"^\[([a-z]+)\]: ", section)
             if attr_match:
+              if attr_match.group(1) == "synset": continue              
               attr_label = WORDNET_ATTRS.get(attr_match.group(1))
               if attr_label:
                 section = "{}: {}".format(attr_label, section[len(attr_match.group(0)):].strip())
@@ -161,6 +162,15 @@ def PrintResult(key, entries, mode, query):
               PrintWrappedText(subsubsections[0], 8)
               for subsubsubsection in subsubsections[1:]:
                 PrintWrappedText(subsubsubsection, 10)
+      if mode == "full":
+        related = entry.get("related")
+        if related:
+          text = "[related] {}".format(", ".join(related[:8]))
+          PrintWrappedText(text, 4)
+        prob = entry.get("probability")
+        if prob:
+          text = "[prob] {:.4f}%".format(float(prob) * 100)
+          PrintWrappedText(text, 4)
   if mode != "list":
     print()
   
@@ -226,7 +236,7 @@ def PrintResultCGI(result, query, details):
         if tkrzw_dict.PredictLanguage(query) != "en":
           translations = tkrzw_dict.TwiddleWords(translations, query)
         fields = []
-        for tran in translations[:6]:
+        for tran in translations[:8]:
           tran_url = "?q={}".format(urllib.parse.quote(tran))
           value = '<a href="{}" class="tran">{}</a>'.format(esc(tran_url), esc(tran))
           fields.append(value)
@@ -293,15 +303,16 @@ def PrintResultCGI(result, query, details):
             print(", ".join(fields))
             P('</span>')
         else:
-          attr_label = None
-          attr_match = regex.search(r"^[\(（]([^\)）]+)[\)）]", section)
-          if attr_match:
+          while True:
+            attr_label = None
+            attr_match = regex.search(r"^ *[,、]*[\(（〔]([^\)）〕]+)[\)）〕]", section)
+            if not attr_match: break
             for name in regex.split(r"[ ,、]", attr_match.group(1)):
               attr_label = TEXT_ATTRS.get(name)
               if attr_label: break
-            if attr_label:
-              section = section[len(attr_match.group(0)):].strip()
-              P('<span class="subattr_label">{}</span>', attr_label)
+            if not attr_label: break
+            section = section[len(attr_match.group(0)):].strip()
+            P('<span class="subattr_label">{}</span>', attr_label)
           P('<span class="text">', end="")
           print(esc(section))
           P('</span>')
@@ -311,6 +322,7 @@ def PrintResultCGI(result, query, details):
             subattr_label = None
             attr_match = regex.search(r"^\[([a-z]+)\]: ", section)
             if attr_match:
+              if attr_match.group(1) == "synset": continue              
               subattr_label = WORDNET_ATTRS.get(attr_match.group(1))
               if subattr_label:
                 section = section[len(attr_match.group(0)):].strip()
@@ -327,7 +339,7 @@ def PrintResultCGI(result, query, details):
               if fields:
                 P('<span class="subattr_label">{}</span>', subattr_label)
                 P('<span class="text">', end="")
-                print(", ".join(fields))
+                print(", ".join(fields), end="")
                 P('</span>')
             else:
               P('<span class="text">{}</span>', subsections[0])
@@ -343,6 +355,19 @@ def PrintResultCGI(result, query, details):
                 P('</div>')
         P('</div>')
       if details:
+        related = entry.get("related")
+        if related:
+          P('<div class="attr attr_related">')
+          P('<span class="attr_label">関連</span>')
+          P('<span class="text">')
+          fields = []
+          for subword in related[:8]:
+            subword_url = "?q={}".format(urllib.parse.quote(subword))
+            fields.append('<a href="{}" class="subword">{}</a>'.format(
+              esc(subword_url), esc(subword)))
+          print(", ".join(fields), end="")
+          P('</span>')
+          P('</div>')
         prob = entry.get("probability")
         if prob:
           P('<div class="attr attr_prob"><span class="attr_label">頻度</span>' +

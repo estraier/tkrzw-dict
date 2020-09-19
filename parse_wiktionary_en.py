@@ -252,6 +252,8 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           elif (len(values) == 2 and values[0] in ("-", "~") and
                 values[1] != "s" and values[1] != "es" and values[1] != "?"):
             noun_plural = values[1]
+          elif len(values) == 2 and values[0] == "es":
+            noun_plural = title + "es"
           elif len(values) == 2 and values[1] == "es":
             stem = title if values[0] in ("-", "~") else values[0]
             noun_plural = stem + "es"
@@ -505,7 +507,6 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           cat_lines.append(line)
       current_text = ""
       last_level = 0
-      last_prefix = ""
       for line in cat_lines:
         if line.find("{{lb|en|obsolete}}") >= 0: continue
         if mode == "alternative":
@@ -516,23 +517,17 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           continue
         if not regex.search(r"^[#\*:]", line):
           last_level = 0
-          last_prefix = ""
           continue
         prefix = regex.sub(r"^([#\*:]+).*", r"\1", line)
         level = len(prefix)
         text = line[level:]
-        if prefix == last_prefix:
-          level = last_level
-        else:
-          level = min(level, last_level + 1)
+        if level > last_level + 1:
+          continue
         last_level = level
-        last_prefix = prefix
         if text.find("{{quote") >= 0: continue
         text = self.MakePlainText(text)
         eff_text = regex.sub(r"\(.*?\)", "", text).strip()
         if not regex.search(r"(\p{Latin}{2,})|([\p{Han}\p{Hiragana}|\p{Katakana}ー])", eff_text):
-          last_level = 0
-          last_prefix = ""
           continue
         if level <= 1:
           if current_text:
@@ -614,9 +609,17 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     text = regex.sub(r"\{\{\.\.\.\}\}", "...", text)
     text = regex.sub(r"(\{\{[^{}]+)\{\{[^{}]+\}\}([^}]*\}\})", r"\1\2", text)
     text = regex.sub(r"\{\{(context|lb|tag|label|infl)\|[^\}]*\}\}", "", text)
-    text = regex.sub(r"\{\{abbreviation of(\|en)?\|([^|}]+)([^}])+\}\}", r"\2", text)
+    text = regex.sub(r"\{\{abbreviation of(\|en)?\|([^|}]+)\}\}", r"\2", text)
     text = regex.sub(r"\{\{w\|(lang=[a-z]+\|)?([^\}\|]*)(\|[^\}]*)?\}\}", r"\2", text)
     text = regex.sub(r"\{\{(m|ux|l)\|[a-z]+\|([^\|\}]+)(\|[^\}\|]+)*\}\}", r"\2", text)
+    text = regex.sub(r"\{\{(n-g|non-gloss definition)\|([^\|\}]+)(\|[^\}\|]+)*\}\}", r"\2", text)
+    text = regex.sub(r"\{\{&lit\|en\|(.*?)\|(.*?)\|(.*?)(\|.*?)*?\}\}", r"cf. \1, \2, \3 ", text)
+    text = regex.sub(r"\{\{&lit\|en\|(.*?)\|(.*?)(\|.*?)*?\}\}", r"cf. \1, \2 ", text)
+    text = regex.sub(r"\{\{&lit\|en\|(.*?)(\|.*?)*?\}\}", r"cf. \1 ", text)
+    text = regex.sub(r"\{\{syn\|en\|(.*?)\|(.*?)\|(.*?)(\|.*?)*?\}\}",
+                     r"Synonyms: \1, \2, \3 ", text)
+    text = regex.sub(r"\{\{syn\|en\|(.*?)\|(.*?)(\|.*?)*?\}\}", r"Synonyms: \1, \2 ", text)
+    text = regex.sub(r"\{\{syn\|en\|(.*?)(\|.*?)*?\}\}", r"Synonym: \1 ", text)
     text = regex.sub(r"\{\{rfdate[a-z]+\|[a-z]+\|([^\|\}]+)(\|[^\}\|]+)*\}\}", r"\1", text)
     text = regex.sub(r"\{\{(RQ|Q):([^\|\}]+)(\|[^\|\}]+)*\|passage=([^\|\}]+)(\|[^\|\}]+)*\}\}",
                      r"\2 -- \4", text)
