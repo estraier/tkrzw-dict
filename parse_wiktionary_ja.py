@@ -218,6 +218,8 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         mode = "article"
       elif mode in ("{{interj}}", "{{interjection}}", "interjection", "間投詞", "感動詞"):
         mode = "interjection"
+      elif mode in ("{{conj}}", "{{conjunction}}", "conjunction", "接続詞"):
+        mode = "conjunction"
       elif mode in ("{{pref}}", "{{prefix}}", "prefix", "接頭辞"):
         mode = "prefix"
       elif mode in ("{{suf}}", "{{suffix}}", "suffix", "設備時"):
@@ -544,7 +546,8 @@ class XMLHandler(xml.sax.handler.ContentHandler):
       name, value = record.split("=", 1)
       if name not in (
           "noun", "verb", "adjective", "adverb",
-          "pronoun", "auxverb", "preposition", "determiner", "article", "interjection",
+          "pronoun", "auxverb", "preposition", "determiner", "article",
+          "interjection", "conjunction",
           "prefix", "suffix", "abbreviation"):
         continue
       if regex.search(
@@ -591,6 +594,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     text = regex.sub(r"\{\{(en-)?(det)\}\}", r"限定詞", text)
     text = regex.sub(r"\{\{(en-)?(article)\}\}", r"冠詞", text)
     text = regex.sub(r"\{\{(en-)?(interj|interjection)\}\}", r"間投詞", text)
+    text = regex.sub(r"\{\{(en-)?(conj|conjunction)\}\}", r"接続詞", text)
     text = regex.sub(r"\{\{(en-)?(prefix)\}\}", r"接頭辞", text)
     text = regex.sub(r"\{\{(en-)?(suffix)\}\}", r"接尾辞", text)
     text = regex.sub(r"\{\{(en-)?(abbr|abbreviation)\}\}", r"略語", text)

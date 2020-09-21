@@ -163,7 +163,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
                        "{{verb}}", "verb",
                        "{{adj}}", "{{adjective}}", "adjective",
                        "{{adv}}", "{{adverb}}", "adverb",
-                       "pronoun", "preposition", "article", "interjection"):
+                       "pronoun", "preposition", "article", "interjection", "conjunction"):
           mode = submode
           sections.append((mode,[]))
           submode = ""
@@ -485,6 +485,8 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         mode = "article"
       elif mode in ("{{interj}}", "interjection"):
         mode = "interjection"
+      elif mode in ("{{conj}}", "conjunction"):
+        mode = "conjunction"
       elif mode in ("{{pref}}", "{{prefix}}", "prefix"):
         mode = "prefix"
       elif mode in ("{{suf}}", "{{suffix}}", "suffix"):

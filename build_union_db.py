@@ -41,7 +41,8 @@ import tkrzw_tokenizer
 
 logger = tkrzw_dict.GetLogger()
 poses = ("noun", "verb", "adjective", "adverb",
-         "pronoun", "auxverb", "preposition", "determiner", "article", "interjection",
+         "pronoun", "auxverb", "preposition", "determiner", "article",
+         "interjection", "conjunction",
          "prefix", "suffix", "abbreviation")
 top_names = ("pronunciation", "noun_plural",
              "verb_singular", "verb_present_participle",
