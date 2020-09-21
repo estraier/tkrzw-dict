@@ -340,7 +340,7 @@ class BuildUnionDBBatch:
                         r"(俗|俗語|スラング|卑|卑語|隠語|古|古語|廃|廃用|廃語)+[)）》〕\}\]]",
                         text):
           weight *= 0.1
-        text = regex.sub(r"[\(（《〔\{\(].*?[)）》〕\}\]]", "", text)
+        text = regex.sub(r"[\(（《〔\{\(].*?[)）》〕\}\]]", "〜", text)
         text = regex.sub(r"[･・]", "", text)
         text = regex.sub(r"\s+", " ", text).strip()
         if regex.search(
@@ -358,7 +358,7 @@ class BuildUnionDBBatch:
           if len(translations) > 1:
             if tran in ("また", "または", "又は", "しばしば"):
               continue
-          tran = regex.sub(r"[-～‥…] *(が|の|を|に|へ|と|より|から|で|や)", "", tran)
+          tran = regex.sub(r"[\p{S}\p{P}]+ *(が|の|を|に|へ|と|より|から|で|や)", "", tran)
           tran = regex.sub(r"[～]", "", tran)
           tokens = self.tokenizer.Tokenize("ja", tran, False, False)
           if len(tokens) > 6:
@@ -379,6 +379,8 @@ class BuildUnionDBBatch:
           text = regex.sub(r"\(.*?\)", "", text).strip()
           for tran in text.split(","):
             tran = tran.strip()
+            tran = regex.sub(r"[\p{S}\p{P}]+ *(が|の|を|に|へ|と|より|から|で|や)", "", tran)
+            tran = regex.sub(r"[～]", "", tran)
             if tran:
               Vote(tran, weight, label)
               weight *= 0.85
