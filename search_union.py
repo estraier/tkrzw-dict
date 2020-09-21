@@ -32,6 +32,7 @@ import urllib
 
 PAGE_WIDTH = 100
 CGI_DATA_PREFIX = "union"
+CGI_CAPACITY = 100
 POSES = {
   "noun": "名",
   "verb": "動",
@@ -116,6 +117,11 @@ def PrintResult(entries, mode, query):
       if tkrzw_dict.PredictLanguage(query) != "en":
         translations = tkrzw_dict.TwiddleWords(translations, query)
       title += "  \"{}\"".format(", ".join(translations[:8]))
+    elif mode == "list":
+      for item in entry["item"]:
+        text = item["text"].split(" [-] ")[0]
+        title +=  "  \"{}\"".format(text)
+        break
     if mode != "list":
       pron = entry.get("pronunciation")
       if pron:
@@ -133,7 +139,10 @@ def PrintResult(entries, mode, query):
     if mode != "list":
       print()
     if mode in ("simple", "full"):
+      num_items = 0
       for item in entry["item"]:
+        if mode == "simple" and num_items >= 8:
+          break
         label = item.get("label")
         pos = item.get("pos")
         sections = item["text"].split(" [-] ")
@@ -160,6 +169,7 @@ def PrintResult(entries, mode, query):
               PrintWrappedText(subsubsections[0], 8)
               for subsubsubsection in subsubsections[1:]:
                 PrintWrappedText(subsubsubsection, 10)
+        num_items += 1
       if mode == "full":
         related = entry.get("related")
         if related:
@@ -178,6 +188,7 @@ def main():
   data_prefix = tkrzw_dict.GetCommandFlag(args, "--data_prefix", 1) or "union"
   search_mode = tkrzw_dict.GetCommandFlag(args, "--search", 1) or "auto"
   view_mode = tkrzw_dict.GetCommandFlag(args, "--view", 1) or "auto"
+  capacity = int(tkrzw_dict.GetCommandFlag(args, "--capacity", 1) or "100")
   query = " ".join(args)
   if not query:
     raise RuntimeError("words are not specified")
@@ -186,19 +197,28 @@ def main():
       search_mode = "exact"
     else:
       search_mode = "reverse"
-  if view_mode == "auto":
-    if search_mode == "reverse":
-      view_mode = "list"
-    else:
-      view_mode = "simple"
   searcher = tkrzw_union_searcher.UnionSearcher(data_prefix)
   if search_mode == "exact":
     result = searcher.SearchExact(query)
   elif search_mode == "reverse":
     result = searcher.SearchReverse(query)
+  elif search_mode == "related":
+    result = searcher.SearchRelated(query, capacity)
+  elif search_mode == "relrev":
+    result = searcher.SearchRelatedReverse(query, capacity)
   else:
     raise RuntimeError("unknown search mode: " + search_mode)
   if result:
+    if len(result) > capacity:
+      result = result[:capacity]
+    if view_mode == "auto":
+      keys = searcher.GetResultKeys(result)
+      if len(keys) < 2:
+        view_mode = "full"
+      elif len(keys) < 6:
+        view_mode = "simple"
+      else:
+        view_mode = "list"
     if view_mode == "list":
       print()
     PrintResult(result, view_mode, query)    
@@ -391,6 +411,13 @@ def PrintResultCGIList(entries, query):
       P('<span class="list_text">', end="")
       print(", ".join(fields), end="")
       P('</span>')
+    else:
+      text = ""
+      for item in entry["item"]:
+        text = item["text"].split(" [-] ")[0]
+        break
+      if text:
+        P('<span class="list_text"><span class="list_gross">{}</span></span>', text)
     P('</div>')
   P('</div>')
 
@@ -403,8 +430,8 @@ def main_cgi():
     value = form[key]
     params[key] = value.value
   query = params.get("q") or ""
-  search_mode = params.get("s") or "a"
-  view_mode = params.get("v") or "a"
+  search_mode = params.get("s") or "auto"
+  view_mode = params.get("v") or "auto"
   print("""Content-Type: application/xhtml+xml
 
 <html xmlns="http://www.w3.org/1999/xhtml">
@@ -419,7 +446,7 @@ a:hover {{ color: #0011ee; text-decoration: underline; }}
 h1 a,h2 a {{ color: #000000; text-decoration: none; }}
 h1 {{ font-size: 110%; }}
 h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
-.query_form,.entry,.list,.note,.license {{
+.search_form,.entry,.list,.note,.license {{
   border: 1px solid #dddddd; border-radius: 0.5ex;
   margin: 1ex 0ex; padding: 0.8ex 1ex 1.3ex 1ex; background: #ffffff; position: relative; }}
 #query_line {{ color: #333333; }}
@@ -455,25 +482,40 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
 .list_text {{ font-size: 95%; }}
 .list_tran {{ color: #333333; }}
 .list_tran:hover {{ color: #0011ee; }}
+.list_gross {{ color: #444444; font-size: 95%; }}
 </style>
+<script>
+function startup() {{
+  let search_form = document.forms['search_form']
+  if (search_form) {{
+    let query_input = search_form.elements['q']
+    if (query_input) {{
+      query_input.focus()
+    }}
+  }}
+}}
+</script>
 </head>
-<body>
+<body onload="startup()">
 <article>
 <h1><a href="{}">Union Dictionary Search</a></h1>
 """.format(esc(script_name), esc(query)), end="")
-  P('<div class="query_form">')
-  P('<form method="get" name="form">')
+  P('<div class="search_form">')
+  P('<form method="get" name="search_form">')
   P('<div id="query_line">')
   P('Query: <input type="text" name="q" value="{}" id="query_input"/>', query)
   P('<select name="s" id="search_mode_box">')
-  for value, label in (("a", "Auto Mode"), ("e", "En-to-Ja"), ("r", "Ja-to-En")):
+  for value, label in (
+      ("auto", "Auto Mode"), ("exact", "En-to-Ja"), ("reverse", "Ja-to-En"),
+      ("related", "Related EJ"), ("relrev", "Related JE")):
     P('<option value="{}"', esc(value), end="")
     if value == search_mode:
       P(' selected="selected"', end="")
     P('>{}</option>', label)
   P('</select>')
   P('<select name="v" id="view_mode_box">')
-  for value, label in (("a", "Auto View"), ("f", "Full"), ("s", "Simple"), ("l", "List")):
+  for value, label in (("auto", "Auto View"), ("full", "Full"),
+                       ("simple", "Simple"), ("list", "List")):
     P('<option value="{}"', esc(value), end="")
     if value == view_mode:
       P(' selected="selected"', end="")
@@ -483,32 +525,37 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
   P('</div>')
   P('</form>')
   P('</div>')
-  if search_mode == "a":
+  if search_mode == "auto":
     if tkrzw_dict.PredictLanguage(query) == "en":
-      search_mode = "e"
+      search_mode = "exact"
     else:
-      search_mode = "r"
+      search_mode = "reverse"
   if query:
     searcher = tkrzw_union_searcher.UnionSearcher(CGI_DATA_PREFIX)
-    if search_mode == "e":
+    if search_mode == "exact":
       result = searcher.SearchExact(query)
-    elif search_mode == "r":
+    elif search_mode == "reverse":
       result = searcher.SearchReverse(query)
+    elif search_mode == "related":
+      result = searcher.SearchRelated(query, CGI_CAPACITY)
+    elif search_mode == "relrev":
+      result = searcher.SearchRelatedReverse(query, CGI_CAPACITY)
     else:
       raise RuntimeError("unknown search mode: " + search_mode)
     if result:
-      if view_mode == "a":
-        if len(result) < 2:
+      if view_mode == "auto":
+        keys = searcher.GetResultKeys(result)
+        if len(keys) < 2:
           PrintResultCGI(result, query, True)
-        elif len(result) < 6:
+        elif len(keys) < 6:
           PrintResultCGI(result, query, False)
         else:
           PrintResultCGIList(result, query)
-      elif view_mode == "f":
+      elif view_mode == "full":
         PrintResultCGI(result, query, True)
-      elif view_mode == "s":
+      elif view_mode == "simple":
         PrintResultCGI(result, query, False)
-      elif view_mode == "l":
+      elif view_mode == "list":
         PrintResultCGIList(result, query)
       else:
         raise RuntimeError("unknown view mode: " + view_mode)
