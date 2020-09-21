@@ -106,13 +106,11 @@ def PrintWrappedText(text, indent):
   print("")
       
 
-def PrintResult(key, entries, mode, query):
-  if mode != "list":
-    print("---- {} ----".format(key))
+def PrintResult(entries, mode, query):
   for entry in entries:
     if mode != "list":
       print()
-    title = entry.get("word") or key
+    title = entry.get("word")
     translations = entry.get("translation")
     if translations:
       if tkrzw_dict.PredictLanguage(query) != "en":
@@ -201,8 +199,9 @@ def main():
   else:
     raise RuntimeError("unknown search mode: " + search_mode)
   if result:
-    for key, entries in result:
-      PrintResult(key, entries, view_mode, query)
+    if view_mode == "list":
+      print()
+    PrintResult(result, view_mode, query)    
     if view_mode == "list":
       print()
   else:
@@ -224,177 +223,175 @@ def P(*args, end="\n"):
   print(args[0].format(*esc_args), end=end)
 
 
-def PrintResultCGI(result, query, details):
-  for key, entries, in result:
-    for entry in entries:
-      P('<div class="entry">')
-      word = entry["word"]
-      word_url = "?q={}".format(urllib.parse.quote(word))
-      P('<h2 class="entry_word"><a href="{}">{}</a></h2>', word_url, word)
-      translations = entry.get("translation")
-      if translations:
-        if tkrzw_dict.PredictLanguage(query) != "en":
-          translations = tkrzw_dict.TwiddleWords(translations, query)
+def PrintResultCGI(entries, query, details):
+  for entry in entries:
+    P('<div class="entry">')
+    word = entry["word"]
+    word_url = "?q={}".format(urllib.parse.quote(word))
+    P('<h2 class="entry_word"><a href="{}">{}</a></h2>', word_url, word)
+    translations = entry.get("translation")
+    if translations:
+      if tkrzw_dict.PredictLanguage(query) != "en":
+        translations = tkrzw_dict.TwiddleWords(translations, query)
+      fields = []
+      for tran in translations[:8]:
+        tran_url = "?q={}".format(urllib.parse.quote(tran))
+        value = '<a href="{}" class="tran">{}</a>'.format(esc(tran_url), esc(tran))
+        fields.append(value)
+      if fields:
+        P('<div class="attr attr_tran">', end="")
+        print(", ".join(fields), end="")
+        P('</div>')
+    if details:
+      pron = entry.get("pronunciation")
+      if pron:
+        P('<div class="attr attr_pron"><span class="attr_label">発音</span>' +
+          ' <span class="attr_value">{}</span></div>', pron)
+      for attr_list in INFLECTIONS:
         fields = []
-        for tran in translations[:8]:
-          tran_url = "?q={}".format(urllib.parse.quote(tran))
-          value = '<a href="{}" class="tran">{}</a>'.format(esc(tran_url), esc(tran))
-          fields.append(value)
+        for name, label in attr_list:
+          value = entry.get(name)
+          if value:
+            value = ('<span class="attr_label">{}</span>'
+                     ' <span class="attr_value">{}</span>').format(esc(label), esc(value))
+            fields.append(value)
         if fields:
-          P('<div class="attr attr_tran">', end="")
+          P('<div class="attr attr_infl">', end="")
           print(", ".join(fields), end="")
           P('</div>')
-      if details:
-        pron = entry.get("pronunciation")
-        if pron:
-          P('<div class="attr attr_pron"><span class="attr_label">発音</span>' +
-            ' <span class="attr_value">{}</span></div>', pron)
-        for attr_list in INFLECTIONS:
-          fields = []
-          for name, label in attr_list:
-            value = entry.get(name)
-            if value:
-              value = ('<span class="attr_label">{}</span>'
-                       ' <span class="attr_value">{}</span>').format(esc(label), esc(value))
-              fields.append(value)
-          if fields:
-            P('<div class="attr attr_infl">', end="")
-            print(", ".join(fields), end="")
-            P('</div>')
-      for num_items, item in enumerate(entry["item"]):
-        if not details and num_items >= 8:
-          P('<div class="item item_omit">', label)
-          P('<a href="{}">... ...</a>', word_url)
-          P('</div>')
-          break
-        label = item.get("label") or "misc"
-        pos = item.get("pos") or "misc"
-        pos = POSES.get(pos) or pos
-        sections = item["text"].split(" [-] ")
-        section = sections[0]
-        attr_label = None
-        attr_match = regex.search(r"^\[([a-z]+)\]: ", section)
-        if attr_match:
-          attr_label = WORDNET_ATTRS.get(attr_match.group(1))
-          if attr_label:
-            section = section[len(attr_match.group(0)):].strip()
-        P('<div class="item item_{}">', label)
-        P('<div class="item_text item_text1">')
-        P('<span class="label">{}</span>', label.upper())
-        P('<span class="pos">{}</span>', pos)
+    for num_items, item in enumerate(entry["item"]):
+      if not details and num_items >= 8:
+        P('<div class="item item_omit">', label)
+        P('<a href="{}">... ...</a>', word_url)
+        P('</div>')
+        break
+      label = item.get("label") or "misc"
+      pos = item.get("pos") or "misc"
+      pos = POSES.get(pos) or pos
+      sections = item["text"].split(" [-] ")
+      section = sections[0]
+      attr_label = None
+      attr_match = regex.search(r"^\[([a-z]+)\]: ", section)
+      if attr_match:
+        attr_label = WORDNET_ATTRS.get(attr_match.group(1))
         if attr_label:
-          fields = []
-          bracket = ""
-          bracket_match = regex.search(r"^\(.*?\)", section)
-          if bracket_match:
-            bracket = bracket_match.group(0)
-            section = section[len(bracket):].strip()
-          for subword in section.split(","):
-            subword = subword.strip()
-            if subword:
-              subword_url = "?q={}".format(urllib.parse.quote(subword))
-              fields.append('<a href="{}" class="subword">{}</a>'.format(
-                esc(subword_url), esc(subword)))
-          if fields:
-            P('<span class="subattr_label">{}</span>', attr_label)
-            P('<span class="text">', end="")
-            if bracket:
-              P("{} ", bracket)
-            print(", ".join(fields))
-            P('</span>')
-        else:
-          while True:
-            attr_label = None
-            attr_match = regex.search(r"^ *[,、]*[\(（〔]([^\)）〕]+)[\)）〕]", section)
-            if not attr_match: break
-            for name in regex.split(r"[ ,、]", attr_match.group(1)):
-              attr_label = TEXT_ATTRS.get(name)
-              if attr_label: break
-            if not attr_label: break
-            section = section[len(attr_match.group(0)):].strip()
-            P('<span class="subattr_label">{}</span>', attr_label)
-          P('<span class="text">', end="")
-          print(esc(section))
-          P('</span>')
-        P('</div>')
-        if details:
-          for section in sections[1:]:
-            subattr_label = None
-            attr_match = regex.search(r"^\[([a-z]+)\]: ", section)
-            if attr_match:
-              if attr_match.group(1) == "synset": continue              
-              subattr_label = WORDNET_ATTRS.get(attr_match.group(1))
-              if subattr_label:
-                section = section[len(attr_match.group(0)):].strip()
-            subsections = section.split(" [--] ")
-            P('<div class="item_text item_text2">')
-            if subattr_label:
-              fields = []
-              for subword in subsections[0].split(","):
-                subword = subword.strip()
-                if subword:
-                  subword_url = "?q={}".format(urllib.parse.quote(subword))
-                  fields.append('<a href="{}" class="subword">{}</a>'.format(
-                    esc(subword_url), esc(subword)))
-              if fields:
-                P('<span class="subattr_label">{}</span>', subattr_label)
-                P('<span class="text">', end="")
-                print(", ".join(fields), end="")
-                P('</span>')
-            else:
-              P('<span class="text">{}</span>', subsections[0])
-            P('</div>')
-            for subsection in subsections[1:]:
-              subsubsections = subsection.split(" [---] ")
-              P('<div class="item_text item_text3">')
-              P('<span class="text">{}</span>', subsubsections[0])
-              P('</div>')
-              for subsubsubsection in subsubsections[1:]:
-                P('<div class="item_text item_text4">')
-                P('<span class="text">{}</span>', subsubsubsection)
-                P('</div>')
-        P('</div>')
-      if details:
-        related = entry.get("related")
-        if related:
-          P('<div class="attr attr_related">')
-          P('<span class="attr_label">関連</span>')
-          P('<span class="text">')
-          fields = []
-          for subword in related[:8]:
+          section = section[len(attr_match.group(0)):].strip()
+      P('<div class="item item_{}">', label)
+      P('<div class="item_text item_text1">')
+      P('<span class="label">{}</span>', label.upper())
+      P('<span class="pos">{}</span>', pos)
+      if attr_label:
+        fields = []
+        bracket = ""
+        bracket_match = regex.search(r"^\(.*?\)", section)
+        if bracket_match:
+          bracket = bracket_match.group(0)
+          section = section[len(bracket):].strip()
+        for subword in section.split(","):
+          subword = subword.strip()
+          if subword:
             subword_url = "?q={}".format(urllib.parse.quote(subword))
             fields.append('<a href="{}" class="subword">{}</a>'.format(
               esc(subword_url), esc(subword)))
-          print(", ".join(fields), end="")
+        if fields:
+          P('<span class="subattr_label">{}</span>', attr_label)
+          P('<span class="text">', end="")
+          if bracket:
+            P("{} ", bracket)
+          print(", ".join(fields))
           P('</span>')
-          P('</div>')
-        prob = entry.get("probability")
-        if prob:
-          P('<div class="attr attr_prob"><span class="attr_label">頻度</span>' +
-            ' <span class="attr_value">{:.4f}%</span></div>', float(prob) * 100)
-      P('</div>')
-
-def PrintResultCGIList(result, query):
-  P('<div class="list">')
-  for key, entries, in result:
-    for entry in entries:
-      word = entry["word"]
-      word_url = "?q={}".format(urllib.parse.quote(word))
-      P('<div class="list_item">')
-      P('<a href="{}" class="list_head">{}</a> :', word_url, word)
-      translations = entry.get("translation")
-      if translations:
-        if tkrzw_dict.PredictLanguage(query) != "en":
-          translations = tkrzw_dict.TwiddleWords(translations, query)
-        fields = []
-        for tran in translations[:6]:
-          tran_url = "?q={}".format(urllib.parse.quote(tran))
-          value = '<a href="{}" class="list_tran">{}</a>'.format(esc(tran_url), esc(tran))
-          fields.append(value)
-        P('<span class="list_text">', end="")
-        print(", ".join(fields), end="")
+      else:
+        while True:
+          attr_label = None
+          attr_match = regex.search(r"^ *[,、]*[\(（〔]([^\)）〕]+)[\)）〕]", section)
+          if not attr_match: break
+          for name in regex.split(r"[ ,、]", attr_match.group(1)):
+            attr_label = TEXT_ATTRS.get(name)
+            if attr_label: break
+          if not attr_label: break
+          section = section[len(attr_match.group(0)):].strip()
+          P('<span class="subattr_label">{}</span>', attr_label)
+        P('<span class="text">', end="")
+        print(esc(section))
         P('</span>')
       P('</div>')
+      if details:
+        for section in sections[1:]:
+          subattr_label = None
+          attr_match = regex.search(r"^\[([a-z]+)\]: ", section)
+          if attr_match:
+            if attr_match.group(1) == "synset": continue              
+            subattr_label = WORDNET_ATTRS.get(attr_match.group(1))
+            if subattr_label:
+              section = section[len(attr_match.group(0)):].strip()
+          subsections = section.split(" [--] ")
+          P('<div class="item_text item_text2">')
+          if subattr_label:
+            fields = []
+            for subword in subsections[0].split(","):
+              subword = subword.strip()
+              if subword:
+                subword_url = "?q={}".format(urllib.parse.quote(subword))
+                fields.append('<a href="{}" class="subword">{}</a>'.format(
+                  esc(subword_url), esc(subword)))
+            if fields:
+              P('<span class="subattr_label">{}</span>', subattr_label)
+              P('<span class="text">', end="")
+              print(", ".join(fields), end="")
+              P('</span>')
+          else:
+            P('<span class="text">{}</span>', subsections[0])
+          P('</div>')
+          for subsection in subsections[1:]:
+            subsubsections = subsection.split(" [---] ")
+            P('<div class="item_text item_text3">')
+            P('<span class="text">{}</span>', subsubsections[0])
+            P('</div>')
+            for subsubsubsection in subsubsections[1:]:
+              P('<div class="item_text item_text4">')
+              P('<span class="text">{}</span>', subsubsubsection)
+              P('</div>')
+      P('</div>')
+    if details:
+      related = entry.get("related")
+      if related:
+        P('<div class="attr attr_related">')
+        P('<span class="attr_label">関連</span>')
+        P('<span class="text">')
+        fields = []
+        for subword in related[:8]:
+          subword_url = "?q={}".format(urllib.parse.quote(subword))
+          fields.append('<a href="{}" class="subword">{}</a>'.format(
+            esc(subword_url), esc(subword)))
+        print(", ".join(fields), end="")
+        P('</span>')
+        P('</div>')
+      prob = entry.get("probability")
+      if prob:
+        P('<div class="attr attr_prob"><span class="attr_label">頻度</span>' +
+          ' <span class="attr_value">{:.4f}%</span></div>', float(prob) * 100)
+    P('</div>')
+
+def PrintResultCGIList(entries, query):
+  P('<div class="list">')
+  for entry in entries:
+    word = entry["word"]
+    word_url = "?q={}".format(urllib.parse.quote(word))
+    P('<div class="list_item">')
+    P('<a href="{}" class="list_head">{}</a> :', word_url, word)
+    translations = entry.get("translation")
+    if translations:
+      if tkrzw_dict.PredictLanguage(query) != "en":
+        translations = tkrzw_dict.TwiddleWords(translations, query)
+      fields = []
+      for tran in translations[:6]:
+        tran_url = "?q={}".format(urllib.parse.quote(tran))
+        value = '<a href="{}" class="list_tran">{}</a>'.format(esc(tran_url), esc(tran))
+        fields.append(value)
+      P('<span class="list_text">', end="")
+      print(", ".join(fields), end="")
+      P('</span>')
+    P('</div>')
   P('</div>')
 
 

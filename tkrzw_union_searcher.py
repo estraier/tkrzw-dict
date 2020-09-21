@@ -58,7 +58,7 @@ class UnionSearcher:
     entries = self.SearchBody(text)
     norm_text = (text)
     if entries:
-      result.append((text, entries))
+      result.extend(entries)
     return result
 
   def SearchReverse(self, text):
@@ -69,7 +69,6 @@ class UnionSearcher:
       for src_word in src_words:
         entries = self.SearchBody(src_word)
         if entries:
-          match_entries = []
           for entry in entries:
             match = False
             translations = entry.get("translation")
@@ -79,7 +78,5 @@ class UnionSearcher:
                 if tran.find(text) >= 0:
                   match = True
             if match:
-              match_entries.append(entry)
-          if match_entries:
-            result.append((src_word, match_entries))
+              result.append(entry)
     return result
