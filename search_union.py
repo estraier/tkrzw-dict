@@ -476,7 +476,7 @@ def main_cgi():
 <title>{}</title>
 <style type="text/css">
 html {{ margin: 0ex; padding: 0ex; background: #eeeeee; font-size: 12pt; }}
-body {{ margin: 0ex; padding: 0ex; text-align: center; }}
+body {{ margin: 0ex; padding: 0ex; text-align: center; -webkit-text-size-adjust: 100%; }}
 article {{ display: inline-block; width: 100ex; text-align: left; padding-bottom: 3ex; }}
 a,a:visited {{ text-decoration: none; }}
 a:hover {{ color: #0011ee; text-decoration: underline; }}
@@ -487,12 +487,12 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
   border: 1px solid #dddddd; border-radius: 0.5ex;
   margin: 1ex 0ex; padding: 0.8ex 1ex 1.3ex 1ex; background: #ffffff; position: relative; }}
 #query_line {{ color: #333333; }}
-#query_label {{ font-size: 90%; color: #555555; }}
-#query_input {{ color: #111111; width: 30ex; }}
-#search_mode_box,#view_mode_box {{ color: #111111; width: 16ex; }}
+#query_input {{ zoom: 110%; color: #111111; width: 30ex; }}
+#search_mode_box,#view_mode_box {{ color: #111111; width: 18ex; }}
 #submit_button {{ color: #111111; width: 10ex; }}
 .license {{ opacity: 0.7; font-size: 90%; padding: 2ex 3ex; }}
 .license a {{ color: #001166; }}
+.license ul {{ font-size: 90%; }}
 .attr,.item {{ color: #999999; }}
 .attr a,.item a {{ color: #111111; }}
 .attr a:hover,.item a:hover {{ color: #0011ee; }}
@@ -523,6 +523,21 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
 .list_tran {{ font-size: 95%; color: #333333; }}
 .list_tran:hover {{ color: #0011ee; }}
 .list_gross {{ color: #444444; font-size: 95%; }}
+@media (max-device-width:720px) {{
+  html {{ background: #eeeeee; font-size: 32pt; }}
+  body {{ padding: 0.8ex; }}
+  article {{ width: 100%; }}
+  #query_line {{ font-size: 12pt; zoom: 250%; }}
+  .search_form,.entry,.list,.note,.license {{
+    padding: 0.5ex 0.5ex; }}
+  .attr {{ margin-left: 1ex; }}
+  .item_text1 {{ margin-left: 1ex; }}
+  .item_text2 {{ margin-left: 3ex; }}
+  .item_text3 {{ margin-left: 5ex; }}
+  .item_text4 {{ margin-left: 7ex; }}
+  .item_text_n {{ font-size: 90%; }}
+  .list {{ padding: 0.6ex 0.5ex 0.8ex 0.8ex; }}
+}}
 </style>
 <script>
 function startup() {{
@@ -543,8 +558,10 @@ function startup() {{
   P('<div class="search_form">')
   P('<form method="get" name="search_form">')
   P('<div id="query_line">')
-  P('<span id="query_label">検索語:</span>')
+  P('<div id="query_column">')
   P('<input type="text" name="q" value="{}" id="query_input"/>', query)
+  P('<input type="submit" value="検索" id="submit_button"/>')
+  P('</div>')
   P('<select name="s" id="search_mode_box">')
   for value, label in (
       ("auto", "検索モード"), ("exact", "英和 完全一致"), ("reverse", "和英 完全一致"),
@@ -566,7 +583,6 @@ function startup() {{
       P(' selected="selected"', end="")
     P('>{}</option>', label)
   P('</select>')
-  P('<input type="submit" value="検索" id="submit_button"/>')
   P('</div>')
   P('</form>')
   P('</div>')
