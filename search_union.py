@@ -345,7 +345,7 @@ def PrintResultCGI(entries, query, details):
             if subattr_label:
               section = section[len(attr_match.group(0)):].strip()
           subsections = section.split(" [--] ")
-          P('<div class="item_text item_text2">')
+          P('<div class="item_text item_text2 item_text_n">')
           if subattr_label:
             fields = []
             for subword in subsections[0].split(","):
@@ -364,11 +364,11 @@ def PrintResultCGI(entries, query, details):
           P('</div>')
           for subsection in subsections[1:]:
             subsubsections = subsection.split(" [---] ")
-            P('<div class="item_text item_text3">')
+            P('<div class="item_text item_text3 item_text_n">')
             P('<span class="text">{}</span>', subsubsections[0])
             P('</div>')
             for subsubsubsection in subsubsections[1:]:
-              P('<div class="item_text item_text4">')
+              P('<div class="item_text item_text4 item_text_n">')
               P('<span class="text">{}</span>', subsubsubsection)
               P('</div>')
       P('</div>')
@@ -404,7 +404,7 @@ def PrintResultCGIList(entries, query):
       if tkrzw_dict.PredictLanguage(query) != "en":
         translations = tkrzw_dict.TwiddleWords(translations, query)
       fields = []
-      for tran in translations[:6]:
+      for tran in translations[:8]:
         tran_url = "?q={}".format(urllib.parse.quote(tran))
         value = '<a href="{}" class="list_tran">{}</a>'.format(esc(tran_url), esc(tran))
         fields.append(value)
@@ -460,9 +460,10 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
 .attr a:hover,.item a:hover {{ color: #0011ee; }}
 .attr {{ margin-left: 3ex; }}
 .item_text1 {{ margin-left: 3ex; }}
-.item_text2 {{ margin-left: 7ex; font-size: 95%; }}
-.item_text3 {{ margin-left: 10ex; font-size: 95%; }}
-.item_text4 {{ margin-left: 13ex; font-size: 95%; }}
+.item_text2 {{ margin-left: 7ex; }}
+.item_text3 {{ margin-left: 10ex; }}
+.item_text4 {{ margin-left: 13ex; }}
+.item_text_n {{ font-size: 90%; }}
 .item_omit {{ margin-left: 4ex; opacity: 0.6; font-size: 90%; }}
 .attr_prob {{ margin-left: 3ex; font-size: 95%; }}
 .attr_label,.label,.pos,.subattr_label {{
@@ -475,12 +476,13 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
 .tran {{ color: #000000; }}
 .attr_value {{ margin-left: 0.3ex; color: #111111; }}
 .text {{ margin-left: 0.5ex; color: #111111; }}
+.item_text_n .text {{ color: #333333; }}
 .list {{ padding: 1.2ex 1ex 1.5ex 1.8ex; }}
 .list_item {{ margin: 0.2ex 0.3ex; color: #999999; }}
 .list_head {{ font-weight: bold; color: #000000; }}
 .list_head:hover {{ color: #0011ee; }}
 .list_text {{ font-size: 95%; }}
-.list_tran {{ color: #333333; }}
+.list_tran {{ font-size: 95%; color: #333333; }}
 .list_tran:hover {{ color: #0011ee; }}
 .list_gross {{ color: #444444; font-size: 95%; }}
 </style>

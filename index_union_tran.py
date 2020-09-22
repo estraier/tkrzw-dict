@@ -4,10 +4,10 @@
 # Script to make an index of translations of a union dictionary
 #
 # Usage:
-#   index_wordnet_tran.py [--input str] [--output str] [--quiet]
+#   index_union_tran.py [--input str] [--output str] [--quiet]
 #
 # Example:
-#   ./index_wordnet_tran.py --input wordnet-body.tkh --output wordnet-tran-index.tkh
+#   ./index_union_tran.py --input union-body.tkh --output union-tran-index.tkh
 #
 # Copyright 2020 Google LLC
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
@@ -19,7 +19,6 @@
 # and limitations under the License.
 #--------------------------------------------------------------------------------------------------
 
-import collections
 import json
 import logging
 import operator
@@ -32,7 +31,6 @@ import tkrzw_dict
 import tkrzw_tokenizer
 
 
-NUM_ITEM_TRANSLATIONS = 5
 logger = tkrzw_dict.GetLogger()
 
 
@@ -93,11 +91,11 @@ class IndexTranslationsBatch:
         num_translations += len(translations)
       num_entries += 1
       if num_entries % 10000 == 0:
-        logger.info("Reading: entries={}, translationss={}".format(
+        logger.info("Reading: entries={}, translations={}".format(
           num_entries, num_translations))
       it.Next()
     input_dbm.Close().OrDie()
-    logger.info("Reading done: entries={}, translationss={}".format(
+    logger.info("Reading done: entries={}, translations={}".format(
       num_entries, num_translations))
     output_dbm = tkrzw.DBM()
     num_buckets = mem_index.Count() * 2
@@ -184,8 +182,8 @@ class IndexTranslationsBatch:
 
 def main():
   args = sys.argv[1:]
-  input_path = tkrzw_dict.GetCommandFlag(args, "--input", 1) or "wordnet-body.tkh"
-  output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "wordnet-tran-index.tkh"
+  input_path = tkrzw_dict.GetCommandFlag(args, "--input", 1) or "union-body.tkh"
+  output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-tran-index.tkh"
   word_prob_path = tkrzw_dict.GetCommandFlag(args, "--word_prob", 1) or ""
   tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
   if tkrzw_dict.GetCommandFlag(args, "--quiet", 0):
