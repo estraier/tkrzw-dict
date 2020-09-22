@@ -235,6 +235,8 @@ def main():
     result = searcher.SearchPatternMatch("regex", pattern, capacity)
   elif search_mode == "edit":
     result = searcher.SearchPatternMatch("edit", query, capacity)
+  elif search_mode == "edit-reverse":
+    result = searcher.SearchPatternMatchReverse("edit", query, capacity)
   else:
     raise RuntimeError("unknown search mode: " + search_mode)
   if result:
@@ -460,13 +462,17 @@ def main_cgi():
     value = form[key]
     params[key] = value.value
   query = params.get("q") or ""
+  query = query.strip()
   search_mode = params.get("s") or "auto"
   view_mode = params.get("v") or "auto"
+  page_title = "統合辞書検索"
+  if query:
+    page_title += ": " + query
   print("""Content-Type: application/xhtml+xml
 
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="ja">
 <head>
-<title>Union Search Search</title>
+<title>{}</title>
 <style type="text/css">
 html {{ margin: 0ex; padding: 0ex; background: #eeeeee; font-size: 12pt; }}
 body {{ margin: 0ex; padding: 0ex; text-align: center; }}
@@ -484,7 +490,7 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
 #query_input {{ color: #111111; width: 30ex; }}
 #search_mode_box,#view_mode_box {{ color: #111111; width: 16ex; }}
 #submit_button {{ color: #111111; width: 10ex; }}
-.license {{ opacity: 0.7; padding: 3ex 5ex; font-size: 90%; }}
+.license {{ opacity: 0.7; font-size: 90%; padding: 2ex 3ex; }}
 .license a {{ color: #001166; }}
 .attr,.item {{ color: #999999; }}
 .attr a,.item a {{ color: #111111; }}
@@ -532,7 +538,7 @@ function startup() {{
 <body onload="startup()">
 <article>
 <h1><a href="{}">統合辞書検索</a></h1>
-""".format(esc(script_name), esc(query)), end="")
+""".format(esc(page_title), esc(script_name), end=""))
   P('<div class="search_form">')
   P('<form method="get" name="search_form">')
   P('<div id="query_line">')
@@ -545,7 +551,7 @@ function startup() {{
       ("prefix", "英和 前方一致"), ("prefix-reverse", "和英 前方一致"),
       ("suffix", "英和 後方一致"), ("suffix-reverse", "和英 後方一致"),
       ("include", "英和 中間一致"), ("include-reverse", "和英 中間一致"),
-      ("word", "英和 単語一致"), ("edit", "英和 曖昧一致")):
+      ("word", "英和 単語一致"), ("edit", "英和 曖昧一致"), ("edit-reverse", "和英 曖昧一致")):
     P('<option value="{}"', esc(value), end="")
     if value == search_mode:
       P(' selected="selected"', end="")
@@ -563,7 +569,9 @@ function startup() {{
   P('</div>')
   P('</form>')
   P('</div>')
+  is_auto = False
   if search_mode == "auto":
+    is_auto = True
     if tkrzw_dict.PredictLanguage(query) == "en":
       search_mode = "exact"
     else:
@@ -595,8 +603,18 @@ function startup() {{
       result = searcher.SearchPatternMatch("regex", pattern, CGI_CAPACITY)
     elif search_mode == "edit":
       result = searcher.SearchPatternMatch("edit", query, CGI_CAPACITY)
+    elif search_mode == "edit-reverse":
+      result = searcher.SearchPatternMatchReverse("edit", query, CGI_CAPACITY)
     else:
       raise RuntimeError("unknown search mode: " + search_mode)
+
+    if is_auto and not result:
+      if tkrzw_dict.PredictLanguage(query) == "en":
+        result = searcher.SearchPatternMatch("edit", query, CGI_CAPACITY)
+      else:
+        result = searcher.SearchPatternMatchReverse("edit", query, CGI_CAPACITY)
+      if result:
+        P('<div class="note">該当なし。曖昧検索に移行。</div>')
     if result:
       if view_mode == "auto":
         keys = searcher.GetResultKeys(result)
@@ -615,11 +633,10 @@ function startup() {{
       else:
         raise RuntimeError("unknown view mode: " + view_mode)
     else:
-      P('<div class="note">No result.</div>')
+      P('<div class="note">該当なし</div>')
   else:
     print("""<div class="license">
-<p>このサイトはオープンな英和辞書検索のデモです。辞書データは<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>と<a href="https://en.wiktionary.org/">Wiktionary英語版</a>と<a href="https://wordnet.princeton.edu/">WordNet</a>と<a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">日本語WordNet</a>を統合したものです。</p>
-<p>デフォルトでは、検索モードは自動的に設定されます。検索語に英語を入力すると英和の完全一致検索が行われ、日本語を入力すると和英の完全一致検索が行われます。以下の検索モードを明示的に指定することもできます。</p>
+<p>デフォルトでは、検索モードは自動的に設定されます。検索語に英語を入力すると英和の完全一致検索が行われ、日本語を入力すると和英の完全一致検索が行われます。完全一致に該当がない場合、自動的に曖昧検索に移行します。以下の検索モードを明示的に指定することもできます。</p>
 <ul>
 <li>英和 完全一致 : 英和辞書の見出し語を検索語の完全一致で検索する。</li>
 <li>和英 完全一致 : 語義の日本語の索引を検索語の完全一致で検索する。</li>
@@ -633,9 +650,10 @@ function startup() {{
 <li>和英 中間一致 : 語義の日本語の索引を検索語の中間一致で検索する。</li>
 <li>英和 単語一致 : 英和辞書の見出し語を検索語の単語一致で検索する。</li>
 <li>英和 曖昧一致 : 英和辞書の見出し語を検索語の曖昧一致で検索する。</li>
+<li>和英 曖昧一致 : 語義の日本語の索引を検索語の曖昧一致で検索する。</li>
 </ul>
 <p>デフォルトでは、表示モードは自動的に設定されます。ヒット件数が1件の場合にはその語の語義が詳細に表示され、ヒット件数が5以下の場合には主要語義のみが表示され、ヒット件数がそれ以上の場合には翻訳語のみがリスト表示されます。見出し語と選択すると詳細表示が見られます。</p>
-<p>検索システムは高性能データベースライブラリ<a href="https://dbmx.net/tkrzw/">Tkrzw</a>を用いて実装されています。<a href="https://github.com/estraier/tkrzw-dict">コードベース</a>はGitHubにて公開されています。</p>
+<p>このサイトはオープンな英和辞書検索のデモです。辞書データは<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>と<a href="https://en.wiktionary.org/">Wiktionary英語版</a>と<a href="https://wordnet.princeton.edu/">WordNet</a>と<a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">日本語WordNet</a>を統合したものです。検索システムは高性能データベースライブラリ<a href="https://dbmx.net/tkrzw/">Tkrzw</a>を用いて実装されています。<a href="https://github.com/estraier/tkrzw-dict">コードベース</a>はGitHubにて公開されています。</p>
 </div>""")
   print("""</article>
 </body>
