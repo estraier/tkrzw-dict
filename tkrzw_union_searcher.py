@@ -31,7 +31,13 @@ class UnionSearcher:
     tran_index_path = data_prefix + "-tran-index.tkh"
     self.tran_index_dbm = tkrzw.DBM()
     self.tran_index_dbm.Open(tran_index_path, False, dbm="HashDBM").OrDie()
-
+    keys_path = data_prefix + "-keys.txt"
+    self.keys_file = tkrzw.TextFile()
+    self.keys_file.Open(keys_path).OrDie()
+    tran_keys_path = data_prefix + "-tran-keys.txt"
+    self.tran_keys_file = tkrzw.TextFile()
+    self.tran_keys_file.Open(tran_keys_path).OrDie()
+    
   def __del__(self):
     self.tran_index_dbm.Close().OrDie()
     self.body_dbm.Close().OrDie()
@@ -59,24 +65,28 @@ class UnionSearcher:
       keys.add(self.NormalizeText(entry["word"]))
     return keys
 
-  def SearchExact(self, text):
+  def SearchExact(self, text, capacity):
     text = self.NormalizeText(text)
     result = []
     entries = self.SearchBody(text)
     norm_text = (text)
     if entries:
+      if len(entries) > capacity:
+        entrie = entries[:capacity]
       result.extend(entries)
     return result
 
-  def SearchReverse(self, text):
+  def SearchReverse(self, text, capacity):
     text = self.NormalizeText(text)
     result = []
     src_words = self.SearchTranIndex(text)
     if src_words:
       for src_word in src_words:
+        if capacity < 1: break
         entries = self.SearchBody(src_word)
         if entries:
           for entry in entries:
+            if capacity < 1: break
             match = False
             translations = entry.get("translation")
             if translations:
@@ -86,6 +96,7 @@ class UnionSearcher:
                   match = True
             if match:
               result.append(entry)
+              capacity -= 1
     return result
 
   def ExpandEntries(self, entries, capacity):
@@ -104,7 +115,7 @@ class UnionSearcher:
       if rel_words:
         for rel_word in rel_words:
           if len(checked_words) >= capacity: break;
-          for child in self.SearchExact(rel_word):
+          for child in self.SearchExact(rel_word, capacity - len(checked_words)):
             if len(checked_words) >= capacity: break;
             word = child["word"]
             if word in checked_words: continue
@@ -114,7 +125,7 @@ class UnionSearcher:
       if trans:
         for tran in trans:
           if len(checked_words) >= capacity: break;
-          for child in self.SearchReverse(tran):
+          for child in self.SearchReverse(tran, capacity - len(checked_words)):
             if len(checked_words) >= capacity: break;
             word = child["word"]
             if word in checked_words: continue
@@ -171,7 +182,7 @@ class UnionSearcher:
       base_weight *= 0.8
     scores = []
     bonus = 0.5
-    for entry in self.ExpandEntries(seeds, min(capacity * 1.2, 100)):
+    for entry in self.ExpandEntries(seeds, min(int(capacity * 1.2), 100)):
       cand_features = self.GetFeatures(entry)
       score = self.GetSimilarity(seed_features, cand_features)
       score += bonus
@@ -187,7 +198,7 @@ class UnionSearcher:
     words = text.split(",")
     for word in words:
       if word:
-        seeds.extend(self.SearchExact(word))
+        seeds.extend(self.SearchExact(word, capacity))
     return self.SearchRelatedWithSeeds(seeds, capacity)
 
   def SearchRelatedReverse(self, text, capacity):
@@ -195,5 +206,25 @@ class UnionSearcher:
     words = text.split(",")
     for word in words:
       if word:
-        seeds.extend(self.SearchReverse(word))
+        seeds.extend(self.SearchReverse(word, capacity))
     return self.SearchRelatedWithSeeds(seeds, capacity)
+
+  def SearchPatternMatch(self, mode, text, capacity):
+    text = self.NormalizeText(text)
+    keys = self.keys_file.Search(mode, text, capacity, True)
+    result = []
+    for key in keys:
+      if len(result) >= capacity: break
+      for entry in self.SearchExact(key, capacity - len(result)):
+        result.append(entry)
+    return result
+
+  def SearchPatternMatchReverse(self, mode, text, capacity):
+    text = self.NormalizeText(text)
+    keys = self.tran_keys_file.Search(mode, text, capacity, True)
+    result = []
+    for key in keys:
+      if len(result) >= capacity: break
+      for entry in self.SearchReverse(key, capacity - len(result)):
+        result.append(entry)
+    return result
