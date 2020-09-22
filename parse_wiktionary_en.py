@@ -375,7 +375,13 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           if len(values) == 1 and values[0] == "er":
             stem = title
             stem = regex.sub(r"e$", "", stem)
-            stem = regex.sub(r"([^aeiou])y]$", r"\1i", stem)
+
+            print("BEF", stem)
+            
+            stem = regex.sub(r"([^aeiou])y$", r"\1i", stem)
+
+            print("AFT", stem)
+            
             adjective_comparative = stem + "er"
             adjective_superative = stem + "est"
           elif len(values) == 1 and values[0].endswith("er"):
