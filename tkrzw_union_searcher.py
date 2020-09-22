@@ -223,8 +223,13 @@ class UnionSearcher:
     text = self.NormalizeText(text)
     keys = self.tran_keys_file.Search(mode, text, capacity, True)
     result = []
+    uniq_words = set()
     for key in keys:
       if len(result) >= capacity: break
-      for entry in self.SearchReverse(key, capacity - len(result)):
+      for entry in self.SearchReverse(key, capacity - len(result) + 10):
+        if len(result) >= capacity: break
+        word = entry["word"]
+        if word in uniq_words: continue
+        uniq_words.add(word)
         result.append(entry)
     return result

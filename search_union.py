@@ -551,7 +551,7 @@ function startup() {{
       ("related", "英和 類語"), ("related-reverse", "和英 類語"),
       ("prefix", "英和 前方一致"), ("prefix-reverse", "和英 前方一致"),
       ("suffix", "英和 後方一致"), ("suffix-reverse", "和英 後方一致"),
-      ("include", "英和 中間一致"), ("include-reverse", "和英 中間一致"),
+      ("contain", "英和 中間一致"), ("contain-reverse", "和英 中間一致"),
       ("word", "英和 単語一致"), ("edit", "英和 曖昧一致"), ("edit-reverse", "和英 曖昧一致")):
     P('<option value="{}"', esc(value), end="")
     if value == search_mode:
