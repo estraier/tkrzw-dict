@@ -44,6 +44,7 @@ POSES = {
   "determiner": "限定",
   "article": "冠",
   "interjection": "間投",
+  "conjunction": "接続",
   "prefix": "接頭",
   "suffix": "接尾",
   "abbreviation": "省略",
