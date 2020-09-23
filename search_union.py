@@ -199,45 +199,60 @@ def PrintResult(entries, mode, query):
 def main():
   args = sys.argv[1:]
   data_prefix = tkrzw_dict.GetCommandFlag(args, "--data_prefix", 1) or "union"
+  index_mode = tkrzw_dict.GetCommandFlag(args, "--index", 1) or "auto"
   search_mode = tkrzw_dict.GetCommandFlag(args, "--search", 1) or "auto"
   view_mode = tkrzw_dict.GetCommandFlag(args, "--view", 1) or "auto"
   capacity = int(tkrzw_dict.GetCommandFlag(args, "--capacity", 1) or "100")
   query = " ".join(args)
   if not query:
     raise RuntimeError("words are not specified")
-  if search_mode == "auto":
-    if tkrzw_dict.PredictLanguage(query) == "en":
-      search_mode = "exact"
+  searcher = tkrzw_union_searcher.UnionSearcher(CGI_DATA_PREFIX)
+  is_reverse = False
+  if index_mode == "auto":
+    if tkrzw_dict.PredictLanguage(query) != "en":
+      is_reverse = True
+  elif index_mode == "normal":
+    pass
+  elif index_mode == "reverse":
+    is_reverse = True
+  else:
+    raise RuntimeError("unknown index mode: " + index_mode)
+  if search_mode in ("auto", "exact"):
+    if is_reverse:
+      result = searcher.SearchReverse(query, CGI_CAPACITY)
     else:
-      search_mode = "reverse"
-  searcher = tkrzw_union_searcher.UnionSearcher(data_prefix)
-  if search_mode == "exact":
-    result = searcher.SearchExact(query, capacity)
-  elif search_mode == "reverse":
-    result = searcher.SearchReverse(query, capacity)
-  elif search_mode == "related":
-    result = searcher.SearchRelated(query, capacity)
-  elif search_mode == "related-reverse":
-    result = searcher.SearchRelatedReverse(query, capacity)
+      result = searcher.SearchExact(query, CGI_CAPACITY)
   elif search_mode == "prefix":
-    result = searcher.SearchPatternMatch("begin", query, capacity)
-  elif search_mode == "prefix-reverse":
-    result = searcher.SearchPatternMatchReverse("begin", query, capacity)
+    if is_reverse:
+      result = searcher.SearchPatternMatchReverse("begin", query, CGI_CAPACITY)
+    else:
+      result = searcher.SearchPatternMatch("begin", query, CGI_CAPACITY)
   elif search_mode == "suffix":
-    result = searcher.SearchPatternMatch("end", query, capacity)
-  elif search_mode == "suffix-reverse":
-    result = searcher.SearchPatternMatchReverse("end", query, capacity)
+    if is_reverse:
+      result = searcher.SearchPatternMatchReverse("end", query, CGI_CAPACITY)
+    else:
+      result = searcher.SearchPatternMatch("end", query, CGI_CAPACITY)
   elif search_mode == "contain":
-    result = searcher.SearchPatternMatch("contain", query, capacity)
-  elif search_mode == "contain-reverse":
-    result = searcher.SearchPatternMatchReverse("contain", query, capacity)
+    if is_reverse:
+      result = searcher.SearchPatternMatchReverse("contain", query, CGI_CAPACITY)
+    else:
+      result = searcher.SearchPatternMatch("contain", query, CGI_CAPACITY)
   elif search_mode == "word":
     pattern = r"(^| ){}( |$)".format(regex.escape(query))
-    result = searcher.SearchPatternMatch("regex", pattern, capacity)
+    if is_reverse:
+      result = searcher.SearchPatternMatchReverse("regex", pattern, CGI_CAPACITY)        
+    else:
+      result = searcher.SearchPatternMatch("regex", pattern, CGI_CAPACITY)        
   elif search_mode == "edit":
-    result = searcher.SearchPatternMatch("edit", query, capacity)
-  elif search_mode == "edit-reverse":
-    result = searcher.SearchPatternMatchReverse("edit", query, capacity)
+    if is_reverse:
+      result = searcher.SearchPatternMatchReverse("edit", query, CGI_CAPACITY)
+    else:
+      result = searcher.SearchPatternMatch("edit", query, CGI_CAPACITY)
+  elif search_mode == "related":
+    if is_reverse:
+      result = searcher.SearchRelatedReverse(query, CGI_CAPACITY)
+    else:
+      result = searcher.SearchRelated(query, CGI_CAPACITY)
   else:
     raise RuntimeError("unknown search mode: " + search_mode)
   if result:
@@ -464,6 +479,7 @@ def main_cgi():
     params[key] = value.value
   query = params.get("q") or ""
   query = query.strip()
+  index_mode = params.get("i") or "auto"
   search_mode = params.get("s") or "auto"
   view_mode = params.get("v") or "auto"
   page_title = "統合辞書検索"
@@ -487,8 +503,8 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
   border: 1px solid #dddddd; border-radius: 0.5ex;
   margin: 1ex 0ex; padding: 0.8ex 1ex 1.3ex 1ex; background: #ffffff; position: relative; }}
 #query_line {{ color: #333333; }}
-#query_input {{ zoom: 110%; color: #111111; width: 30ex; }}
-#search_mode_box,#view_mode_box {{ color: #111111; width: 18ex; }}
+#query_input {{ zoom: 110%; color: #111111; width: 32ex; }}
+#index_mode_box,#search_mode_box,#view_mode_box {{ color: #111111; width: 14ex; }}
 #submit_button {{ color: #111111; width: 10ex; }}
 .license {{ opacity: 0.7; font-size: 90%; padding: 2ex 3ex; }}
 .license a {{ color: #001166; }}
@@ -562,21 +578,25 @@ function startup() {{
   P('<input type="text" name="q" value="{}" id="query_input"/>', query)
   P('<input type="submit" value="検索" id="submit_button"/>')
   P('</div>')
+  P('<select name="i" id="index_mode_box">')
+  for value, label in (("auto", "索引"), ("normal", "英和"), ("reverse", "和英")):
+    P('<option value="{}"', esc(value), end="")
+    if value == index_mode:
+      P(' selected="selected"', end="")
+    P('>{}</option>', label)
+  P('</select>')
   P('<select name="s" id="search_mode_box">')
   for value, label in (
-      ("auto", "検索モード"), ("exact", "英和 完全一致"), ("reverse", "和英 完全一致"),
-      ("related", "英和 類語"), ("related-reverse", "和英 類語"),
-      ("prefix", "英和 前方一致"), ("prefix-reverse", "和英 前方一致"),
-      ("suffix", "英和 後方一致"), ("suffix-reverse", "和英 後方一致"),
-      ("contain", "英和 中間一致"), ("contain-reverse", "和英 中間一致"),
-      ("word", "英和 単語一致"), ("edit", "英和 曖昧一致"), ("edit-reverse", "和英 曖昧一致")):
+      ("auto", "検索条件"), ("exact", "完全一致"),
+      ("prefix", "前方一致"), ("suffix", "後方一致"), ("contain", "中間一致"),
+      ("word", "単語一致"), ("edit", "曖昧一致"), ("related", "類語展開")):
     P('<option value="{}"', esc(value), end="")
     if value == search_mode:
       P(' selected="selected"', end="")
     P('>{}</option>', label)
   P('</select>')
   P('<select name="v" id="view_mode_box">')
-  for value, label in (("auto", "表示モード"), ("full", "詳細表示"),
+  for value, label in (("auto", "表示形式"), ("full", "詳細表示"),
                        ("simple", "簡易表示"), ("list", "リスト表示")):
     P('<option value="{}"', esc(value), end="")
     if value == view_mode:
@@ -586,50 +606,61 @@ function startup() {{
   P('</div>')
   P('</form>')
   P('</div>')
-  is_auto = False
-  if search_mode == "auto":
-    is_auto = True
-    if tkrzw_dict.PredictLanguage(query) == "en":
-      search_mode = "exact"
-    else:
-      search_mode = "reverse"
   if query:
     searcher = tkrzw_union_searcher.UnionSearcher(CGI_DATA_PREFIX)
-    if search_mode == "exact":
-      result = searcher.SearchExact(query, CGI_CAPACITY)
-    elif search_mode == "reverse":
-      result = searcher.SearchReverse(query, CGI_CAPACITY)
-    elif search_mode == "related":
-      result = searcher.SearchRelated(query, CGI_CAPACITY)
-    elif search_mode == "related-reverse":
-      result = searcher.SearchRelatedReverse(query, CGI_CAPACITY)
+    is_reverse = False
+    if index_mode == "auto":
+      if tkrzw_dict.PredictLanguage(query) != "en":
+        is_reverse = True
+    elif index_mode == "normal":
+      pass
+    elif index_mode == "reverse":
+      is_reverse = True
+    else:
+      raise RuntimeError("unknown index mode: " + index_mode)
+    if search_mode in ("auto", "exact"):
+      if is_reverse:
+        result = searcher.SearchReverse(query, CGI_CAPACITY)
+      else:
+        result = searcher.SearchExact(query, CGI_CAPACITY)
     elif search_mode == "prefix":
-      result = searcher.SearchPatternMatch("begin", query, CGI_CAPACITY)
-    elif search_mode == "prefix-reverse":
-      result = searcher.SearchPatternMatchReverse("begin", query, CGI_CAPACITY)
+      if is_reverse:
+        result = searcher.SearchPatternMatchReverse("begin", query, CGI_CAPACITY)
+      else:
+        result = searcher.SearchPatternMatch("begin", query, CGI_CAPACITY)
     elif search_mode == "suffix":
-      result = searcher.SearchPatternMatch("end", query, CGI_CAPACITY)
-    elif search_mode == "suffix-reverse":
-      result = searcher.SearchPatternMatchReverse("end", query, CGI_CAPACITY)
+      if is_reverse:
+        result = searcher.SearchPatternMatchReverse("end", query, CGI_CAPACITY)
+      else:
+        result = searcher.SearchPatternMatch("end", query, CGI_CAPACITY)
     elif search_mode == "contain":
-      result = searcher.SearchPatternMatch("contain", query, CGI_CAPACITY)
-    elif search_mode == "contain-reverse":
-      result = searcher.SearchPatternMatchReverse("contain", query, CGI_CAPACITY)
+      if is_reverse:
+        result = searcher.SearchPatternMatchReverse("contain", query, CGI_CAPACITY)
+      else:
+        result = searcher.SearchPatternMatch("contain", query, CGI_CAPACITY)
     elif search_mode == "word":
       pattern = r"(^| ){}( |$)".format(regex.escape(query))
-      result = searcher.SearchPatternMatch("regex", pattern, CGI_CAPACITY)
+      if is_reverse:
+        result = searcher.SearchPatternMatchReverse("regex", pattern, CGI_CAPACITY)        
+      else:
+        result = searcher.SearchPatternMatch("regex", pattern, CGI_CAPACITY)        
     elif search_mode == "edit":
-      result = searcher.SearchPatternMatch("edit", query, CGI_CAPACITY)
-    elif search_mode == "edit-reverse":
-      result = searcher.SearchPatternMatchReverse("edit", query, CGI_CAPACITY)
+      if is_reverse:
+        result = searcher.SearchPatternMatchReverse("edit", query, CGI_CAPACITY)
+      else:
+        result = searcher.SearchPatternMatch("edit", query, CGI_CAPACITY)
+    elif search_mode == "related":
+      if is_reverse:
+        result = searcher.SearchRelatedReverse(query, CGI_CAPACITY)
+      else:
+        result = searcher.SearchRelated(query, CGI_CAPACITY)
     else:
       raise RuntimeError("unknown search mode: " + search_mode)
-
-    if is_auto and not result:
-      if tkrzw_dict.PredictLanguage(query) == "en":
-        result = searcher.SearchPatternMatch("edit", query, CGI_CAPACITY)
-      else:
+    if not result and search_mode == "auto":
+      if is_reverse:
         result = searcher.SearchPatternMatchReverse("edit", query, CGI_CAPACITY)
+      else:
+        result = searcher.SearchPatternMatch("edit", query, CGI_CAPACITY)
       if result:
         P('<div class="note">該当なし。曖昧検索に移行。</div>')
     if result:
@@ -653,23 +684,18 @@ function startup() {{
       P('<div class="note">該当なし</div>')
   else:
     print("""<div class="license">
-<p>デフォルトでは、検索モードは自動的に設定されます。検索語に英語を入力すると英和の完全一致検索が行われ、日本語を入力すると和英の完全一致検索が行われます。完全一致に該当がない場合、自動的に曖昧検索に移行します。以下の検索モードを明示的に指定することもできます。</p>
+<p>デフォルトでは、英語の検索語が入力されると英和の索引が検索され、日本語の検索語が入力されると和英の索引が検索されます。オプションで索引を明示的に指定できます。</p>
+<p>検索条件のデフォルトは、完全一致です。つまり、入力語そのものを見出しに含む語が表示されます。ただし、該当がない場合には自動的に曖昧検索が行われて、綴りが似た語が表示されます。オプションで検索条件を以下のものから明示的に選択できます。</p>
 <ul>
-<li>英和 完全一致 : 英和辞書の見出し語を検索語の完全一致で検索する。</li>
-<li>和英 完全一致 : 語義の日本語の索引を検索語の完全一致で検索する。</li>
-<li>英和 類語 : 英和辞書の見出し語を類語展開して検索する。</li>
-<li>和英 類語 : 語義の日本語の索引を類語展開して検索する。</li>
-<li>英和 前方一致 : 英和辞書の見出し語を検索語の前方一致で検索する。</li>
-<li>和英 前方一致 : 語義の日本語の索引を検索語の前方一致で検索する。</li>
-<li>英和 後方一致 : 英和辞書の見出し語を検索語の後方一致で検索する。</li>
-<li>和英 後方一致 : 語義の日本語の索引を検索語の後方一致で検索する。</li>
-<li>英和 中間一致 : 英和辞書の見出し語を検索語の中間一致で検索する。</li>
-<li>和英 中間一致 : 語義の日本語の索引を検索語の中間一致で検索する。</li>
-<li>英和 単語一致 : 英和辞書の見出し語を検索語の単語一致で検索する。</li>
-<li>英和 曖昧一致 : 英和辞書の見出し語を検索語の曖昧一致で検索する。</li>
-<li>和英 曖昧一致 : 語義の日本語の索引を検索語の曖昧一致で検索する。</li>
+<li>完全一致 : 見出し語が検索語と完全一致するものが該当する。</li>
+<li>前方一致 : 見出し語が検索語で始まるものが該当する。</li>
+<li>後方一致 : 見出し語が検索語で終わるものが該当する。</li>
+<li>中間一致 : 見出し語が検索語を含むものが該当する。</li>
+<li>単語一致 : 見出し語が検索語を単語として含むものが該当する。</li>
+<li>曖昧一致 : 見出し語の綴りが検索語の綴りと似ているものが該当する。</li>
+<li>類語展開 : 見出し語が検索語と完全一致するものとその類語が該当する。</li>
 </ul>
-<p>デフォルトでは、表示モードは自動的に設定されます。ヒット件数が1件の場合にはその語の語義が詳細に表示され、ヒット件数が5以下の場合には主要語義のみが表示され、ヒット件数がそれ以上の場合には翻訳語のみがリスト表示されます。見出し語と選択すると詳細表示が見られます。</p>
+<p>デフォルトでは、表示形式は自動的に設定されます。ヒット件数が1件の場合にはその語の語義が詳細に表示され、ヒット件数が5以下の場合には主要語義のみが表示され、ヒット件数がそれ以上の場合には翻訳語のみがリスト表示されます。結果の見出し語を選択すると詳細表示が見られます。</p>
 <p>このサイトはオープンな英和辞書検索のデモです。辞書データは<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>と<a href="https://en.wiktionary.org/">Wiktionary英語版</a>と<a href="https://wordnet.princeton.edu/">WordNet</a>と<a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">日本語WordNet</a>を統合したものです。検索システムは高性能データベースライブラリ<a href="https://dbmx.net/tkrzw/">Tkrzw</a>を用いて実装されています。<a href="https://github.com/estraier/tkrzw-dict">コードベース</a>はGitHubにて公開されています。</p>
 </div>""")
   print("""</article>
