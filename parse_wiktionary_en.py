@@ -459,7 +459,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     if verb_past_participle:
       output.append("inflection_verb_past_participle={}".format(verb_past_participle))
     if adjective_comparative:
-      output.append("inflection_adjective_comparatve={}".format(adjective_comparative))
+      output.append("inflection_adjective_comparative={}".format(adjective_comparative))
     if adjective_superative:
       output.append("inflection_adjective_superative={}".format(adjective_superative))
     if adverb_comparative:
