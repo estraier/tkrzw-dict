@@ -447,6 +447,7 @@ def PrintResultCGI(entries, query, details):
           ' <span class="attr_value">{:.4f}%</span></div>', float(prob) * 100)
     P('</div>')
 
+
 def PrintResultCGIList(entries, query):
   P('<div class="list">')
   for entry in entries:
@@ -531,17 +532,17 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
 .attr_prob {{ margin-left: 3ex; font-size: 95%; }}
 .attr_label,.label,.pos,.subattr_label {{
   display: inline-block; border: solid 1px #999999; border-radius: 0.5ex;
-  font-size: 65%; min-width: 3.3ex; text-align: center; margin-right: -0.5ex;
+  font-size: 65%; min-width: 3.5ex; text-align: center; margin-right: -0.5ex;
   color: #111111; background: #eeeeee; opacity: 0.85; }}
 .item_wj .label {{ background: #ddeeff; opacity: 0.7; }}
 .item_we .label {{ background: #ffddee; opacity: 0.7; }}
 .item_wn .label {{ background: #eeffdd; opacity: 0.7; }}
 .tran {{ color: #000000; }}
 .attr_value {{ margin-left: 0.3ex; color: #111111; }}
-.text {{ margin-left: 0.5ex; color: #111111; }}
+.text {{ margin-left: 0.3ex; color: #111111; }}
 .item_text_n .text {{ color: #333333; }}
 .list {{ padding: 1.2ex 1ex 1.5ex 1.8ex; }}
-.list_item {{ margin: 0.2ex 0.3ex; color: #999999; }}
+.list_item {{ margin: 0.3ex 0.3ex; color: #999999; }}
 .list_head {{ font-weight: bold; color: #000000; }}
 .list_head:hover {{ color: #0011ee; }}
 .list_text {{ font-size: 95%; }}
