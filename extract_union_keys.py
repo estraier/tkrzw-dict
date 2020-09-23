@@ -56,7 +56,7 @@ class ExtractKeysBatch:
       entry = json.loads(serialized)
       max_score = 0
       for word_entry in entry:
-        prob = float(word_entry.get("probability") or "0")
+        prob = max(float(word_entry.get("probability") or "0"), 0.0000001)
         score = prob * math.log2(len(word_entry["item"]))
         if "translation" in word_entry:
           score *= 2

@@ -234,7 +234,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         infl_modes.add("noun")
         value = regex.sub(r".*\{\{en-noun\|?([^\}]*)\}\}.*", r"\1", line).strip()
         values = value.split("|") if value else []
-        values = self.TrimInflections(values)        
+        values = self.TrimInflections(values)
         stop = False
         for value in values:
           if value.startswith("head="):
@@ -266,6 +266,8 @@ class XMLHandler(xml.sax.handler.ContentHandler):
             noun_plural = title + "es"
           elif len(values) == 2 and values[0].startswith("sg=") and values[1].startswith("pl="):
             noun_plural = regex.sub(".*=", "", values[1])
+          elif len(values) > 0 and values[0] not in ("s", "es", "ies", "-", "~", "?"):
+            noun_plural = values[0]
       if regex.search(r"\{\{en-verb\|?([^\}]*)\}\}", line):
         if "verb" in infl_modes: continue
         infl_modes.add("verb")
@@ -375,13 +377,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           if len(values) == 1 and values[0] == "er":
             stem = title
             stem = regex.sub(r"e$", "", stem)
-
-            print("BEF", stem)
-            
             stem = regex.sub(r"([^aeiou])y$", r"\1i", stem)
-
-            print("AFT", stem)
-            
             adjective_comparative = stem + "er"
             adjective_superative = stem + "est"
           elif len(values) == 1 and values[0].endswith("er"):

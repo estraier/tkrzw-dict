@@ -215,11 +215,19 @@ def main():
     pass
   elif index_mode == "reverse":
     is_reverse = True
+  elif index_mode == "inflection":
+    lemmas = searcher.SearchInflections(query)
+    if lemmas:
+      if search_mode in ("auto", "exact"):
+        lemmas.append(query)
+        query = ",".join(lemmas)
+      else:
+        query = lemmas[0]
   else:
     raise RuntimeError("unknown index mode: " + index_mode)
   if search_mode in ("auto", "exact"):
     if is_reverse:
-      result = searcher.SearchReverse(query, CGI_CAPACITY)
+      result = searcher.SearchExactReverse(query, CGI_CAPACITY)
     else:
       result = searcher.SearchExact(query, CGI_CAPACITY)
   elif search_mode == "prefix":
@@ -509,6 +517,7 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
 .license {{ opacity: 0.7; font-size: 90%; padding: 2ex 3ex; }}
 .license a {{ color: #001166; }}
 .license ul {{ font-size: 90%; }}
+.note {{ opacity: 0.9; font-size: 90%; padding: 1ex 2ex; }}
 .attr,.item {{ color: #999999; }}
 .attr a,.item a {{ color: #111111; }}
 .attr a:hover,.item a:hover {{ color: #0011ee; }}
@@ -579,7 +588,8 @@ function startup() {{
   P('<input type="submit" value="検索" id="submit_button"/>')
   P('</div>')
   P('<select name="i" id="index_mode_box">')
-  for value, label in (("auto", "索引"), ("normal", "英和"), ("reverse", "和英")):
+  for value, label in (("auto", "索引"), ("normal", "英和"),
+                       ("reverse", "和英"), ("inflection", "英和屈折")):
     P('<option value="{}"', esc(value), end="")
     if value == index_mode:
       P(' selected="selected"', end="")
@@ -616,11 +626,19 @@ function startup() {{
       pass
     elif index_mode == "reverse":
       is_reverse = True
+    elif index_mode == "inflection":
+      lemmas = searcher.SearchInflections(query)
+      if lemmas:
+        if search_mode in ("auto", "exact"):
+          lemmas.append(query)
+          query = ",".join(lemmas)
+        else:
+          query = lemmas[0]
     else:
       raise RuntimeError("unknown index mode: " + index_mode)
     if search_mode in ("auto", "exact"):
       if is_reverse:
-        result = searcher.SearchReverse(query, CGI_CAPACITY)
+        result = searcher.SearchExactReverse(query, CGI_CAPACITY)
       else:
         result = searcher.SearchExact(query, CGI_CAPACITY)
     elif search_mode == "prefix":
@@ -656,13 +674,6 @@ function startup() {{
         result = searcher.SearchRelated(query, CGI_CAPACITY)
     else:
       raise RuntimeError("unknown search mode: " + search_mode)
-    if not result and search_mode == "auto":
-      if is_reverse:
-        result = searcher.SearchPatternMatchReverse("edit", query, CGI_CAPACITY)
-      else:
-        result = searcher.SearchPatternMatch("edit", query, CGI_CAPACITY)
-      if result:
-        P('<div class="note">該当なし。曖昧検索に移行。</div>')
     if result:
       if view_mode == "auto":
         keys = searcher.GetResultKeys(result)
@@ -681,7 +692,32 @@ function startup() {{
       else:
         raise RuntimeError("unknown view mode: " + view_mode)
     else:
-      P('<div class="note">該当なし</div>')
+      infl_result = None
+      edit_result = None
+      if search_mode == "auto":
+        if is_reverse:
+          edit_result = searcher.SearchPatternMatchReverse("edit", query, CGI_CAPACITY)
+        else:
+          edit_result = searcher.SearchPatternMatch("edit", query, CGI_CAPACITY)
+
+        if index_mode in ("auto", "normal"):
+          lemmas = searcher.SearchInflections(query)
+          if lemmas:
+            infl_query = ",".join(lemmas)
+            infl_result = searcher.SearchExact(infl_query, CGI_CAPACITY)
+      subactions = []
+      if infl_result:
+        subactions.append("屈折検索")
+      if edit_result:
+        subactions.append("曖昧検索")
+      submessage = ""
+      if subactions:
+        submessage = "{}に移行。".format("、".join(subactions))
+      P('<div class="note">該当なし。{}</div>', submessage)
+      if infl_result:
+        PrintResultCGIList(infl_result, "")
+      if edit_result:
+        PrintResultCGIList(edit_result, "")
   else:
     print("""<div class="license">
 <p>デフォルトでは、英語の検索語が入力されると英和の索引が検索され、日本語の検索語が入力されると和英の索引が検索されます。オプションで索引を明示的に指定できます。</p>

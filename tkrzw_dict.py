@@ -128,7 +128,7 @@ def RemoveDiacritic(text):
 
 
 def NormalizeWord(text):
-  return RemoveDiacritic(text.lower())
+  return RemoveDiacritic(text.lower()).strip()
 
 
 _regex_numeric_word = re.compile(r"^[-0-9.]+$")

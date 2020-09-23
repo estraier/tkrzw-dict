@@ -31,6 +31,9 @@ class UnionSearcher:
     tran_index_path = data_prefix + "-tran-index.tkh"
     self.tran_index_dbm = tkrzw.DBM()
     self.tran_index_dbm.Open(tran_index_path, False, dbm="HashDBM").OrDie()
+    infl_index_path = data_prefix + "-infl-index.tkh"
+    self.infl_index_dbm = tkrzw.DBM()
+    self.infl_index_dbm.Open(infl_index_path, False, dbm="HashDBM").OrDie()
     keys_path = data_prefix + "-keys.txt"
     self.keys_file = tkrzw.TextFile()
     self.keys_file.Open(keys_path).OrDie()
@@ -53,6 +56,7 @@ class UnionSearcher:
     return json.loads(serialized)
 
   def SearchTranIndex(self, text):
+    text = self.NormalizeText(text).strip()
     tsv = self.tran_index_dbm.GetStr(text)
     result = []
     if tsv:
@@ -65,38 +69,68 @@ class UnionSearcher:
       keys.add(self.NormalizeText(entry["word"]))
     return keys
 
-  def SearchExact(self, text, capacity):
-    text = self.NormalizeText(text)
+  def SearchInflections(self, text):
     result = []
-    entries = self.SearchBody(text)
-    norm_text = (text)
-    if entries:
-      if len(entries) > capacity:
-        entrie = entries[:capacity]
-      result.extend(entries)
+    tsv = self.infl_index_dbm.GetStr(text)
+    if tsv:
+      result.extend(tsv.split("\t"))
     return result
 
-  def SearchReverse(self, text, capacity):
-    text = self.NormalizeText(text)
+  def SearchExact(self, text, capacity):
     result = []
-    src_words = self.SearchTranIndex(text)
-    if src_words:
-      for src_word in src_words:
-        if capacity < 1: break
-        entries = self.SearchBody(src_word)
-        if entries:
-          for entry in entries:
-            if capacity < 1: break
-            match = False
-            translations = entry.get("translation")
-            if translations:
-              for tran in translations:
-                tran = self.NormalizeText(tran)
-                if tran.find(text) >= 0:
-                  match = True
-            if match:
-              result.append(entry)
-              capacity -= 1
+    uniq_words = set()
+    for word in text.split(","):
+      if len(result) >= capacity: break
+      word = self.NormalizeText(word)
+      if not word: continue
+      entries = self.SearchBody(word)
+      if not entries: continue
+      for entry in entries:
+        if len(result) >= capacity: break
+        word = entry["word"]
+        if word in uniq_words: continue
+        uniq_words.add(word)
+        result.append(entry)
+    return result
+
+  def SearchExactReverse(self, text, capacity):
+    ja_words = []
+    ja_uniq_words = set()
+    for ja_word in text.split(","):
+      ja_word = self.NormalizeText(ja_word)
+      if not ja_word: continue
+      if ja_word in ja_uniq_words: continue
+      ja_uniq_words.add(ja_word)
+      ja_words.append(ja_word)
+    en_words = []
+    en_uniq_words = set()
+    for ja_word in ja_words:
+      for en_word in self.SearchTranIndex(ja_word):
+        if en_word in en_uniq_words: continue
+        en_uniq_words.add(en_word)
+        en_words.append(en_word)
+    result = []
+    uniq_words = set()
+    for en_word in en_words:
+      if capacity < 1: break
+      entries = self.SearchBody(en_word)
+      if entries:
+        for entry in entries:
+          if capacity < 1: break
+          word = entry["word"]
+          if word in uniq_words: continue
+          uniq_words.add(word)
+          match = False
+          translations = entry.get("translation")
+          if translations:
+            for tran in translations:
+              tran = self.NormalizeText(tran)
+              if tran in ja_words:
+                match = True
+                break
+          if match:
+            result.append(entry)
+            capacity -= 1
     return result
 
   def ExpandEntries(self, entries, capacity):
@@ -125,7 +159,7 @@ class UnionSearcher:
       if trans:
         for tran in trans:
           if len(checked_words) >= capacity: break;
-          for child in self.SearchReverse(tran, capacity - len(checked_words)):
+          for child in self.SearchExactReverse(tran, capacity - len(checked_words)):
             if len(checked_words) >= capacity: break;
             word = child["word"]
             if word in checked_words: continue
@@ -206,7 +240,7 @@ class UnionSearcher:
     words = text.split(",")
     for word in words:
       if word:
-        seeds.extend(self.SearchReverse(word, capacity))
+        seeds.extend(self.SearchExactReverse(word, capacity))
     return self.SearchRelatedWithSeeds(seeds, capacity)
 
   def SearchPatternMatch(self, mode, text, capacity):
@@ -226,7 +260,7 @@ class UnionSearcher:
     uniq_words = set()
     for key in keys:
       if len(result) >= capacity: break
-      for entry in self.SearchReverse(key, capacity - len(result) + 10):
+      for entry in self.SearchExactReverse(key, capacity - len(result) + 10):
         if len(result) >= capacity: break
         word = entry["word"]
         if word in uniq_words: continue
