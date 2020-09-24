@@ -104,6 +104,31 @@ def CutTextByWidth(text, width):
   return result
 
 
+def GetEntryPoses(entry):
+  poses = []
+  uniq_poses = set()
+  first_label = None
+  for item in entry["item"]:
+    label = item["label"]
+    if first_label and label != first_label: break
+    first_label = label
+    text = item["text"]
+    if regex.search(
+        r"の(直接法|直説法|仮定法)?(現在|過去)?(第?[一二三]人称)?[ ・、]?" +
+        r"(単数|複数|現在|過去|比較|最上|進行|完了|動名詞|単純)+[ ・、]?" +
+        r"(形|型|分詞|級|動名詞)+", text):
+      continue
+    if regex.search(r"の(直接法|直説法|仮定法)(現在|過去)", text):
+      continue
+    if regex.search(r"の(動名詞|異綴|異体|古語)", text):
+      continue
+    pos = item["pos"]
+    if pos in uniq_poses: continue
+    uniq_poses.add(pos)
+    poses.append(pos)
+  return poses
+
+
 def PrintWrappedText(text, indent):
   sys.stdout.write(" " * indent)
   width = indent
@@ -124,6 +149,13 @@ def PrintResult(entries, mode, query):
     if mode != "list":
       print()
     title = entry.get("word")
+    if mode == "list":
+      poses = []
+      for pos in GetEntryPoses(entry):
+        pos = POSES.get(pos) or pos[:1]
+        poses.append(pos)
+      if poses:
+        title += "  [{}]".format(",".join(poses))
     translations = entry.get("translation")
     if translations:
       if tkrzw_dict.PredictLanguage(query) != "en":
@@ -455,6 +487,11 @@ def PrintResultCGIList(entries, query):
     word_url = "?q={}".format(urllib.parse.quote(word))
     P('<div class="list_item">')
     P('<a href="{}" class="list_head">{}</a> :', word_url, word)
+    poses = []
+    for pos in GetEntryPoses(entry):
+      pos = POSES.get(pos) or pos[:1]
+      P('<span class="list_label">{}</span>', pos, end="")
+    P('<span class="list_text">', end="")
     translations = entry.get("translation")
     if translations:
       if tkrzw_dict.PredictLanguage(query) != "en":
@@ -464,9 +501,7 @@ def PrintResultCGIList(entries, query):
         tran_url = "?q={}".format(urllib.parse.quote(tran))
         value = '<a href="{}" class="list_tran">{}</a>'.format(esc(tran_url), esc(tran))
         fields.append(value)
-      P('<span class="list_text">', end="")
       print(", ".join(fields), end="")
-      P('</span>')
     else:
       text = ""
       for item in entry["item"]:
@@ -474,7 +509,8 @@ def PrintResultCGIList(entries, query):
         break
       if text:
         text = CutTextByWidth(text, 70)
-        P('<span class="list_text"><span class="list_gross">{}</span></span>', text)
+        P('<span class="list_gross">{}</span>', text)
+    P('</span>')
     P('</div>')
   P('</div>')
 
@@ -545,7 +581,11 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
 .list_item {{ margin: 0.3ex 0.3ex; color: #999999; }}
 .list_head {{ font-weight: bold; color: #000000; }}
 .list_head:hover {{ color: #0011ee; }}
-.list_text {{ font-size: 95%; }}
+.list_label {{
+  display: inline-block; border: solid 1px #999999; border-radius: 0.5ex;
+  font-size: 60%; min-width: 2.5ex; text-align: center; margin-right: 0.2ex;
+  color: #111111; background: #eeeeee; opacity: 0.8; }}
+.list_text {{ font-size: 95%; margin-left: 0.4ex; }}
 .list_tran {{ font-size: 95%; color: #333333; }}
 .list_tran:hover {{ color: #0011ee; }}
 .list_gross {{ color: #444444; font-size: 95%; }}
