@@ -105,8 +105,8 @@ class BuildWordNetDBBatch:
   def GetPOSType(self, symbol):
     if symbol == "n": return "noun"
     if symbol == "v": return "verb"
-    if symbol == "a": return "adjective"
-    if symbol == "r" or symbol == "s": return "adverb"
+    if symbol == "a" or symbol == "s": return "adjective"
+    if symbol == "r": return "adverb"
     raise RuntimeError("unknown:" + symbol)
     return "misc"
 
