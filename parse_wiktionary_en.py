@@ -105,10 +105,10 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     title = self.title
     if title.find(":") >= 0: return
     tran_mode = False
-    if regex.match(r"^[-\p{Latin}0-9 ]+/translations$", title):
+    if regex.search(r"^[-\p{Latin}0-9 ]+/translations$", title):
       title = regex.sub(r"/.*", "", title)
       tran_mode = True
-    if not regex.match(r"^[-\p{Latin}0-9 ]+$", title): return
+    if not regex.search(r"^[-\p{Latin}0-9 ]+$", title): return
     fulltext = html.unescape(self.text)
     fulltext = regex.sub(r"<!--.*?-->", "", fulltext)
     fulltext = regex.sub(r"(\n==+[^=]+==+)", "\\1\n", fulltext)
@@ -444,23 +444,23 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     ipa = ipa_us or ipa_misc  
     if ipa:
       output.append("pronunciation_ipa={}".format(ipa))
-    if noun_plural and not regex.match("[\?\!]", noun_plural):
+    if self.IsGoodInflection(noun_plural):
       output.append("inflection_noun_plural={}".format(noun_plural))
-    if verb_singular:
+    if self.IsGoodInflection(verb_singular):
       output.append("inflection_verb_singular={}".format(verb_singular))
-    if verb_present_participle:
+    if self.IsGoodInflection(verb_present_participle):
       output.append("inflection_verb_present_participle={}".format(verb_present_participle))
-    if verb_past:
+    if self.IsGoodInflection(verb_past):
       output.append("inflection_verb_past={}".format(verb_past))
-    if verb_past_participle:
+    if self.IsGoodInflection(verb_past_participle):
       output.append("inflection_verb_past_participle={}".format(verb_past_participle))
-    if adjective_comparative:
+    if self.IsGoodInflection(adjective_comparative):
       output.append("inflection_adjective_comparative={}".format(adjective_comparative))
-    if adjective_superative:
+    if self.IsGoodInflection(adjective_superative):
       output.append("inflection_adjective_superative={}".format(adjective_superative))
-    if adverb_comparative:
+    if self.IsGoodInflection(adverb_comparative):
       output.append("inflection_adverb_comparative={}".format(adverb_comparative))
-    if adverb_superative:
+    if self.IsGoodInflection(adverb_superative):
       output.append("inflection_adverb_superative={}".format(adverb_superative))
     alternatives = []
     for mode, lines in sections:
@@ -565,6 +565,12 @@ class XMLHandler(xml.sax.handler.ContentHandler):
       if tran_mode:
         output.append("mode=translation")
       print("word={}\t{}".format(title, "\t".join(output)))
+
+  def IsGoodInflection(self, text):
+    if not text: return False
+    if text in ("-" or "~"): return False
+    if regex.search("[\?\!=,/\(\)]", text): return False
+    return True
 
   def OutputTranslation(self, mode, translation, output):
     tran_map = {}

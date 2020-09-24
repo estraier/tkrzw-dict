@@ -104,7 +104,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
   def processText(self):
     title = self.title
     if title.find(":") >= 0: return
-    if not regex.match(r"^[-\p{Latin}0-9 ]+$", title): return
+    if not regex.search(r"^[-\p{Latin}0-9 ]+$", title): return
     fulltext = html.unescape(self.text)
     fulltext = regex.sub(r"<!--.*?-->", "", fulltext)
     fulltext = regex.sub(r"(\n==+[^=]+==+)", "\\1\n", fulltext)
@@ -313,7 +313,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
               elif (len(values) == 2 and
                     values[0].startswith("sg=") and values[1].startswith("pl=")):
                 plural = regex.sub(".*=", "", values[1])
-              if plural and not regex.match("[\?\!]", plural):
+              if self.IsGoodInflection(plural):
                 output.append("inflection_noun_plural={}".format(plural))
           if regex.search(r"\{\{en-verb\|?([^\}]*)\}\}", line):
             if "verb" in infl_modes: continue
@@ -404,10 +404,14 @@ class XMLHandler(xml.sax.handler.ContentHandler):
                 present_participle = values[1]
                 past = values[2]
                 past_participle = values[3]
-              output.append("inflection_verb_singular={}".format(singular))
-              output.append("inflection_verb_present_participle={}".format(present_participle))
-              output.append("inflection_verb_past={}".format(past))
-              output.append("inflection_verb_past_participle={}".format(past_participle))
+              if self.IsGoodInflection(singular):
+                output.append("inflection_verb_singular={}".format(singular))
+              if self.IsGoodInflection(present_participle):
+                output.append("inflection_verb_present_participle={}".format(present_participle))
+              if self.IsGoodInflection(past):
+                output.append("inflection_verb_past={}".format(past))
+              if self.IsGoodInflection(past_participle):
+                output.append("inflection_verb_past_participle={}".format(past_participle))
           if regex.search(r"\{\{en-adj\|?([^\}]*)\}\}", line):
             if "adjective" in infl_modes: continue
             infl_modes.add("adjective")
@@ -446,9 +450,9 @@ class XMLHandler(xml.sax.handler.ContentHandler):
               elif len(values) == 2:
                 comparative = values[0]
                 superative = values[1]
-              if comparative and comparative != "-":
+              if self.IsGoodInflection(comparative):
                 output.append("inflection_adjective_comparative={}".format(comparative))
-              if superative and superative != "-":
+              if self.IsGoodInflection(superative):
                 output.append("inflection_adjective_superative={}".format(superative))
           if regex.search(r"\{\{en-adv\|?([^\}]*)\}\}", line):
             if "adverb" in infl_modes: continue
@@ -488,9 +492,9 @@ class XMLHandler(xml.sax.handler.ContentHandler):
               elif len(values) == 2:
                 comparative = values[0]
                 superative = values[1]
-              if comparative and comparative != "-":
+              if self.IsGoodInflection(comparative):
                 output.append("inflection_adverb_comparative={}".format(comparative))
-              if superative and superative != "-":
+              if self.IsGoodInflection(superative):
                 output.append("inflection_adverb_superative={}".format(superative))
           if mode == "noun":
             if regex.search(r"\{\{p\}\} *:.*\[\[([a-zA-Z ]+)\]\]", line):
@@ -503,7 +507,8 @@ class XMLHandler(xml.sax.handler.ContentHandler):
               values = regex.sub(
                 r".*比較級 *:.*\[\[([a-zA-Z ]+)\]\].*[,、].*最上級 *: *\[\[([a-zA-Z ]+)\]\].*",
                 "\\1\t\\2", line).split("\t")
-              if len(values) == 2 and values[0] and values[1]:
+              if (len(values) == 2 and
+                  self.IsGoodInflection(values[0]) and self.IsGoodInflection(values[1])):
                 output.append("inflection_{}_comparative={}".format(mode, values[0]))
                 output.append("inflection_{}_superative={}".format(mode, values[1]))
           if not regex.search(r"^[#\*:]", line):
@@ -574,6 +579,12 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         if rel[0]:
           output.append("{}={}".format(rel[1], ", ".join(rel[0])))
       print("word={}\t{}".format(title, "\t".join(output)))
+
+  def IsGoodInflection(self, text):
+    if not text: return False
+    if text in ("-" or "~"): return False
+    if regex.search("[\?\!=,/\(\)]", text): return False
+    return True
 
   def MakePlainText(self, text):
     text = regex.sub(r"^[#\*]+", "", text)
