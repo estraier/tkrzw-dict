@@ -389,11 +389,11 @@ def PrintResultCGI(entries, query, details):
       P('<span class="pos">{}</span>', pos)
       if attr_label:
         fields = []
-        bracket = ""
-        bracket_match = regex.search(r"^\(.*?\)", section)
-        if bracket_match:
-          bracket = bracket_match.group(0)
-          section = section[len(bracket):].strip()
+        annot = ""
+        annot_match = regex.search(r"^\(.*?\)", section)
+        if annot_match:
+          annot = annot_match.group(0)
+          section = section[len(annot):].strip()
         for subword in section.split(","):
           subword = subword.strip()
           if subword:
@@ -403,8 +403,8 @@ def PrintResultCGI(entries, query, details):
         if fields:
           P('<span class="subattr_label">{}</span>', attr_label)
           P('<span class="text">', end="")
-          if bracket:
-            P("{} ", bracket)
+          if annot:
+            P('<span class="annot">{}</span> ', annot)
           print(", ".join(fields))
           P('</span>')
       else:
@@ -419,7 +419,7 @@ def PrintResultCGI(entries, query, details):
           section = section[len(attr_match.group(0)):].strip()
           P('<span class="subattr_label">{}</span>', attr_label)
         P('<span class="text">', end="")
-        print(esc(section))
+        PrintItemTextCGI(section)
         P('</span>')
       P('</div>')
       if details:
@@ -447,16 +447,18 @@ def PrintResultCGI(entries, query, details):
               print(", ".join(fields), end="")
               P('</span>')
           else:
-            P('<span class="text">{}</span>', subsections[0])
+            P('<span class="text">')
+            PrintItemTextCGI(subsections[0])
+            P('</span>')
           P('</div>')
           for subsection in subsections[1:]:
             subsubsections = subsection.split(" [---] ")
             P('<div class="item_text item_text3 item_text_n">')
-            P('<span class="text">{}</span>', subsubsections[0])
+            PrintItemTextCGI(subsubsections[0])
             P('</div>')
             for subsubsubsection in subsubsections[1:]:
               P('<div class="item_text item_text4 item_text_n">')
-              P('<span class="text">{}</span>', subsubsubsection)
+              PrintItemTextCGI(subsubsubsection)
               P('</div>')
       P('</div>')
     if details:
@@ -479,6 +481,26 @@ def PrintResultCGI(entries, query, details):
           ' <span class="attr_value">{:.4f}%</span></div>', float(prob) * 100)
     P('</div>')
 
+
+def PrintItemTextCGI(text):
+  P('<span class="text">', end="")
+
+  
+  while text:
+    match = regex.search("(^|.*?[。、])([\(（〔].+?[\)）〕])", text)
+    if match:
+      print(esc(match.group(1)), end="")
+      P('<span class="annot">{}</span>', match.group(2), end="")
+      text = text[len(match.group(0)):]
+    else:
+      print(esc(text), end="")
+      break
+  P('</span>', end="")
+
+
+
+
+  
 
 def PrintResultCGIList(entries, query):
   P('<div class="list">')
@@ -544,7 +566,7 @@ a:hover {{ color: #0011ee; text-decoration: underline; }}
 h1 a,h2 a {{ color: #000000; text-decoration: none; }}
 h1 {{ font-size: 110%; margin: 1ex 0ex 0ex 0ex; }}
 h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
-.search_form,.entry,.list,.note,.license {{
+.search_form,.entry,.list,.message,.license {{
   border: 1px solid #dddddd; border-radius: 0.5ex;
   margin: 1ex 0ex; padding: 0.8ex 1ex 1.3ex 1ex; background: #ffffff; position: relative; }}
 #query_line {{ color: #333333; }}
@@ -554,7 +576,7 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
 .license {{ opacity: 0.7; font-size: 90%; padding: 2ex 3ex; }}
 .license a {{ color: #001166; }}
 .license ul {{ font-size: 90%; }}
-.note {{ opacity: 0.9; font-size: 90%; padding: 1ex 2ex; }}
+.message {{ opacity: 0.9; font-size: 90%; padding: 1ex 2ex; }}
 .attr,.item {{ color: #999999; }}
 .attr a,.item a {{ color: #111111; }}
 .attr a:hover,.item a:hover {{ color: #0011ee; }}
@@ -576,6 +598,7 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
 .tran {{ color: #000000; }}
 .attr_value {{ margin-left: 0.3ex; color: #111111; }}
 .text {{ margin-left: 0.3ex; color: #111111; }}
+.annot {{ font-size: 80%; color: #555555; }}
 .item_text_n .text {{ color: #333333; }}
 .list {{ padding: 1.2ex 1ex 1.5ex 1.8ex; }}
 .list_item {{ margin: 0.3ex 0.3ex; color: #999999; }}
@@ -594,7 +617,7 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
   body {{ padding: 0.8ex; }}
   article {{ width: 100%; }}
   #query_line {{ font-size: 12pt; zoom: 250%; }}
-  .search_form,.entry,.list,.note,.license {{
+  .search_form,.entry,.list,.message,.license {{
     padding: 0.5ex 0.5ex; }}
   .attr {{ margin-left: 1ex; }}
   .item_text1 {{ margin-left: 1ex; }}
@@ -754,7 +777,7 @@ function startup() {{
       submessage = ""
       if subactions:
         submessage = "{}に移行。".format("、".join(subactions))
-      P('<div class="note">該当なし。{}</div>', submessage)
+      P('<div class="message">該当なし。{}</div>', submessage)
       if infl_result:
         PrintResultCGIList(infl_result, "")
       if edit_result:

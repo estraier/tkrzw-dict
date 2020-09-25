@@ -331,12 +331,12 @@ class BuildUnionDBBatch:
     for item in entry["item"]:
       label = item["label"]
       sections = item["text"].split(" [-] ")
-      section_index = 1
+      text = sections[0]
+      text = regex.sub(r"。 *(また|または|又は)、.*?。", r"。", text)
       if (label in self.gross_labels and
-          regex.search(r"[\p{Han}\p{Hiragana}\p{Katakana}ー]", sections[0])):
+          regex.search(r"[\p{Han}\p{Hiragana}\p{Katakana}ー]", text)):
         weight = body_weight
         body_weight *= 0.9
-        text = sections[0]
         if regex.search(r"[\(（《〔\{\(]([^)）》〕\}\]]+[・、])?" +
                         r"(俗|俗語|スラング|卑|卑語|隠語|古|古語|廃|廃用|廃語)+[)）》〕\}\]]",
                         text):
