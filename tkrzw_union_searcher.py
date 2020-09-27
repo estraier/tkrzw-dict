@@ -137,6 +137,7 @@ class UnionSearcher:
     result = []
     seeds = collections.deque()
     checked_words = set()
+    checked_trans = set()
     for entry in entries:
       word = entry["word"]
       if word in checked_words: continue
@@ -145,10 +146,13 @@ class UnionSearcher:
     while seeds:
       entry = seeds.popleft()
       result.append(entry)
+      max_rel_words = max(int(16 / math.log2(len(result) + 1)), 4)
+      max_trans = max(int(8 / math.log2(len(result) + 1)), 3)
       rel_words = entry.get("related")
       if rel_words:
-        for rel_word in rel_words:
+        for rel_word in rel_words[:max_rel_words]:
           if len(checked_words) >= capacity: break;
+          if rel_word in checked_words: continue
           for child in self.SearchExact(rel_word, capacity - len(checked_words)):
             if len(checked_words) >= capacity: break;
             word = child["word"]
@@ -157,8 +161,10 @@ class UnionSearcher:
             seeds.append(child)
       trans = entry.get("translation")
       if trans:
-        for tran in trans:
+        for tran in trans[:max_trans]:
           if len(checked_words) >= capacity: break;
+          if tran in checked_trans: continue
+          checked_trans.add(tran)
           for child in self.SearchExactReverse(tran, capacity - len(checked_words)):
             if len(checked_words) >= capacity: break;
             word = child["word"]
