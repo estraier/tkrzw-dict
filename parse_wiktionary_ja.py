@@ -178,7 +178,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           rel_words = hyponyms
         elif CheckMode(("{{ant}}", "antonym", "対義語")):
           rel_words = antonyms
-        elif CheckMode(("{{derived}}", "derived terms", "derived term", "派生語")):
+        elif CheckMode(("{{derived}}", "{{drv}}", "derived terms", "derived term", "派生語")):
           rel_words = derivations
         elif CheckMode(("{{rel}}", "related terms", "related term", "関連語")):
           rel_words = relations
@@ -636,11 +636,23 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     text = regex.sub(r"\{\{(context|lb|タグ|tag|label|infl)\|[^\}]*\}\}", "", text)
     text = regex.sub(r"\{\{cat:[^\}]*\}\}", "", text)
     text = regex.sub(r"\{\{abbreviation of(\|en)?\|([^|}]+)\}\}", r"\2", text)
+    text = regex.sub(r"\{\{(en-)?plural of(\|en)?\|([^|}]+)\}\}", r"\3の複数形", text)
+    text = regex.sub(r"\{\{(en-)?third-person singular of(\|en)?\|([^|}]+)\}\}",
+                     r"\3の三人称単数現在形", text)
+    text = regex.sub(r"\{\{(en-)?past of(\|en)?\|([^|}]+)\}\}", r"\3の過去形", text)
+    text = regex.sub(r"\{\{(en-)?present participle of(\|en)?\|([^|}]+)\}\}",
+                     r"\3の現在分詞", text)
+    text = regex.sub(r"\{\{(en-)?past participle of(\|en)?\|([^|}]+)\}\}", r"\3の過去分詞", text)
+    text = regex.sub(r"\{\{(en-)?comparative of(\|en)?\|([^|}]+)\}\}", r"\3の複数形", text)
+    text = regex.sub(r"\{\{(en-)?comparative of(\|en)?\|([^|}]+)\}\}", r"\3の比較級", text)
+    text = regex.sub(r"\{\{(en-)?superative of(\|en)?\|([^|}]+)\}\}", r"\3の最上級", text)
     text = regex.sub(r"\{\{(m|ux|l)\|[a-z]+\|([^\|\}]+)(\|[^\}\|]+)*\}\}", r"\2", text)
     text = regex.sub(r"\{\{(n-g|non-gloss definition)\|([^\|\}]+)(\|[^\}\|]+)*\}\}", r"\2", text)
     text = regex.sub(r"\{\{&lit\|en\|(.*?)\|(.*?)\|(.*?)(\|.*?)*?\}\}", r"cf. \1, \2, \3 ", text)
     text = regex.sub(r"\{\{&lit\|en\|(.*?)\|(.*?)(\|.*?)*?\}\}", r"cf. \1, \2 ", text)
     text = regex.sub(r"\{\{&lit\|en\|(.*?)(\|.*?)*?\}\}", r"cf. \1", text)
+    text = regex.sub(r"\{\{(vern|taxlink)\|(.*?)(\|.*?)*\}\}", r"\2", text)
+    text = regex.sub(r"\{\{syn of\|en\|(.*?)(\|.*?)*\}\}", r"Synonym of \1", text)
     text = regex.sub(r"\{\{syn\|en\|(.*?)\|(.*?)\|(.*?)(\|.*?)*?\}\}",
                      r"Synonyms: \1, \2, \3 ", text)
     text = regex.sub(r"\{\{syn\|en\|(.*?)\|(.*?)(\|.*?)*?\}\}", r"Synonyms: \1, \2 ", text)

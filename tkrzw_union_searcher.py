@@ -125,9 +125,11 @@ class UnionSearcher:
           if translations:
             for tran in translations:
               tran = self.NormalizeText(tran)
-              if tran in ja_words:
-                match = True
-                break
+              for ja_word in ja_words:
+                if tran.find(ja_word) >= 0:
+                  match = True
+                  break
+              if match: break
           if match:
             result.append(entry)
             capacity -= 1

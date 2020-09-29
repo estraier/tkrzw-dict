@@ -626,6 +626,8 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     text = regex.sub(r"\{\{&lit\|en\|(.*?)\|(.*?)\|(.*?)(\|.*?)*?\}\}", r"cf. \1, \2, \3 ", text)
     text = regex.sub(r"\{\{&lit\|en\|(.*?)\|(.*?)(\|.*?)*?\}\}", r"cf. \1, \2 ", text)
     text = regex.sub(r"\{\{&lit\|en\|(.*?)(\|.*?)*?\}\}", r"cf. \1 ", text)
+    text = regex.sub(r"\{\{(vern|taxlink)\|(.*?)(\|.*?)*\}\}", r"\2", text)
+    text = regex.sub(r"\{\{syn of\|en\|(.*?)(\|.*?)*\}\}", r"Synonym of \1", text)
     text = regex.sub(r"\{\{syn\|en\|(.*?)\|(.*?)\|(.*?)(\|.*?)*?\}\}",
                      r"Synonyms: \1, \2, \3 ", text)
     text = regex.sub(r"\{\{syn\|en\|(.*?)\|(.*?)(\|.*?)*?\}\}", r"Synonyms: \1, \2 ", text)

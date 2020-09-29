@@ -60,7 +60,7 @@ rel_weights = {"synonym": 1.0,
 class BuildUnionDBBatch:
   def __init__(self, input_confs, output_path, gross_labels,
                surfeit_labels, top_labels, rank_labels, slim_labels, tran_list_labels,
-               word_prob_path, tran_prob_path, rev_prob_path, min_prob_map):
+               word_prob_path, tran_prob_path, tran_aux_paths, rev_prob_path, min_prob_map):
     self.input_confs = input_confs
     self.output_path = output_path
     self.gross_labels = gross_labels
@@ -71,6 +71,7 @@ class BuildUnionDBBatch:
     self.tran_list_labels = tran_list_labels
     self.word_prob_path = word_prob_path
     self.tran_prob_path = tran_prob_path
+    self.tran_aux_paths = tran_aux_paths
     self.rev_prob_path = rev_prob_path
     self.min_prob_map = min_prob_map
     self.tokenizer = tkrzw_tokenizer.Tokenizer()
@@ -84,7 +85,11 @@ class BuildUnionDBBatch:
       slim = label in self.slim_labels
       word_dict = self.ReadInput(input_path, slim)
       word_dicts.append((label, word_dict))
-    self.SaveWords(word_dicts)
+    aux_trans = {}
+    for tran_aux_path in self.tran_aux_paths:
+      if not tran_aux_path: continue
+      self.ReadTranAuxTSV(tran_aux_path, aux_trans)
+    self.SaveWords(word_dicts, aux_trans)
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
   def ReadInput(self, input_path, slim):
@@ -146,7 +151,30 @@ class BuildUnionDBBatch:
       num_entries, time.time() - start_time))
     return word_dict
 
-  def SaveWords(self, word_dicts):
+  def ReadTranAuxTSV(self, input_path, aux_trans):
+    start_time = time.time()
+    logger.info("Reading a translation aux file: input_path={}".format(input_path))
+    num_entries = 0
+    with open(input_path) as input_file:
+      for line in input_file:
+        fields = line.strip().split("\t")
+        if len(fields) < 2: continue
+        word = fields[0]
+        values = aux_trans.get(word) or []
+        uniq_trans = set()
+        for tran in fields[1:]:
+          norm_tran = tkrzw_dict.NormalizeWord(tran)
+          if norm_tran in uniq_trans: continue
+          uniq_trans.add(norm_tran)
+          values.append(tran)
+        aux_trans[word] = values
+        num_entries += 1
+        if num_entries % 1000 == 0:
+          logger.info("Reading a translation aux file: num_entries={}".format(num_entries))
+    logger.info("Reading a translation aux file: num_entries={}, elapsed_time={:.2f}s".format(
+      num_entries, time.time() - start_time))
+
+  def SaveWords(self, word_dicts, aux_trans):
     keys = set()
     logger.info("Extracting keys")
     for label, word_dict in word_dicts:
@@ -172,7 +200,8 @@ class BuildUnionDBBatch:
       rev_prob_dbm.Open(self.rev_prob_path, False, dbm="HashDBM").OrDie()
     num_records = 0
     for key in keys:
-      record = self.MakeRecord(key, word_dicts, word_prob_dbm, tran_prob_dbm, rev_prob_dbm)
+      record = self.MakeRecord(key, word_dicts, aux_trans,
+                               word_prob_dbm, tran_prob_dbm, rev_prob_dbm)
       if not record: continue
       serialized = json.dumps(record, separators=(",", ":"), ensure_ascii=False)
       word_dbm.Set(key, serialized)
@@ -190,7 +219,7 @@ class BuildUnionDBBatch:
     word_dbm.Close().OrDie()
     logger.info("Saving words done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
-  def MakeRecord(self, key, word_dicts, word_prob_dbm, tran_prob_dbm, rev_prob_dbm):
+  def MakeRecord(self, key, word_dicts, aux_trans, word_prob_dbm, tran_prob_dbm, rev_prob_dbm):
     word_entries = {}
     word_ranks = {}
     word_trans = {}
@@ -273,7 +302,7 @@ class BuildUnionDBBatch:
         continue
       if merged_entry and not effective_labels:
         continue
-      self.SetTranslations(word_entry, tran_prob_dbm, rev_prob_dbm)
+      self.SetTranslations(word_entry, aux_trans, tran_prob_dbm, rev_prob_dbm)
       self.SetRelations(word_entry, entries, word_dicts, word_prob_dbm, tran_prob_dbm)
       merged_entry.append(word_entry)
     return merged_entry
@@ -294,7 +323,7 @@ class BuildUnionDBBatch:
     min_prob = max(min_prob, 0.000001)
     return min_prob
 
-  def SetTranslations(self, entry, tran_prob_dbm, rev_prob_dbm):
+  def SetTranslations(self, entry, aux_trans, tran_prob_dbm, rev_prob_dbm):
     word = entry["word"]
     tran_probs = {}
     if tran_prob_dbm:
@@ -310,6 +339,18 @@ class BuildUnionDBBatch:
           if tkrzw_dict.IsStopWord("ja", norm_trg) or len(norm_trg) < 2:
             prob *= 0.5
           tran_probs[norm_trg] = prob ** 0.8
+    word_aux_trans = aux_trans.get(word)
+    count_aux_trans = {}
+    if word_aux_trans:
+      for aux_tran in word_aux_trans:
+        count = (count_aux_trans.get(aux_tran) or 0) + 1
+        count_aux_trans[aux_tran] = count
+      aux_weight = 1.0
+      for aux_tran, count in count_aux_trans.items():
+        aux_score = (0.01 ** (1 / count)) * aux_weight
+        prob = (tran_probs.get(aux_tran) or 0) + aux_score
+        tran_probs[aux_tran] = prob
+        aux_weight *= 0.9
     translations = {}
     tran_labels = {}
     def Vote(tran, weight, label):
@@ -360,7 +401,7 @@ class BuildUnionDBBatch:
             if tran in ("また", "または", "又は", "しばしば"):
               continue
           tran = regex.sub(r"[\p{S}\p{P}]+ *(が|の|を|に|へ|と|より|から|で|や)", "", tran)
-          tran = regex.sub(r"[～]", "", tran)
+          tran = regex.sub(r"[～〜]", "", tran)
           tokens = self.tokenizer.Tokenize("ja", tran, False, False)
           if len(tokens) > 6:
             continue
@@ -381,7 +422,8 @@ class BuildUnionDBBatch:
           for tran in text.split(","):
             tran = tran.strip()
             tran = regex.sub(r"[\p{S}\p{P}]+ *(が|の|を|に|へ|と|より|から|で|や)", "", tran)
-            tran = regex.sub(r"[～]", "", tran)
+            tran = regex.sub(r"[～\p{S}\p{P}]", " ", tran)
+            tran = tran.strip()
             if tran:
               Vote(tran, weight, label)
               weight *= 0.85
@@ -446,6 +488,14 @@ class BuildUnionDBBatch:
       uniq_trans.add(norm_tran)
       if len(final_translations) < max_elems or score >= 0.001:
         final_translations.append(tran)
+    for aux_tran, count in count_aux_trans.items():
+      if count <= 1 and len(final_translations) >= 5: break
+      if len(final_translations) >= max_elems: break
+      norm_tran = tkrzw_dict.NormalizeWord(aux_tran)
+      if norm_tran in uniq_trans:
+        continue
+      uniq_trans.add(norm_tran)
+      final_translations.append(aux_tran)
     if final_translations:
       entry["translation"] = final_translations
 
@@ -567,6 +617,7 @@ def main():
   tran_list_labels = set((tkrzw_dict.GetCommandFlag(args, "--tran_list", 1) or "wn,we").split(","))
   word_prob_path = tkrzw_dict.GetCommandFlag(args, "--word_prob", 1) or ""
   tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
+  tran_aux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or "").split(",")
   rev_prob_path = tkrzw_dict.GetCommandFlag(args, "--rev_prob", 1) or ""
   min_prob_exprs = tkrzw_dict.GetCommandFlag(args, "--min_prob", 1) or ""
   min_prob_map = {}
@@ -590,7 +641,8 @@ def main():
     input_confs.append(input_conf)
   BuildUnionDBBatch(input_confs, output_path, gross_labels,
                     surfeit_labels, top_labels, rank_labels, slim_labels, tran_list_labels,
-                    word_prob_path, tran_prob_path, rev_prob_path, min_prob_map).Run()
+                    word_prob_path, tran_prob_path, tran_aux_paths,
+                    rev_prob_path, min_prob_map).Run()
  
 
 if __name__=="__main__":
