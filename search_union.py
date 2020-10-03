@@ -220,6 +220,10 @@ def PrintResult(entries, mode, query):
         if related:
           text = "[related] {}".format(", ".join(related[:8]))
           PrintWrappedText(text, 4)
+        coocs = entry.get("cooccurrence")
+        if coocs:
+          text = "[cooc] {}".format(", ".join(coocs[:8]))
+          PrintWrappedText(text, 4)
         prob = entry.get("probability")
         if prob:
           text = "[prob] {:.4f}%".format(float(prob) * 100)
@@ -475,6 +479,20 @@ def PrintResultCGI(entries, query, details):
         print(", ".join(fields), end="")
         P('</span>')
         P('</div>')
+
+      coocs = entry.get("cooccurrence")
+      if coocs:
+        P('<div class="attr attr_cooc">')
+        P('<span class="attr_label">共起</span>')
+        P('<span class="text">')
+        fields = []
+        for subword in coocs[:8]:
+          subword_url = "?q={}".format(urllib.parse.quote(subword))
+          fields.append('<a href="{}" class="subword">{}</a>'.format(
+            esc(subword_url), esc(subword)))
+        print(", ".join(fields), end="")
+        P('</span>')
+        P('</div>')
       prob = entry.get("probability")
       if prob:
         P('<div class="attr attr_prob"><span class="attr_label">頻度</span>' +
@@ -484,8 +502,6 @@ def PrintResultCGI(entries, query, details):
 
 def PrintItemTextCGI(text):
   P('<span class="text">', end="")
-
-  
   while text:
     match = regex.search("(^|.*?[。、])([\(（〔].+?[\)）〕])", text)
     if match:
@@ -496,10 +512,6 @@ def PrintItemTextCGI(text):
       print(esc(text), end="")
       break
   P('</span>', end="")
-
-
-
-
   
 
 def PrintResultCGIList(entries, query):
@@ -747,6 +759,20 @@ function startup() {{
           PrintResultCGI(result, query, False)
         else:
           PrintResultCGIList(result, query)
+        if not is_reverse and index_mode == "auto":
+          lemmas =set()
+          for lemma in searcher.SearchInflections(query):
+            if lemma in keys: continue
+            lemmas.add(lemma)
+          if lemmas:
+            words = set([x["word"] for x in result])
+            infl_result = []
+            for lemma in lemmas:
+              for entry in searcher.SearchExact(lemma, CGI_CAPACITY):
+                if entry["word"] in words: continue
+                infl_result.append(entry)
+            if infl_result:
+              PrintResultCGIList(infl_result, "")
       elif view_mode == "full":
         PrintResultCGI(result, query, True)
       elif view_mode == "simple":

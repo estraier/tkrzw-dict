@@ -148,31 +148,47 @@ class UnionSearcher:
     while seeds:
       entry = seeds.popleft()
       result.append(entry)
+      num_appends = 0
       max_rel_words = max(int(16 / math.log2(len(result) + 1)), 4)
       max_trans = max(int(8 / math.log2(len(result) + 1)), 3)
       rel_words = entry.get("related")
       if rel_words:
         for rel_word in rel_words[:max_rel_words]:
-          if len(checked_words) >= capacity: break;
+          if len(checked_words) >= capacity: break
           if rel_word in checked_words: continue
           for child in self.SearchExact(rel_word, capacity - len(checked_words)):
-            if len(checked_words) >= capacity: break;
+            if len(checked_words) >= capacity: break
             word = child["word"]
             if word in checked_words: continue
             checked_words.add(word)
             seeds.append(child)
+            num_appends += 1
       trans = entry.get("translation")
       if trans:
         for tran in trans[:max_trans]:
-          if len(checked_words) >= capacity: break;
+          if len(checked_words) >= capacity: break
           if tran in checked_trans: continue
           checked_trans.add(tran)
           for child in self.SearchExactReverse(tran, capacity - len(checked_words)):
-            if len(checked_words) >= capacity: break;
+            if len(checked_words) >= capacity: break
             word = child["word"]
             if word in checked_words: continue
             checked_words.add(word)
             seeds.append(child)
+            num_appends += 1
+      coocs = entry.get("cooccurrence")
+      if coocs:
+        for cooc in coocs:
+          if num_appends >= 8: break
+          if len(checked_words) >= capacity: break
+          if cooc in checked_words: continue
+          for child in self.SearchExact(cooc, capacity - len(checked_words)):
+            if len(checked_words) >= capacity: break
+            word = child["word"]
+            if word in checked_words: continue
+            checked_words.add(word)
+            seeds.append(child)
+            num_appends += 1
     return result
 
   def GetFeatures(self, entry):
@@ -194,6 +210,13 @@ class UnionSearcher:
         if tran not in features:
           score *= SCORE_DECAY
           features[tran] = score
+    coocs = entry.get("cooccurrence")
+    if coocs:
+      for cooc in coocs[:20]:
+        cooc = self.NormalizeText(cooc)
+        if cooc not in features:
+          score *= SCORE_DECAY
+          features[cooc] = score
     return features
 
   def GetSimilarity(self, seed_features, cand_features):

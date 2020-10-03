@@ -5,13 +5,15 @@
 #
 # Usage:
 #   build_union_db.py [--output str] [--quiet] [--top str] [--slim str] [--rank str]
-#     [--word_prob str] [--tran_prob str] [--rev_prob str] [--min_prob str] inputs...
+#     [--word_prob str] [--tran_prob str] [--tran_aux str] [--rev_prob str] [--cooc_prob str]
+#     [--min_prob str] inputs...
 #   (An input specified as "label:tsv_file".
 #
 # Example:
 #   ./build_union_db.py --output union-body.tkh \
 #     --word_prob enwiki-word-prob.tkh --tran_prob tran-prob.tkh \
-#     --rev_prob jawiki-word-prob.tkh --min_prob we:0.00001 \
+#     --tran_aux dict1.tsv,dict2.tsv --rev_prob jawiki-word-prob.tkh \
+#     --cooc_prob enwiki-cooc-prob.tkh --min_prob we:0.00001 \
 #     wj:wiktionary-ja.tsv wn:wordnet.tsv we:wiktionary-en.tsv 
 #
 # Copyright 2020 Google LLC
@@ -60,7 +62,8 @@ rel_weights = {"synonym": 1.0,
 class BuildUnionDBBatch:
   def __init__(self, input_confs, output_path, gross_labels,
                surfeit_labels, top_labels, rank_labels, slim_labels, tran_list_labels,
-               word_prob_path, tran_prob_path, tran_aux_paths, rev_prob_path, min_prob_map):
+               word_prob_path, tran_prob_path, tran_aux_paths, rev_prob_path, cooc_prob_path,
+               min_prob_map):
     self.input_confs = input_confs
     self.output_path = output_path
     self.gross_labels = gross_labels
@@ -73,6 +76,7 @@ class BuildUnionDBBatch:
     self.tran_prob_path = tran_prob_path
     self.tran_aux_paths = tran_aux_paths
     self.rev_prob_path = rev_prob_path
+    self.cooc_prob_path = cooc_prob_path
     self.min_prob_map = min_prob_map
     self.tokenizer = tkrzw_tokenizer.Tokenizer()
 
@@ -198,16 +202,22 @@ class BuildUnionDBBatch:
     if self.rev_prob_path:
       rev_prob_dbm = tkrzw.DBM()
       rev_prob_dbm.Open(self.rev_prob_path, False, dbm="HashDBM").OrDie()
+    cooc_prob_dbm = None
+    if self.cooc_prob_path:
+      cooc_prob_dbm = tkrzw.DBM()
+      cooc_prob_dbm.Open(self.cooc_prob_path, False, dbm="HashDBM").OrDie()
     num_records = 0
     for key in keys:
       record = self.MakeRecord(key, word_dicts, aux_trans,
-                               word_prob_dbm, tran_prob_dbm, rev_prob_dbm)
+                               word_prob_dbm, tran_prob_dbm, rev_prob_dbm, cooc_prob_dbm)
       if not record: continue
       serialized = json.dumps(record, separators=(",", ":"), ensure_ascii=False)
       word_dbm.Set(key, serialized)
       num_records += 1
       if num_records % 1000 == 0:
         logger.info("Saving words: num_records={}".format(num_records))
+    if cooc_prob_dbm:
+      cooc_prob_dbm.Close().OrDie()
     if rev_prob_dbm:
       rev_prob_dbm.Close().OrDie()
     if tran_prob_dbm:
@@ -219,7 +229,8 @@ class BuildUnionDBBatch:
     word_dbm.Close().OrDie()
     logger.info("Saving words done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
-  def MakeRecord(self, key, word_dicts, aux_trans, word_prob_dbm, tran_prob_dbm, rev_prob_dbm):
+  def MakeRecord(self, key, word_dicts, aux_trans, word_prob_dbm, tran_prob_dbm,
+                 rev_prob_dbm, cooc_prob_dbm):
     word_entries = {}
     word_ranks = {}
     word_trans = {}
@@ -282,7 +293,7 @@ class BuildUnionDBBatch:
           word_entry["item"] = items
       if "item" not in word_entry: continue
       if word_prob_dbm:
-        prob = self.GetPhraseProb(word_prob_dbm, "en", word)
+        prob = self.GetPhraseProb(word_prob_dbm, cooc_prob_dbm, "en", word)
         word_entry["probability"] = "{:.6f}".format(prob).replace("0.", ".")
         if self.min_prob_map:
           has_good_label = False
@@ -303,23 +314,47 @@ class BuildUnionDBBatch:
       if merged_entry and not effective_labels:
         continue
       self.SetTranslations(word_entry, aux_trans, tran_prob_dbm, rev_prob_dbm)
-      self.SetRelations(word_entry, entries, word_dicts, word_prob_dbm, tran_prob_dbm)
+      self.SetRelations(word_entry, entries, word_dicts,
+                        word_prob_dbm, tran_prob_dbm, cooc_prob_dbm)
+      if word_prob_dbm and cooc_prob_dbm:
+        self.SetCoocurrences(word_entry, entries, word_dicts, word_prob_dbm, cooc_prob_dbm)
       merged_entry.append(word_entry)
     return merged_entry
 
-  def GetPhraseProb(self, word_prob_dbm, language, word):
+  def GetPhraseProb(self, word_prob_dbm, cooc_prob_dbm, language, word):
     tokens = self.tokenizer.Tokenize(language, word, True, True)
     probs = []
     for token in tokens:
       token = tkrzw_dict.NormalizeWord(token)
       prob = float(word_prob_dbm.GetStr(token) or 0.0)
-      probs.append(prob)
-    probs = sorted(probs)
+      probs.append((token, prob))
+    probs = sorted(probs, key=lambda x: x[1])
     min_prob = 0.0
     if probs:
-      min_prob =probs[0]
-    for prob in probs[1:]:
-      min_prob *= min(prob ** 0.5, 0.2)
+      min_prob = probs[0][1]
+    power = 0.65 if len(tokens) <= 2 else 0.5
+    for token, prob in probs[1:]:
+      min_prob *= min(prob ** power, 0.2)
+    if cooc_prob_dbm and len(probs) == 2:
+      def GetCoocProb(first_word, second_word):
+        prob = 0.0
+        tsv = cooc_prob_dbm.GetStr(first_word)
+        if tsv:
+          for field in tsv.split("\t"):
+            cand_word, cand_prob = field.split(" ", 1)
+            if cand_word == second_word:
+              prob = float(cand_prob)
+        return prob
+      first_prob = probs[0][1]
+      first_word = probs[0][0]
+      second_word = probs[1][0]
+      second_prob = GetCoocProb(first_word, second_word)
+      min_prob = max(min_prob, first_prob * second_prob)
+      first_prob = probs[1][1]
+      first_word = probs[1][0]
+      second_word = probs[0][0]
+      second_prob = GetCoocProb(first_word, second_word)
+      min_prob = max(min_prob, first_prob * second_prob)
     min_prob = max(min_prob, 0.000001)
     return min_prob
 
@@ -357,7 +392,7 @@ class BuildUnionDBBatch:
       norm_tran = tkrzw_dict.NormalizeWord(tran)
       score = 0.00001
       if rev_prob_dbm:
-        prob = self.GetPhraseProb(rev_prob_dbm, "ja", tran)
+        prob = self.GetPhraseProb(rev_prob_dbm, None, "ja", tran)
         if tkrzw_dict.IsStopWord("ja", tran) or tran in ("又は"):
           prob *= 0.5
         score += prob
@@ -499,7 +534,8 @@ class BuildUnionDBBatch:
     if final_translations:
       entry["translation"] = final_translations
 
-  def SetRelations(self, word_entry, entries, word_dicts, word_prob_dbm, tran_prob_dbm):
+  def SetRelations(self, word_entry, entries, word_dicts,
+                   word_prob_dbm, tran_prob_dbm, cooc_prob_dbm):
     word = word_entry["word"]
     scores = {}
     def Vote(rel_word, label, weight):
@@ -581,7 +617,7 @@ class BuildUnionDBBatch:
           total_weight += bonus
       score = 1.0
       if word_prob_dbm:
-        prob = self.GetPhraseProb(word_prob_dbm, "en", rel_word) ** 0.5
+        prob = self.GetPhraseProb(word_prob_dbm, cooc_prob_dbm, "en", rel_word) ** 0.5
         score += min(prob, 0.5)
       score *= total_weight
       rel_words.append((rel_word, score))
@@ -605,6 +641,43 @@ class BuildUnionDBBatch:
       max_elems = int(min(max(math.log2(len(word_entry["item"])), 2), 6) * 6)
       word_entry["related"] = final_rel_words[:max_elems]
 
+  def SetCoocurrences(self, word_entry, entries, word_dicts, word_prob_dbm, cooc_prob_dbm):
+    word = word_entry["word"]
+    tokens = self.tokenizer.Tokenize("en", word, True, True)
+    cooc_words = {}
+    for token in tokens:
+      word_prob = self.GetPhraseProb(word_prob_dbm, cooc_prob_dbm, "en", token)
+      word_idf = math.log(word_prob) * -1
+      word_weight = word_idf ** 2
+      tsv = cooc_prob_dbm.GetStr(token)
+      if tsv:
+        for field in tsv.split("\t")[:24]:
+          cooc_word, cooc_prob = field.split(" ", 1)
+          if cooc_word not in tokens:
+            old_score = cooc_words.get(cooc_word) or 0.0
+            cooc_words[cooc_word] = old_score + float(cooc_prob) * word_weight
+    merged_cooc_words = sorted(cooc_words.items(), key=lambda x: x[1], reverse=True)
+    weighed_cooc_words = []
+    for cooc_word, cooc_score in merged_cooc_words:
+      cooc_prob = self.GetPhraseProb(word_prob_dbm, cooc_prob_dbm, "en", cooc_word)
+      cooc_idf = math.log(cooc_prob) * -1
+      cooc_score *= cooc_idf ** 2
+      weighed_cooc_words.append((cooc_word, cooc_score))
+    sorted_cooc_words = sorted(weighed_cooc_words, key=lambda x: x[1], reverse=True)
+    final_cooc_words = []
+    for cooc_word, cooc_score in sorted_cooc_words:
+      if len(final_cooc_words) >= 16: break
+      hit = False
+      for label, word_dict in word_dicts:
+        if label in self.surfeit_labels: continue
+        if cooc_word in word_dict:
+          hit = True
+          break
+      if not hit: continue
+      final_cooc_words.append(cooc_word)
+    if final_cooc_words:
+      word_entry["cooccurrence"] = final_cooc_words
+
 
 def main():
   args = sys.argv[1:]
@@ -619,6 +692,7 @@ def main():
   tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
   tran_aux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or "").split(",")
   rev_prob_path = tkrzw_dict.GetCommandFlag(args, "--rev_prob", 1) or ""
+  cooc_prob_path = tkrzw_dict.GetCommandFlag(args, "--cooc_prob", 1) or ""
   min_prob_exprs = tkrzw_dict.GetCommandFlag(args, "--min_prob", 1) or ""
   min_prob_map = {}
   for min_prob_expr in min_prob_exprs.split(","):
@@ -642,7 +716,7 @@ def main():
   BuildUnionDBBatch(input_confs, output_path, gross_labels,
                     surfeit_labels, top_labels, rank_labels, slim_labels, tran_list_labels,
                     word_prob_path, tran_prob_path, tran_aux_paths,
-                    rev_prob_path, min_prob_map).Run()
+                    rev_prob_path, cooc_prob_path, min_prob_map).Run()
  
 
 if __name__=="__main__":
