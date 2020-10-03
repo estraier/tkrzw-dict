@@ -218,15 +218,15 @@ def PrintResult(entries, mode, query):
       if mode == "full":
         related = entry.get("related")
         if related:
-          text = "[related] {}".format(", ".join(related[:8]))
+          text = "[関連] {}".format(", ".join(related[:8]))
           PrintWrappedText(text, 4)
         coocs = entry.get("cooccurrence")
         if coocs:
-          text = "[cooc] {}".format(", ".join(coocs[:8]))
+          text = "[共起] {}".format(", ".join(coocs[:8]))
           PrintWrappedText(text, 4)
         prob = entry.get("probability")
         if prob:
-          text = "[prob] {:.4f}%".format(float(prob) * 100)
+          text = "[確率] {:.4f}%".format(float(prob) * 100)
           PrintWrappedText(text, 4)
   if mode != "list":
     print()
