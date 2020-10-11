@@ -20,7 +20,6 @@ import operator
 import regex
 import tkrzw
 import tkrzw_dict
-import tkrzw_tokenizer
 
 
 class UnionSearcher:

@@ -561,7 +561,7 @@ def main_cgi():
   index_mode = params.get("i") or "auto"
   search_mode = params.get("s") or "auto"
   view_mode = params.get("v") or "auto"
-  page_title = "統合辞書検索"
+  page_title = "統合英和辞書検索"
   if query:
     page_title += ": " + query
   print("""Content-Type: application/xhtml+xml
@@ -654,7 +654,7 @@ function startup() {{
 </head>
 <body onload="startup()">
 <article>
-<h1><a href="{}">統合辞書検索</a></h1>
+<h1><a href="{}">統合英和辞書検索</a></h1>
 """.format(esc(page_title), esc(script_name), end=""))
   P('<div class="search_form">')
   P('<form method="get" name="search_form">')
