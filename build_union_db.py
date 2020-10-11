@@ -52,10 +52,10 @@ top_names = ("pronunciation", "noun_plural",
              "adjective_comparative", "adjective_superative",
              "adverb_comparative", "adverb_superative")
 rel_weights = {"synonym": 1.0,
-               "hypernym": 0.7,
-               "hyponym": 0.6,
+               "hypernym": 0.9,
+               "hyponym": 0.8,
                "antonym": 0.2,
-               "derivation": 0.6,
+               "derivation": 0.7,
                "relation": 0.5}
 
 
@@ -427,7 +427,9 @@ class BuildUnionDBBatch:
           continue
         if regex.search(r"の(直接法|直説法|仮定法)(現在|過去)", text):
           continue
-        if regex.search(r"の(動名詞|異綴|異体|古語)", text):
+        if regex.search(r"の(動名詞|異綴|異体|古語|略称|省略|短縮|略語)", text):
+          continue
+        if regex.search(r"その他、[^。、]{12,}", text):
           continue
         text = regex.sub(r" \[-+\] .*", "", text).strip()
         text = regex.sub(r" -+ .*", "", text).strip()
@@ -435,7 +437,9 @@ class BuildUnionDBBatch:
           if len(translations) > 1:
             if tran in ("また", "または", "又は", "しばしば"):
               continue
-          tran = regex.sub(r"[\p{S}\p{P}]+ *(が|の|を|に|へ|と|より|から|で|や)", "", tran)
+          if regex.search(r"^[ \p{Latin}]+〜", tran):
+            continue
+          tran = regex.sub(r"^[\p{S}\p{P}]+ *(が|の|を|に|へ|と|より|から|で|や)", "", tran)
           tran = regex.sub(r"[～〜]", "", tran)
           tokens = self.tokenizer.Tokenize("ja", tran, False, False)
           if len(tokens) > 6:
