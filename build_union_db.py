@@ -421,13 +421,13 @@ class BuildUnionDBBatch:
         text = regex.sub(r"[･・]", "", text)
         text = regex.sub(r"\s+", " ", text).strip()
         if regex.search(
-            r"の(直接法|直説法|仮定法)?(現在|過去)?(第?[一二三]人称)?[ ・、]?" +
-            r"(単数|複数|現在|過去|比較|最上|進行|完了|動名詞|単純)+[ ・、]?" +
-            r"(形|型|分詞|級|動名詞)+", text):
+            r"の(直接法|直説法|仮定法)?(現在|過去)?(第?[一二三]人称)?[ ・･、]?" +
+            r"(単数|複数|現在|過去|比較|最上|進行|完了|動名詞|単純)+[ ・･、]?" +
+            r"(形|型|分詞|級|動名詞|名詞|動詞|形容詞|副詞)+", text):
           continue
         if regex.search(r"の(直接法|直説法|仮定法)(現在|過去)", text):
           continue
-        if regex.search(r"の(動名詞|異綴|異体|古語|略称|省略|短縮|略語)", text):
+        if regex.search(r"の(動名詞|異綴|異体|古語|略|省略|短縮|頭字語)", text):
           continue
         if regex.search(r"その他、[^。、]{12,}", text):
           continue
@@ -447,7 +447,7 @@ class BuildUnionDBBatch:
           tran = " ".join(tokens)
           tran = regex.sub(r"([\p{Han}\p{Hiragana}\p{Katakana}ー]) +", r"\1", tran)
           tran = regex.sub(r" +([\p{Han}\p{Hiragana}\p{Katakana}ー])", r"\1", tran)
-          tran = tran.strip()
+          tran = regex.sub(r"[\s]+", " ", tran).strip()
           if tran:
             Vote(tran, weight, label)
             weight *= 0.8
@@ -462,7 +462,7 @@ class BuildUnionDBBatch:
             tran = tran.strip()
             tran = regex.sub(r"[\p{S}\p{P}]+ *(が|の|を|に|へ|と|より|から|で|や)", "", tran)
             tran = regex.sub(r"[～\p{S}\p{P}]", " ", tran)
-            tran = tran.strip()
+            tran = regex.sub(r"[\s]+", " ", tran).strip()
             if tran:
               Vote(tran, weight, label)
               weight *= 0.85

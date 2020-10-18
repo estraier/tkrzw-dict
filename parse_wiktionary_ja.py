@@ -677,6 +677,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     text = regex.sub(r"\( *\)", "", text)
     text = regex.sub(r"（ *）", "", text)
     text = regex.sub(r"「 *」", "", text)
+    text = regex.sub(r"<ref>.*?</ref>", "", text)
     text = regex.sub(r"</?[a-z]+[^>]*>", "", text)
     text = regex.sub(r"<!-- *", "(", text)
     text = regex.sub(r" *-->", ")", text)

@@ -581,7 +581,8 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     for source, targets in tran_map.items():
       source = self.MakePlainText(source)
       source = regex.sub(r"\(.*?\)", "", source)
-      source = regex.sub(r"[\s+\(\)\[\]\{\}]", " ", source).strip()
+      source = regex.sub(r"[\s+\(\)\[\]\{\}]", " ", source)
+      source = regex.sub(r"[\s+]", " ", source).strip()
       trans = []
       for target in targets:
         for tr, expr in regex.findall(r"\{\{(t|t\+|t-simple)\|ja\|(.*?)\}\}", target):
@@ -649,6 +650,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     text = regex.sub(r"'''", "", text)
     text = regex.sub(r"''", "", text)
     text = regex.sub(r"\( *\)", "", text)
+    text = regex.sub(r"<ref>.*?</ref>", "", text)
     text = regex.sub(r"</?[a-z]+[^>]*>", "", text)
     text = regex.sub(r"<!-- *", "(", text)
     text = regex.sub(r" *-->", ")", text)
