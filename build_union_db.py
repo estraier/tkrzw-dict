@@ -685,7 +685,7 @@ class BuildUnionDBBatch:
 
 def main():
   args = sys.argv[1:]
-  output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "wiktionary.tkh"
+  output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-body.tkh"
   gross_labels = set((tkrzw_dict.GetCommandFlag(args, "--gross", 1) or "wj").split(","))
   top_labels = set((tkrzw_dict.GetCommandFlag(args, "--top", 1) or "we").split(","))
   rank_labels = set((tkrzw_dict.GetCommandFlag(args, "--rank", 1) or "wn").split(","))
