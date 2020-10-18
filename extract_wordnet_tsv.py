@@ -52,7 +52,7 @@ class ExtractWordNetTSVBatch:
       num_records += 1
       if num_records % 10000 == 0:
         logger.info("Processing: records={}".format(num_records))
-      it.Next()   
+      it.Next()
     word_dbm.Close().OrDie()
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 

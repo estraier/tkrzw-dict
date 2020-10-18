@@ -142,7 +142,7 @@ def PrintWrappedText(text, indent):
     width += 2 if ord(c) > 256 else 1
     foldable = c == " "
   print("")
-      
+
 
 def PrintResult(entries, mode, query):
   for entry in entries:
@@ -197,13 +197,13 @@ def PrintResult(entries, mode, query):
         if pos:
           pos = POSES.get(pos) or pos
           text += "[{}] ".format(pos)
-        text += sections[0]        
+        text += sections[0]
         PrintWrappedText(text, 4)
         if mode == "full":
           for section in sections[1:]:
             attr_match = regex.search(r"^\[([a-z]+)\]: ", section)
             if attr_match:
-              if attr_match.group(1) == "synset": continue              
+              if attr_match.group(1) == "synset": continue
               attr_label = WORDNET_ATTRS.get(attr_match.group(1))
               if attr_label:
                 section = "{}: {}".format(attr_label, section[len(attr_match.group(0)):].strip())
@@ -230,7 +230,7 @@ def PrintResult(entries, mode, query):
           PrintWrappedText(text, 4)
   if mode != "list":
     print()
-  
+
 
 def main():
   args = sys.argv[1:]
@@ -284,9 +284,9 @@ def main():
   elif search_mode == "word":
     pattern = r"(^| ){}( |$)".format(regex.escape(query))
     if is_reverse:
-      result = searcher.SearchPatternMatchReverse("regex", pattern, CGI_CAPACITY)        
+      result = searcher.SearchPatternMatchReverse("regex", pattern, CGI_CAPACITY)
     else:
-      result = searcher.SearchPatternMatch("regex", pattern, CGI_CAPACITY)        
+      result = searcher.SearchPatternMatch("regex", pattern, CGI_CAPACITY)
   elif search_mode == "edit":
     if is_reverse:
       result = searcher.SearchPatternMatchReverse("edit", query, CGI_CAPACITY)
@@ -312,7 +312,7 @@ def main():
         view_mode = "list"
     if view_mode == "list":
       print()
-    PrintResult(result, view_mode, query)    
+    PrintResult(result, view_mode, query)
     if view_mode == "list":
       print()
   else:
@@ -431,7 +431,7 @@ def PrintResultCGI(entries, query, details):
           subattr_label = None
           attr_match = regex.search(r"^\[([a-z]+)\]: ", section)
           if attr_match:
-            if attr_match.group(1) == "synset": continue              
+            if attr_match.group(1) == "synset": continue
             subattr_label = WORDNET_ATTRS.get(attr_match.group(1))
             if subattr_label:
               section = section[len(attr_match.group(0)):].strip()
@@ -512,7 +512,7 @@ def PrintItemTextCGI(text):
       print(esc(text), end="")
       break
   P('</span>', end="")
-  
+
 
 def PrintResultCGIList(entries, query):
   P('<div class="list">')
@@ -735,9 +735,9 @@ function startup() {{
     elif search_mode == "word":
       pattern = r"(^| ){}( |$)".format(regex.escape(query))
       if is_reverse:
-        result = searcher.SearchPatternMatchReverse("regex", pattern, CGI_CAPACITY)        
+        result = searcher.SearchPatternMatchReverse("regex", pattern, CGI_CAPACITY)
       else:
-        result = searcher.SearchPatternMatch("regex", pattern, CGI_CAPACITY)        
+        result = searcher.SearchPatternMatch("regex", pattern, CGI_CAPACITY)
     elif search_mode == "edit":
       if is_reverse:
         result = searcher.SearchPatternMatchReverse("edit", query, CGI_CAPACITY)

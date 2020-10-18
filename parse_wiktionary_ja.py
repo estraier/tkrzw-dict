@@ -588,7 +588,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
 
   def MakePlainText(self, text):
     text = regex.sub(r"^[#\*]+", "", text)
-    text = regex.sub(r"^--+", "", text)    
+    text = regex.sub(r"^--+", "", text)
     text = regex.sub(r"\{\{w\|(lang=[a-z]+\|)?([^\}\|]*)(\|[^\}]*)?\}\}", r"\2", text)
     text = regex.sub(r"\{\{ふりがな\|([^\}\|]+)(\|[^\}]+)?\}\}", r"\1", text)
     text = regex.sub(r"\{\{おくりがな\|(.*?)\|(.*?)\|(.*?)}\}", r"\1\2", text)

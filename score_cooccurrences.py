@@ -126,7 +126,7 @@ class CoocScoreBatch:
     self.cooc_score_dbm.Close().OrDie()
     self.cooc_prob_dbm.Close().OrDie()
     self.word_prob_dbm.Close().OrDie()
-    
+
   def GetWordProb(self, key):
     value = self.word_prob_cache.Get(key)
     if value:
@@ -136,7 +136,7 @@ class CoocScoreBatch:
       self.word_prob_cache.Set(key, value)
       return float(value)
     return None
-    
+
 
 def main():
   args = sys.argv[1:]

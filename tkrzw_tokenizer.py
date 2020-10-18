@@ -85,7 +85,7 @@ class Tokenizer:
     text = self.regex_abbrev2.sub(r"\1\2\3", text)
     text = self.regex_symbols.sub(" ", text)
     return text
-  
+
   def TokenizeEnSimple(self, sentence):
     return self.regex_en_simple_words.findall(sentence)
 

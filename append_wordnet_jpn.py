@@ -212,7 +212,7 @@ def main():
     raise RuntimeError("unknown arguments: {}".format(str(args)))
   AppendWordnetJPNBatch(
     input_path, output_path, wnjpn_path, word_prob_path, tran_prob_path).Run()
- 
+
 
 if __name__=="__main__":
   main()

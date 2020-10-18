@@ -81,7 +81,7 @@ def PrintResultWord(key, entry, show_details):
       if synonyms:
         PrintWrappedText("syn: {}".format(", ".join(synonyms)), 6, False)
   print()
-  
+
 
 def main():
   args = sys.argv[1:]
@@ -158,7 +158,7 @@ def PrintResultWordCGI(key, entry, show_details):
         print('</div>')
     print('</div>')
   print('</div>')
-    
+
 
 def main_cgi():
   script_name = os.environ.get("SCRIPT_NAME", sys.argv[0])

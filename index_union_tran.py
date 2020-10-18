@@ -192,7 +192,7 @@ def main():
   if args:
     raise RuntimeError("unknown arguments: {}".format(str(args)))
   IndexTranslationsBatch(input_path, output_path, word_prob_path, tran_prob_path).Run()
- 
+
 
 if __name__=="__main__":
   main()

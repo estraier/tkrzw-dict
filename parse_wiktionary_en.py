@@ -441,7 +441,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
             adverb_comparative = ""
           if adverb_superative == "-":
             adverb_superative = ""
-    ipa = ipa_us or ipa_misc  
+    ipa = ipa_us or ipa_misc
     if ipa:
       output.append("pronunciation_ipa={}".format(ipa))
     if self.IsGoodInflection(noun_plural):
@@ -547,7 +547,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           current_text += " " + sep + " " + text
       if not regex.search(
           r"([\p{Latin}0-9]{2,}|[\p{Han}\p{Hiragana}\p{Katakana}])", current_text):
-        continue        
+        continue
       output.append("{}={}".format(mode, current_text))
     if output:
       if alternatives:
@@ -608,7 +608,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           output.append("{}=[translation]: ({}) {}".format(mode, source, ", ".join(out_trans)))
         else:
           output.append("{}=[translation]: {}".format(mode, ", ".join(out_trans)))
-          
+
   def MakePlainText(self, text):
     text = regex.sub(r"^[#\*]+", "", text)
     text = regex.sub(r"^--+", "", text)

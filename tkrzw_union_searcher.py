@@ -39,7 +39,7 @@ class UnionSearcher:
     tran_keys_path = data_prefix + "-tran-keys.txt"
     self.tran_keys_file = tkrzw.TextFile()
     self.tran_keys_file.Open(tran_keys_path).OrDie()
-    
+
   def __del__(self):
     self.tran_index_dbm.Close().OrDie()
     self.body_dbm.Close().OrDie()

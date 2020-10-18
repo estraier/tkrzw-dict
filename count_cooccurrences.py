@@ -358,7 +358,7 @@ def main():
   if args:
     raise RuntimeError("unknown arguments: {}".format(str(args)))
   WordCountBatch(data_prefix, language).Run()
- 
+
 
 if __name__=="__main__":
   main()

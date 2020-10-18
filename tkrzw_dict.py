@@ -109,7 +109,7 @@ def GetCoocProbPath(data_prefix):
 def GetCoocScorePath(data_prefix):
     return "{}-cooc-score.tkh".format(data_prefix)
 
-  
+
 def GetCoocIndexPath(data_prefix):
     return "{}-cooc-index.tkh".format(data_prefix)
 

@@ -51,8 +51,8 @@ def ProcessTSV(tokenizer, language, lowering, stemming, max_sentences, tsv):
     print("\t".join(output_fields))
     return num_sentences, num_words
   return None
-    
-      
+
+
 def main():
   args = sys.argv[1:]
   language = tkrzw_dict.GetCommandFlag(args, "--language", 1) or "en"

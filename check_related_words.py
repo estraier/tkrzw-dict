@@ -57,7 +57,7 @@ def esc(expr):
     return ""
   return html.escape(str(expr), True)
 
-    
+
 def main_cgi():
   script_name = os.environ.get("SCRIPT_NAME", sys.argv[0])
   params = {}
@@ -123,7 +123,7 @@ Query: <input type="text" name="q" value="{}"/>
     print('</table>')
   print("""</body>
 </html>""")
- 
+
 
 if __name__=="__main__":
   interface = os.environ.get("GATEWAY_INTERFACE")

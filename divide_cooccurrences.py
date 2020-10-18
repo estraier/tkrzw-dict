@@ -143,7 +143,7 @@ class DivideCountBatch:
           if num_records % 1000 == 0:
             logger.info("Dividing coocurrence counts: {} records".format(num_records))
         cur_word = word
-        cur_word_prob = GetWordProb(cur_word)          
+        cur_word_prob = GetWordProb(cur_word)
         cooc_words = []
       if cur_word_prob:
         cooc_prob = GetWordProb(cooc_word)
@@ -176,7 +176,7 @@ class DivideCountBatch:
       records.append("{} {}".format(cooc_word, rec_value))
     value = "\t".join(records)
     dbm_cooc_prob.Set(word, value).OrDie()
-    
+
 
 def main():
   args = sys.argv[1:]
@@ -187,7 +187,7 @@ def main():
   if args:
     raise RuntimeError("unknown arguments: {}".format(str(args)))
   DivideCountBatch(data_prefix, language).Run()
- 
+
 
 if __name__=="__main__":
   main()

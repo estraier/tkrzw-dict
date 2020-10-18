@@ -6,7 +6,7 @@
 # Usage:
 #   count_wikipedia.py [--quiet]
 #   (It reads the standard input and prints the result on the standard output.)
-# 
+#
 # Example:
 #   $ bzcat enwiki-20200701-pages-articles-multistream.xml.bz2 |
 #     ./count_wikipedia.py
@@ -38,7 +38,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     self.is_redirect = False
     self.model = None
     self.format = None
-    
+
   def startDocument(self):
     logger.info("Start the document")
 
@@ -78,7 +78,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
 
   def getCount(self):
     return self.count
-	
+
 
 def main():
   args = sys.argv[1:]

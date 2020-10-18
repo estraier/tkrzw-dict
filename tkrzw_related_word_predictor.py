@@ -25,7 +25,7 @@ class RelatedWordsPredictor:
   CHECK_COOC_WORDS = 16
   CHECK_REL_WORDS = 128
   NUM_FEATURES = 256
-  
+
   def __init__(self, data_prefix, language):
     self.language = language
     self.tokenizer = tkrzw_tokenizer.Tokenizer()
@@ -75,7 +75,7 @@ class RelatedWordsPredictor:
       scored_rel_words.append((rel_word, score))
     scored_rel_words = sorted(scored_rel_words, key=operator.itemgetter(1), reverse=True)
     return scored_rel_words, sorted_cooc_words
-      
+
   def GetCoocWords(self, word):
     cooc_words = []
     tsv = self.word_score_dbm.GetStr(word)

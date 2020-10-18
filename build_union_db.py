@@ -14,7 +14,7 @@
 #     --word_prob enwiki-word-prob.tkh --tran_prob tran-prob.tkh \
 #     --tran_aux dict1.tsv,dict2.tsv --rev_prob jawiki-word-prob.tkh \
 #     --cooc_prob enwiki-cooc-prob.tkh --min_prob we:0.00001 \
-#     wj:wiktionary-ja.tsv wn:wordnet.tsv we:wiktionary-en.tsv 
+#     wj:wiktionary-ja.tsv wn:wordnet.tsv we:wiktionary-en.tsv
 #
 # Copyright 2020 Google LLC
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
@@ -275,7 +275,7 @@ class BuildUnionDBBatch:
           if label not in self.top_labels and top_name in word_entry: continue
           value = entry.get(top_name)
           if value:
-            word_entry[top_name] = value            
+            word_entry[top_name] = value
       for label, entry in entries:
         texts = entry.get("text")
         if not texts: continue
@@ -721,7 +721,7 @@ def main():
                     surfeit_labels, top_labels, rank_labels, slim_labels, tran_list_labels,
                     word_prob_path, tran_prob_path, tran_aux_paths,
                     rev_prob_path, cooc_prob_path, min_prob_map).Run()
- 
+
 
 if __name__=="__main__":
   main()

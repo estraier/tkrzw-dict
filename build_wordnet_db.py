@@ -194,7 +194,7 @@ class BuildWordNetDBBatch:
           for attr_name, attr_value in item.items():
             if isinstance(attr_value, list) and len(attr_value) > 1:
               item[attr_name] = self.SortWordsByProb(prob_dbm, attr_value)
-      entry["item"] = items        
+      entry["item"] = items
       serialized = json.dumps(entry, separators=(",", ":"), ensure_ascii=False)
       word_dbm.Set(key, serialized).OrDie()
       num_words += 1
@@ -224,7 +224,7 @@ class BuildWordNetDBBatch:
       prob_words.append((word, prob))
     prob_words = sorted(prob_words, key=operator.itemgetter(1), reverse=True)
     return [x[0] for x in  prob_words]
-    
+
 
 def main():
   args = sys.argv[1:]
@@ -236,7 +236,7 @@ def main():
   if args:
     raise RuntimeError("unknown arguments: {}".format(str(args)))
   BuildWordNetDBBatch(dict_dir, output_path, prob_path).Run()
- 
+
 
 if __name__=="__main__":
   main()
