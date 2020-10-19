@@ -61,7 +61,7 @@ INFLECTIONS = [
   [("adverb_comparative", "副比"),
    ("adverb_superative", "副最")]]
 WORDNET_ATTRS = {
-  "translation": "翻訳",
+  "translation": "訳語",
   "synonym": "同義",
   "antonym": "対義",
   "hypernym": "上位",
@@ -116,11 +116,11 @@ def GetEntryPoses(entry):
     if regex.search(
         r"の(直接法|直説法|仮定法)?(現在|過去)?(第?[一二三]人称)?[ ・、]?" +
         r"(単数|複数|現在|過去|比較|最上|進行|完了|動名詞|単純)+[ ・、]?" +
-        r"(形|型|分詞|級|動名詞)+", text):
+        r"(形|型|分詞|級|動名詞|名詞|動詞|形容詞|副詞)+", text):
       continue
     if regex.search(r"の(直接法|直説法|仮定法)(現在|過去)", text):
       continue
-    if regex.search(r"の(動名詞|異綴|異体|古語)", text):
+    if regex.search(r"の(動名詞|異綴|異体|古語|略|省略|短縮|頭字語)", text):
       continue
     pos = item["pos"]
     if pos in uniq_poses: continue
