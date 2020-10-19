@@ -56,6 +56,8 @@ h2:hover a.headanc, h3:hover a.headanc {
 
 <p>まずは<a href="https://dbmx.net/dict/search_union.cgi">デモサイト</a>を利用されたい。検索窓に英単語を入力し、「検索」ボタンを押せば、その英単語の語義が表示される。検索窓に日本語を入力して検索すれば、その日本語を語義に含む英単語のリストが表示される。すなわち、本システムは英和辞書としても和英辞書としても利用できる。単語だけでなく、複数語からなるフレーズでも検索できる。さらに、スペルミスを吸収するための曖昧一致検索や、関連語を検索するための類語検索も実装されている。語の変化形で検索できる屈折索引も利用できる。英文読解の際には英和辞書検索機能が頻繁に用いられるが、その際には曖昧一致検索や屈折索引が自動的に機能し、検索語を入力し直す手間を大幅に削減してくれる。英作文の際には、和英辞書検索機能が頻繁に用いられるが、その際には類語検索を利用すると、所望の英単語を探す手間を大幅に削減できる。</p>
 
+<p>EPUB形式の電子辞書として使いたい場合には、この<a href="https://dbmx.net/dict/union-dict.epub">EPUBファイル</a>をダウンロードして、任意のEPUBリーダにインストールすればよい。</p>
+
 <h2 id="installation">インストール</h2>
 
 <p>本パッケージはUNIX系のOSで動作する。また、DBMライブラリである<a href="https://dbmx.net/tkrzw/">Tkrzw</a>とそのPythonインターフェイスに依存する。所定の手順に基づき、それらを予めインストールしておくこと。</p>
@@ -253,13 +255,19 @@ $ ./extract_wordnet_tsv.py --input wordnet-body.tkh > wordnet.tsv
   wj:wiktionary-ja.tsv wn:wordnet.tsv we:wiktionary-en.tsv
 ]]></pre>
 
-<p>その他のファイルは、以下の手順を踏めば生成できる。</p>
+<p>その他の検索用ファイルは、以下の手順を踏めば生成できる。</p>
 
 <pre><![CDATA[$ ./index_union_tran.py --input union-body.tkh --output union-tran-index.tkh \
  --word_prob enwiki-word-prob.tkh
 $ ./index_union_infl.py --input union-body.tkh --output union-infl-index.tkh
 $ ./extract_union_keys.py --input union-body.tkh --output union-keys.txt
 $ ./extract_union_tran_keys.py --input union-tran-index.tkh --output union-tran-keys.txt
+]]></pre>
+
+<p>EPUB形式の辞書ファイルを作成するには、以下の手順を踏む。</p>
+
+<pre><![CDATA[$ ./generate_union_epub.py --input union-body.tkh --output union-dict-epub
+$ ./package_epub.sh union-dict-epub union-dict.epub
 ]]></pre>
 
 <h2 id="licnese">ライセンス</h2>
