@@ -104,7 +104,7 @@ CONTAINER_TEXT = """<?xml version="1.0"?>
 CURRENT_UUID = str(uuid.uuid1())
 CURRENT_DATETIME = regex.sub(r"\..*", "Z", datetime.datetime.now(
   datetime.timezone.utc).isoformat())
-PACKAGE_TEXT = """<?xml version="1.0" encoding="utf-8"?>
+PACKAGE_HEADER_TEXT = """<?xml version="1.0" encoding="utf-8"?>
 <package unique-identifier="pub-id" version="3.0" xmlns="http://www.idpf.org/2007/opf" xml:lang="ja">
 <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
 <dc:identifier id="pub-id">urn:uuid:{}</dc:identifier>
@@ -120,17 +120,19 @@ PACKAGE_TEXT = """<?xml version="1.0" encoding="utf-8"?>
 </metadata>
 <manifest>
 <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+<item id="overview" href="overview.xhtml" media-type="application/xhtml+xml"/>
+""".format(CURRENT_UUID, CURRENT_DATETIME)
+PACKAGE_MIDDLE_TEXT = """<item id="style" href="style.css" media-type="text/css"/>
 <item id="skmap" properties="search-key-map dictionary" href="skmap.xml" media-type="application/vnd.epub.search-key-map+xml"/>
-<item id="main" href="main.xhtml" media-type="application/xhtml+xml"/>
-<item id="style" href="style.css" media-type="text/css"/>
 </manifest>
 <spine page-progression-direction="default">
 <itemref idref="nav"/>
-<itemref idref="main"/>
-</spine>
+<itemref idref="overview"/>
+"""
+PACKAGE_FOOTER_TEXT = """</spine>
 </package>
-""".format(CURRENT_UUID, CURRENT_DATETIME)
-NAVIGATION_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
+"""
+NAVIGATION_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
 <head>
@@ -139,9 +141,25 @@ NAVIGATION_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <body>
 <nav epub:type="toc">
 <ol>
-<li><a href="main.xhtml">英和辞書</a></li>
-</ol>
+<li><a href="overview.xhtml">概要</a></li>
+"""
+NAVIGATION_FOOTER_TEXT = """</ol>
 </nav>
+</body>
+</html>
+"""
+OVERVIEW_TEXT = """
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="ja">
+<head>
+<title>統合英和辞書</title>
+<link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+<article>
+<h1>統合英和辞書</h1>
+<p>これは、オープンなデータから作成された英和辞書である。このデータは<a href="http://idpf.org/epub/dict/epub-dict.html">EPUB Dictionaries and Glossaries 1.0</a>の仕様に準拠しているので、EPUBの閲覧用システムにインストールすれば、検索機能を備える電子辞書として利用することができる。辞書データは<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>と<a href="https://en.wiktionary.org/">Wiktionary英語版</a>と<a href="https://wordnet.princeton.edu/">WordNet</a>と<a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">日本語WordNet</a>を統合したものだ。作成方法については<a href="https://dbmx.net/dict/">公式サイト</a>を参照のこと。利用や再配布の権利については各データのライセンスに従うべきだ。</p>
+<p>語義の各項目の先頭にはラベルが付いている。「WJ」はWiktionary日本語版由来の語義を示し、「WE」はWiktionary英語版由来の語義を示し、「WN」はWordNet由来の語義を示す。その後に、「名」＝名詞、「動」＝動詞、「形」＝形容詞、「副」＝副詞などの品詞情報が付いている。その後に、日本語の訳語か、日本語または英語の語義説明が来る。「発音」はIPA形式の発音記号を示し、「複数」「三単」「現分」「過去」「過分」「比較」「最上」は、名詞や動詞や形容詞の屈折形を示す。</p>
+</article>
 </body>
 </html>
 """
@@ -151,26 +169,24 @@ MAIN_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <title>統合英和辞書</title>
 <link rel="stylesheet" href="style.css"/>
 </head>
-<body>
-<section epub:type="titlepage" class="titlepage">
-<h1 epub:type="title">統合英和辞書</h1>
-<p>辞書だよーん。</p>
-</section>
+<body epub:type="dictionary">
 """
 MAIN_FOOTER_TEXT = """</body>
 </html>
 """
 STYLE_TEXT = """html,body { margin: 0; padding: 0; background: #ffffff; color: #000000; font-size: 12pt; }
 .titlepage h1,.titlepage p { margin: 1ex 0; }
-article { margin: 1ex 0; }
-dfn { font-weight: bold; }
-.cond_pron { padding-left: 2ex; font-size: 85%; color: #333333; }
+article { margin: 1.2ex 0; }
+dfn { font-weight: bold; font-style: normal; }
 .item_list { list-style: none; margin: 0; padding: 0; font-size: 90%; color: #999999; }
 .item_list li { margin: 0; padding: 0 0 0 0.5ex; }
-.attr_name { background: #eeeeee; border: solid 1pt #dddddd; border-radius: 0.5ex;
-  font-size: 80%; color: #555555;
-  display: inline-block; min-width: 4ex; text-align: center; padding: 0; }
-.attr_value { color: #111111; }
+.attr_name { background: #f4f4f4; border: solid 1pt #dddddd; border-radius: 0.5ex;
+  font-size: 70%; color: #444444;
+  display: inline-block; min-width: 4.0ex; text-align: center; padding: 0; margin-left: -0.5ex; }
+.attr_value { color: #000000; }
+.label_wj { background: #eef8ff; }
+.label_we { background: #ffeef8; }
+.label_wn { background: #f8ffee; }
 """
 SKMAP_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <search-key-map xmlns="http://www.idpf.org/2007/ops" xml:lang="en">
@@ -195,6 +211,14 @@ def CutTextByWidth(text, width):
     width -= 2 if ord(c) > 256 else 1
   return result
 
+
+def GetKeyPrefix(key):
+  if key[0] < "a" or key[0] > "z":
+    return "_"
+  prefix = key[0]
+  return regex.sub(r"[^a-zA-Z0-9]", "_", prefix)
+
+
 class GenerateUnionEPUBBatch:
   def __init__(self, input_path, output_path):
     self.input_path = input_path
@@ -211,7 +235,6 @@ class GenerateUnionEPUBBatch:
     os.makedirs(meta_dir_path, exist_ok=True)
     data_dir_path = os.path.join(self.output_path, "OEBPS")
     os.makedirs(data_dir_path, exist_ok=True)
-
     keys = []
     it = input_dbm.MakeIterator()
     it.First()
@@ -221,14 +244,17 @@ class GenerateUnionEPUBBatch:
       keys.append(key)
       it.Next()
     keys = sorted(keys)
-
-    #keys = keys[:1000]
-    #keys = ["juxtapose", "cornbread", "saw", "see", "train", "unix"]
-
+    #keys = keys[:10000]
+    #keys = ["a", "juxtapose", "cornbread", "saw", "see", "train", "unix"]
+    key_prefixes = set()
+    for key in keys:
+      key_prefixes.add(GetKeyPrefix(key))
+    key_prefixes = sorted(list(key_prefixes))
     self.MakeMimeType()
     self.MakeContainer(meta_dir_path)
-    self.MakePackage(data_dir_path)
-    self.MakeNavigation(data_dir_path)
+    self.MakePackage(data_dir_path, key_prefixes)
+    self.MakeNavigation(data_dir_path, key_prefixes)
+    self.MakeOverview(data_dir_path)
     self.MakeMain(data_dir_path, input_dbm, keys)
     self.MakeStyle(data_dir_path)
     self.MakeSearchKeyMap(data_dir_path, input_dbm, keys)
@@ -247,32 +273,59 @@ class GenerateUnionEPUBBatch:
     with open(out_path, "w") as out_file:
       print(CONTAINER_TEXT, file=out_file, end="")
 
-  def MakePackage(self, data_dir_path):
+  def MakePackage(self, data_dir_path, key_prefixes):
     out_path = os.path.join(data_dir_path, "package.opf")
     logger.info("Creating: {}".format(out_path))
     with open(out_path, "w") as out_file:
-      print(PACKAGE_TEXT, file=out_file, end="")
+      print(PACKAGE_HEADER_TEXT, file=out_file, end="")
+      main_ids = []
+      for key_prefix in key_prefixes:
+        main_path = "main-{}.xhtml".format(key_prefix)
+        main_id = "main_" + key_prefix
+        print('<item id="{}" href="{}" media-type="application/xhtml+xml"/>'.format(
+          main_id, main_path), file=out_file)
+        main_ids.append(main_id)
+      print(PACKAGE_MIDDLE_TEXT, file=out_file, end="")
+      for main_id in main_ids:
+        print('<itemref idref="{}"/>'.format(main_id), file=out_file)
+      print(PACKAGE_FOOTER_TEXT, file=out_file, end="")
 
-  def MakeNavigation(self, data_dir_path):
+  def MakeNavigation(self, data_dir_path, key_prefixes):
     out_path = os.path.join(data_dir_path, "nav.xhtml")
     logger.info("Creating: {}".format(out_path))
     with open(out_path, "w") as out_file:
-      print(NAVIGATION_TEXT, file=out_file, end="")
+      print(NAVIGATION_HEADER_TEXT, file=out_file, end="")
+      for key_prefix in key_prefixes:
+        main_path = "main-{}.xhtml".format(key_prefix)
+        print('<li><a href="{}">見出し語: {}</a></li>'.format(main_path, key_prefix),
+              file=out_file)
+      print(NAVIGATION_FOOTER_TEXT, file=out_file, end="")
 
-  def MakeMain(self, data_dir_path, input_dbm, keys):
-    out_path = os.path.join(data_dir_path, "main.xhtml")
+  def MakeOverview(self, data_dir_path):
+    out_path = os.path.join(data_dir_path, "overview.xhtml")
     logger.info("Creating: {}".format(out_path))
     with open(out_path, "w") as out_file:
-      print(MAIN_HEADER_TEXT, file=out_file, end="")
-      print('<section epub:type="dictionary">', file=out_file)
-      for key in keys:
-        serialized = input_dbm.GetStr(key)
-        if not serialized: continue
-        entries = json.loads(serialized)
-        for entry in entries:
-          self.MakeMainEntry(out_file, entry)
-      print('</section>', file=out_file)
+      print(OVERVIEW_TEXT, file=out_file, end="")
+
+  def MakeMain(self, data_dir_path, input_dbm, keys):
+    out_files = {}
+    for key in keys:
+      key_prefix = GetKeyPrefix(key)
+      out_file = out_files.get(key_prefix)
+      if not out_file:
+        out_path = os.path.join(data_dir_path, "main-{}.xhtml".format(key_prefix))
+        logger.info("Creating: {}".format(out_path))
+        out_file = open(out_path, "w")
+        out_files[key_prefix] = out_file
+        print(MAIN_HEADER_TEXT, file=out_file, end="")
+      serialized = input_dbm.GetStr(key)
+      if not serialized: continue
+      entries = json.loads(serialized)
+      for entry in entries:
+        self.MakeMainEntry(out_file, entry)
+    for key_prefix, out_file in out_files.items():
       print(MAIN_FOOTER_TEXT, file=out_file, end="")
+      out_file.close()
 
   def MakeMainEntry(self, out_file, entry):
     def P(*args, end="\n"):
@@ -301,7 +354,7 @@ class GenerateUnionEPUBBatch:
         pronunciation)
       P('</li>')
     for item in entry["item"][:5]:
-      self.MakeMainEntryItem(P, item, False)
+      self.MakeMainEntryItem(P, item, True)
     P('</ul>')
     P('</aside>')
     P('<dfn>{}</dfn>', word)
@@ -356,9 +409,9 @@ class GenerateUnionEPUBBatch:
       annots.append(attr_label)
     text = regex.sub(r" \[-+\] .*", "", text).strip()
     if simple:
-      text = CutTextByWidth(text, 80)
+      text = CutTextByWidth(text, 100)
     P('<li class="item">')
-    P('<span class="attr_name">{}</span>', label.upper())
+    P('<span class="attr_name label_{}">{}</span>', label, label.upper())
     P('<span class="attr_name">{}</span>', POSES.get(pos) or pos)
     for annot in annots:
       P('<span class="attr_name">{}</span>', annot)
@@ -384,12 +437,14 @@ class GenerateUnionEPUBBatch:
         print(args[0].format(*esc_args), end=end, file=out_file)
       print(SKMAP_HEADER_TEXT, file=out_file, end="")
       for key in keys:
+        key_prefix = GetKeyPrefix(key)
+        main_path = "main-{}.xhtml".format(key_prefix)
         serialized = input_dbm.GetStr(key)
         if not serialized: continue
         entries = json.loads(serialized)
         for entry in entries:
           word = entry["word"]
-          P('<search-key-group href="main.xhtml#{}">', urllib.parse.quote(word))
+          P('<search-key-group href="{}#{}">', main_path, urllib.parse.quote(word))
           P('<match value="{}">', word)
           uniq_infls = set([word])
           for infl_rules in INFLECTIONS:
