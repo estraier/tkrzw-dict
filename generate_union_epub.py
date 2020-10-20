@@ -119,12 +119,12 @@ PACKAGE_HEADER_TEXT = """<?xml version="1.0" encoding="utf-8"?>
 <meta property="target-language">ja</meta>
 </metadata>
 <manifest>
+<item id="skmap" properties="search-key-map dictionary" href="skmap.xml" media-type="application/vnd.epub.search-key-map+xml"/>
+<item id="style" href="style.css" media-type="text/css"/>
 <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
 <item id="overview" href="overview.xhtml" media-type="application/xhtml+xml"/>
 """.format(CURRENT_UUID, CURRENT_DATETIME)
-PACKAGE_MIDDLE_TEXT = """<item id="style" href="style.css" media-type="text/css"/>
-<item id="skmap" properties="search-key-map dictionary" href="skmap.xml" media-type="application/vnd.epub.search-key-map+xml"/>
-</manifest>
+PACKAGE_MIDDLE_TEXT = """</manifest>
 <spine page-progression-direction="default">
 <itemref idref="nav"/>
 <itemref idref="overview"/>
@@ -132,33 +132,60 @@ PACKAGE_MIDDLE_TEXT = """<item id="style" href="style.css" media-type="text/css"
 PACKAGE_FOOTER_TEXT = """</spine>
 </package>
 """
+SKMAP_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
+<search-key-map xmlns="http://www.idpf.org/2007/ops" xml:lang="en">
+"""
+SKMAP_FOOTER_TEXT = """</search-key-map>
+"""
+STYLE_TEXT = """html,body { margin: 0; padding: 0; background: #ffffff; color: #000000; font-size: 12pt; }
+article { margin: 1.2ex 0; }
+a { color: #001188; }
+.pron { display: inline-block; margin-left: 2ex; vertical-align: 2%;
+  color: #333333; font-size: 85%; }
+.pron:before,.pron:after { content: "/"; color: #888888; font-size: 80%; }
+dfn { font-weight: bold; font-style: normal; }
+.item_list { list-style: none; margin: 0; padding: 0; font-size: 90%; color: #999999; }
+.item_list li { margin: 0; padding: 0 0 0 0.5ex; }
+.attr_name { background: #f4f4f4; border: solid 1pt #dddddd; border-radius: 0.5ex;
+  font-size: 70%; color: #444444;
+  display: inline-block; min-width: 4.0ex; text-align: center; padding: 0; margin-left: -0.5ex; }
+.attr_value { color: #000000; }
+.label_wj { background: #eef8ff; }
+.label_we { background: #ffeef8; }
+.label_wn { background: #f8ffee; }
+"""
 NAVIGATION_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
 <head>
-<title>nav</title>
+<title>統合英和辞書: 目次</title>
+<link rel="stylesheet" href="style.css"/>
 </head>
 <body>
+<h1>統合英和辞書</h1>
+<article>
+<h2>目次</h2>
 <nav epub:type="toc">
 <ol>
 <li><a href="overview.xhtml">概要</a></li>
 """
 NAVIGATION_FOOTER_TEXT = """</ol>
 </nav>
+</article>
 </body>
 </html>
 """
 OVERVIEW_TEXT = """
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="ja">
 <head>
-<title>統合英和辞書</title>
+<title>統合英和辞書: 概要</title>
 <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
 <article>
-<h1>統合英和辞書</h1>
+<h2>概要</h2>
 <p>これは、オープンなデータから作成された英和辞書である。このデータは<a href="http://idpf.org/epub/dict/epub-dict.html">EPUB Dictionaries and Glossaries 1.0</a>の仕様に準拠しているので、EPUBの閲覧用システムにインストールすれば、検索機能を備える電子辞書として利用することができる。辞書データは<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>と<a href="https://en.wiktionary.org/">Wiktionary英語版</a>と<a href="https://wordnet.princeton.edu/">WordNet</a>と<a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">日本語WordNet</a>を統合したものだ。作成方法については<a href="https://dbmx.net/dict/">公式サイト</a>を参照のこと。利用や再配布の権利については各データのライセンスに従うべきだ。</p>
-<p>語義の各項目の先頭にはラベルが付いている。「WJ」はWiktionary日本語版由来の語義を示し、「WE」はWiktionary英語版由来の語義を示し、「WN」はWordNet由来の語義を示す。その後に、「名」＝名詞、「動」＝動詞、「形」＝形容詞、「副」＝副詞などの品詞情報が付いている。その後に、日本語の訳語か、日本語または英語の語義説明が来る。「発音」はIPA形式の発音記号を示し、「複数」「三単」「現分」「過去」「過分」「比較」「最上」は、名詞や動詞や形容詞の屈折形を示す。</p>
+<p>見出し語は太字で表示される。IPA発音記号の情報がある場合、見出し語の右に「//」で括って表示される。訳語の情報がある場合、見出し語の下に訳語のリストが表示される。語義の各項目の先頭にはラベルが付いている。「WJ」はWiktionary日本語版由来の語義を示し、「WE」はWiktionary英語版由来の語義を示し、「WN」はWordNet由来の語義を示す。その後に、「名」＝名詞、「動」＝動詞、「形」＝形容詞、「副」＝副詞などの品詞情報が付いている。その後に、日本語の訳語か、日本語または英語の語義説明が来る。「複数」「三単」「現分」「過去」「過分」「比較」「最上」は、名詞や動詞や形容詞の屈折形を示す。</p>
 </article>
 </body>
 </html>
@@ -173,25 +200,6 @@ MAIN_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 """
 MAIN_FOOTER_TEXT = """</body>
 </html>
-"""
-STYLE_TEXT = """html,body { margin: 0; padding: 0; background: #ffffff; color: #000000; font-size: 12pt; }
-.titlepage h1,.titlepage p { margin: 1ex 0; }
-article { margin: 1.2ex 0; }
-dfn { font-weight: bold; font-style: normal; }
-.item_list { list-style: none; margin: 0; padding: 0; font-size: 90%; color: #999999; }
-.item_list li { margin: 0; padding: 0 0 0 0.5ex; }
-.attr_name { background: #f4f4f4; border: solid 1pt #dddddd; border-radius: 0.5ex;
-  font-size: 70%; color: #444444;
-  display: inline-block; min-width: 4.0ex; text-align: center; padding: 0; margin-left: -0.5ex; }
-.attr_value { color: #000000; }
-.label_wj { background: #eef8ff; }
-.label_we { background: #ffeef8; }
-.label_wn { background: #f8ffee; }
-"""
-SKMAP_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
-<search-key-map xmlns="http://www.idpf.org/2007/ops" xml:lang="en">
-"""
-SKMAP_FOOTER_TEXT = """</search-key-map>
 """
 
 
@@ -253,11 +261,12 @@ class GenerateUnionEPUBBatch:
     self.MakeMimeType()
     self.MakeContainer(meta_dir_path)
     self.MakePackage(data_dir_path, key_prefixes)
+    self.MakeSearchKeyMap(data_dir_path, input_dbm, keys)    
+    self.MakeStyle(data_dir_path)
     self.MakeNavigation(data_dir_path, key_prefixes)
     self.MakeOverview(data_dir_path)
     self.MakeMain(data_dir_path, input_dbm, keys)
-    self.MakeStyle(data_dir_path)
-    self.MakeSearchKeyMap(data_dir_path, input_dbm, keys)
+
     input_dbm.Close().OrDie()
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
@@ -289,6 +298,45 @@ class GenerateUnionEPUBBatch:
       for main_id in main_ids:
         print('<itemref idref="{}"/>'.format(main_id), file=out_file)
       print(PACKAGE_FOOTER_TEXT, file=out_file, end="")
+
+  def MakeSearchKeyMap(self, data_dir_path, input_dbm, keys):
+    out_path = os.path.join(data_dir_path, "skmap.xml")
+    logger.info("Creating: {}".format(out_path))
+    with open(out_path, "w") as out_file:
+      def P(*args, end="\n"):
+        esc_args = []
+        for arg in args[1:]:
+          if isinstance(arg, str):
+            arg = esc(arg)
+          esc_args.append(arg)
+        print(args[0].format(*esc_args), end=end, file=out_file)
+      print(SKMAP_HEADER_TEXT, file=out_file, end="")
+      for key in keys:
+        key_prefix = GetKeyPrefix(key)
+        main_path = "main-{}.xhtml".format(key_prefix)
+        serialized = input_dbm.GetStr(key)
+        if not serialized: continue
+        entries = json.loads(serialized)
+        for entry in entries:
+          word = entry["word"]
+          P('<search-key-group href="{}#{}">', main_path, urllib.parse.quote(word))
+          P('<match value="{}">', word)
+          uniq_infls = set([word])
+          for infl_rules in INFLECTIONS:
+            for infl_name, infl_label in infl_rules:
+              infl_value = entry.get(infl_name)
+              if infl_value and infl_value not in uniq_infls:
+                P('<value value="{}"/>', infl_value)
+                uniq_infls.add(infl_value)
+          P('</match>')
+          P('</search-key-group>')
+      print(SKMAP_FOOTER_TEXT, file=out_file, end="")
+
+  def MakeStyle(self, data_dir_path):
+    out_path = os.path.join(data_dir_path, "style.css")
+    logger.info("Creating: {}".format(out_path))
+    with open(out_path, "w") as out_file:
+      print(STYLE_TEXT, file=out_file, end="")
 
   def MakeNavigation(self, data_dir_path, key_prefixes):
     out_path = os.path.join(data_dir_path, "nav.xhtml")
@@ -341,34 +389,26 @@ class GenerateUnionEPUBBatch:
     P('<article id="{}">', urllib.parse.quote(word))
     P('<aside epub:type="condensed-entry" hidden="hidden">')
     P('<dfn>{}</dfn>', word)
+    if pronunciation:
+      P('<span epub:type="phonetic-transcription" lang="en-fonipa" class="pron">{}</span>',
+        pronunciation)
     P('<ul class="item_list">')
     if translations:
       P('<li class="top_attr">')
-      P('<span class="attr_name">訳語</span>')
-      P('<span class="attr_value">{}</span>', ", ".join(translations[:8]))
-      P('</li>')
-    if pronunciation:
-      P('<li class="top_attr">')
-      P('<span class="attr_name">発音</span>')
-      P('<span epub:type="phonetic-transcription" lang="en-fonipa" class="attr_value">{}</span>',
-        pronunciation)
+      P('<span class="attr_value">{}</span>', ", ".join(translations[:6]))
       P('</li>')
     for item in entry["item"][:5]:
       self.MakeMainEntryItem(P, item, True)
     P('</ul>')
     P('</aside>')
     P('<dfn>{}</dfn>', word)
+    if pronunciation:
+      P('<span epub:type="phonetic-transcription" lang="en-fonipa" class="pron">{}</span>',
+        pronunciation)
     P('<ul class="item_list">')
     if translations:
       P('<li class="top_attr">')
-      P('<span class="attr_name">訳語</span>')
       P('<span class="attr_value">{}</span>', ", ".join(translations[:8]))
-      P('</li>')
-    if pronunciation:
-      P('<li class="top_attr">')
-      P('<span class="attr_name">発音</span>')
-      P('<span epub:type="phonetic-transcription" lang="en-fonipa" class="attr_value">{}</span>',
-        pronunciation)
       P('</li>')
     for attr_list in INFLECTIONS:
       fields = []
@@ -384,6 +424,19 @@ class GenerateUnionEPUBBatch:
         P('</li>')
     for item in entry["item"]:
       self.MakeMainEntryItem(P, item, False)
+
+    related = entry.get("related")
+    if related:
+      P('<li class="top_attr">')
+      P('<span class="attr_name">関連</span>')
+      P('<span class="attr_value">{}</span>', ", ".join(related[:8]))
+      P('</li>')
+    prob = entry.get("probability")
+    if prob:
+      P('<li class="top_attr">')
+      P('<span class="attr_name">確率</span>')
+      P('<span class="attr_value">{:.4f}%</span>', float(prob) * 100)
+      P('</li>')
     P('</ul>')
     P('</article>')
 
@@ -417,45 +470,6 @@ class GenerateUnionEPUBBatch:
       P('<span class="attr_name">{}</span>', annot)
     P('<span class="attr_value">{}</span>', text)
     P('</li>')
-
-  def MakeStyle(self, data_dir_path):
-    out_path = os.path.join(data_dir_path, "style.css")
-    logger.info("Creating: {}".format(out_path))
-    with open(out_path, "w") as out_file:
-      print(STYLE_TEXT, file=out_file, end="")
-
-  def MakeSearchKeyMap(self, data_dir_path, input_dbm, keys):
-    out_path = os.path.join(data_dir_path, "skmap.xml")
-    logger.info("Creating: {}".format(out_path))
-    with open(out_path, "w") as out_file:
-      def P(*args, end="\n"):
-        esc_args = []
-        for arg in args[1:]:
-          if isinstance(arg, str):
-            arg = esc(arg)
-          esc_args.append(arg)
-        print(args[0].format(*esc_args), end=end, file=out_file)
-      print(SKMAP_HEADER_TEXT, file=out_file, end="")
-      for key in keys:
-        key_prefix = GetKeyPrefix(key)
-        main_path = "main-{}.xhtml".format(key_prefix)
-        serialized = input_dbm.GetStr(key)
-        if not serialized: continue
-        entries = json.loads(serialized)
-        for entry in entries:
-          word = entry["word"]
-          P('<search-key-group href="{}#{}">', main_path, urllib.parse.quote(word))
-          P('<match value="{}">', word)
-          uniq_infls = set([word])
-          for infl_rules in INFLECTIONS:
-            for infl_name, infl_label in infl_rules:
-              infl_value = entry.get(infl_name)
-              if infl_value and infl_value not in uniq_infls:
-                P('<value value="{}"/>', infl_value)
-                uniq_infls.add(infl_value)
-          P('</match>')
-          P('</search-key-group>')
-      print(SKMAP_FOOTER_TEXT, file=out_file, end="")
 
 
 def main():
