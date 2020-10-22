@@ -1,7 +1,7 @@
 #! /usr/bin/python3
 # -*- coding: utf-8 -*-
 #--------------------------------------------------------------------------------------------------
-# Script to build a union database by merging TSV dictionaries
+# Script to generate files to make an EPUB archive from the union dictionary
 #
 # Usage:
 #   generate_union_epub.py [--input str] [--output str] [--quiet]
@@ -243,17 +243,8 @@ class GenerateUnionEPUBBatch:
     os.makedirs(meta_dir_path, exist_ok=True)
     data_dir_path = os.path.join(self.output_path, "OEBPS")
     os.makedirs(data_dir_path, exist_ok=True)
-    keys = []
-    it = input_dbm.MakeIterator()
-    it.First()
-    while True:
-      key = it.GetKeyStr()
-      if key == None: break
-      keys.append(key)
-      it.Next()
-    keys = sorted(keys)
-    #keys = keys[:10000]
-    #keys = ["a", "juxtapose", "cornbread", "saw", "see", "train", "unix"]
+    words = self.ListUpWords(input_dbm)
+    keys = sorted(set([tkrzw_dict.NormalizeWord(x) for x in words]))
     key_prefixes = set()
     for key in keys:
       key_prefixes.add(GetKeyPrefix(key))
@@ -261,14 +252,44 @@ class GenerateUnionEPUBBatch:
     self.MakeMimeType()
     self.MakeContainer(meta_dir_path)
     self.MakePackage(data_dir_path, key_prefixes)
-    self.MakeSearchKeyMap(data_dir_path, input_dbm, keys)    
+    self.MakeSearchKeyMap(data_dir_path, input_dbm, keys, words)
     self.MakeStyle(data_dir_path)
     self.MakeNavigation(data_dir_path, key_prefixes)
     self.MakeOverview(data_dir_path)
-    self.MakeMain(data_dir_path, input_dbm, keys)
-
+    self.MakeMain(data_dir_path, input_dbm, keys, words)
     input_dbm.Close().OrDie()
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
+
+  def ListUpWords(self, input_dbm):
+    logger.info("Checking words")
+    words = set()
+    it = input_dbm.MakeIterator()
+    it.First()
+    while True:
+      rec = it.GetStr()
+      if rec == None: break
+      entries = json.loads(rec[1])
+      for entry in entries:
+        if not self.IsGoodEntry(entry): continue
+        words.add(entry["word"])
+      it.Next()
+      #if len(words) >= 1000: break
+    logger.info("Checking words done: {}".format(len(words)))
+    return words
+
+  def IsGoodEntry(self, entry):
+    word = entry["word"]
+    labels = set()
+    for item in entry["item"]:
+      if item["text"].startswith("[translation]:"): continue
+      labels.add(item["label"])
+    if "wj" in labels: return True
+    prob = float(entry.get("probability") or "0")
+    if (regex.search(r"(^| )[\p{Lu}\p{P}\p{S}\d]", word) and "we" not in labels):
+      return False
+    if prob < 0.00002 and (regex.search(r" ", word) or len(labels) == 1):
+      return False
+    return True
 
   def MakeMimeType(self):
     out_path = os.path.join(self.output_path, "mimetype")
@@ -299,7 +320,7 @@ class GenerateUnionEPUBBatch:
         print('<itemref idref="{}"/>'.format(main_id), file=out_file)
       print(PACKAGE_FOOTER_TEXT, file=out_file, end="")
 
-  def MakeSearchKeyMap(self, data_dir_path, input_dbm, keys):
+  def MakeSearchKeyMap(self, data_dir_path, input_dbm, keys, words):
     out_path = os.path.join(data_dir_path, "skmap.xml")
     logger.info("Creating: {}".format(out_path))
     with open(out_path, "w") as out_file:
@@ -319,6 +340,7 @@ class GenerateUnionEPUBBatch:
         entries = json.loads(serialized)
         for entry in entries:
           word = entry["word"]
+          if word not in words: continue
           P('<search-key-group href="{}#{}">', main_path, urllib.parse.quote(word))
           P('<match value="{}">', word)
           uniq_infls = set([word])
@@ -355,7 +377,7 @@ class GenerateUnionEPUBBatch:
     with open(out_path, "w") as out_file:
       print(OVERVIEW_TEXT, file=out_file, end="")
 
-  def MakeMain(self, data_dir_path, input_dbm, keys):
+  def MakeMain(self, data_dir_path, input_dbm, keys, words):
     out_files = {}
     for key in keys:
       key_prefix = GetKeyPrefix(key)
@@ -370,6 +392,7 @@ class GenerateUnionEPUBBatch:
       if not serialized: continue
       entries = json.loads(serialized)
       for entry in entries:
+        if entry["word"] not in words: continue
         self.MakeMainEntry(out_file, entry)
     for key_prefix, out_file in out_files.items():
       print(MAIN_FOOTER_TEXT, file=out_file, end="")
@@ -422,9 +445,19 @@ class GenerateUnionEPUBBatch:
         P('<li class="top_attr">')
         print(", ".join(fields), file=out_file, end="")
         P('</li>')
+    labels = set()
     for item in entry["item"]:
+      labels.add(item["label"])
+    we_count = 0
+    for item in entry["item"]:
+      label = item["label"]
+      if label == "we":
+        if "wn" in labels: continue
+        text = item["text"]
+        if text.startswith("[translation]:"): continue
+        if we_count >= 8: continue
+        we_count += 1
       self.MakeMainEntryItem(P, item, False)
-
     related = entry.get("related")
     if related:
       P('<li class="top_attr">')
