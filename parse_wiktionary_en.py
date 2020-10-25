@@ -85,7 +85,6 @@ class XMLHandler(xml.sax.handler.ContentHandler):
       self.model = None
       self.format = None
       self.text = None
-
     self.tags.pop()
     if self.num_outputs >= self.max_outputs:
       logger.info("reached max outputs ({})".format(self.max_outputs))
@@ -213,6 +212,8 @@ class XMLHandler(xml.sax.handler.ContentHandler):
       if regex.search(r"\{\{ipa\|en\|([^}]+)\}\}", line, regex.IGNORECASE):
         value = regex.sub(r".*\{\{ipa\|en\|([^}]+)\}\}.*", r"\1",
                           line, flags=regex.IGNORECASE)
+        value = regex.sub(r"(qual[\d]=[^|]+\|)+", "", value)
+        value = regex.sub(r"\|.*", "", value)
         value = regex.sub(r"</?[a-z]+[^>]*>", "", value)
         value = regex.sub(r"^/(.*)/$", r"\1", value)
         value = regex.sub(r"lang=[a-z]*\|", "", value)

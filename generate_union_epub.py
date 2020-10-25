@@ -141,7 +141,7 @@ STYLE_TEXT = """html,body { margin: 0; padding: 0; background: #ffffff; color: #
 article { margin: 1.2ex 0; }
 a { color: #001188; }
 .pron { display: inline-block; margin-left: 2ex; vertical-align: 2%;
-  color: #333333; font-size: 85%; }
+  color: #111111; font-size: 85%; }
 .pron:before,.pron:after { content: "/"; color: #888888; font-size: 80%; }
 dfn { font-weight: bold; font-style: normal; }
 .item_list { list-style: none; margin: 0; padding: 0; font-size: 90%; color: #999999; }
@@ -218,6 +218,13 @@ def CutTextByWidth(text, width):
     result += c
     width -= 2 if ord(c) > 256 else 1
   return result
+
+
+def ConvertWordToID(word):
+  word = word.replace(" ", "_")
+  word = urllib.parse.quote(word)
+  word = word.replace("%", "~")
+  return word
 
 
 def GetKeyPrefix(key):
@@ -341,7 +348,7 @@ class GenerateUnionEPUBBatch:
         for entry in entries:
           word = entry["word"]
           if word not in words: continue
-          P('<search-key-group href="{}#{}">', main_path, urllib.parse.quote(word))
+          P('<search-key-group href="{}#{}">', main_path, ConvertWordToID(word))
           P('<match value="{}">', word)
           uniq_infls = set([word])
           for infl_rules in INFLECTIONS:
@@ -409,7 +416,7 @@ class GenerateUnionEPUBBatch:
     word = entry["word"]
     pronunciation = entry.get("pronunciation")
     translations = entry.get("translation")
-    P('<article id="{}">', urllib.parse.quote(word))
+    P('<article id="{}">', ConvertWordToID(word))
     P('<aside epub:type="condensed-entry" hidden="hidden">')
     P('<dfn>{}</dfn>', word)
     if pronunciation:
@@ -458,18 +465,18 @@ class GenerateUnionEPUBBatch:
         if we_count >= 8: continue
         we_count += 1
       self.MakeMainEntryItem(P, item, False)
-    related = entry.get("related")
-    if related:
-      P('<li class="top_attr">')
-      P('<span class="attr_name">関連</span>')
-      P('<span class="attr_value">{}</span>', ", ".join(related[:8]))
-      P('</li>')
-    prob = entry.get("probability")
-    if prob:
-      P('<li class="top_attr">')
-      P('<span class="attr_name">確率</span>')
-      P('<span class="attr_value">{:.4f}%</span>', float(prob) * 100)
-      P('</li>')
+    #related = entry.get("related")
+    #if related:
+    #  P('<li class="top_attr">')
+    #  P('<span class="attr_name">関連</span>')
+    #  P('<span class="attr_value">{}</span>', ", ".join(related[:8]))
+    #  P('</li>')
+    #prob = entry.get("probability")
+    #if prob:
+    #  P('<li class="top_attr">')
+    #  P('<span class="attr_name">確率</span>')
+    #  P('<span class="attr_value">{:.4f}%</span>', float(prob) * 100)
+    #  P('</li>')
     P('</ul>')
     P('</article>')
 
