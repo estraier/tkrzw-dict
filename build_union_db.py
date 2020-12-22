@@ -46,11 +46,11 @@ poses = ("noun", "verb", "adjective", "adverb",
          "pronoun", "auxverb", "preposition", "determiner", "article",
          "interjection", "conjunction",
          "prefix", "suffix", "abbreviation")
-top_names = ("pronunciation", "noun_plural",
-             "verb_singular", "verb_present_participle",
-             "verb_past", "verb_past_participle",
-             "adjective_comparative", "adjective_superative",
-             "adverb_comparative", "adverb_superative")
+inflection_names = ("noun_plural","verb_singular", "verb_present_participle",
+                   "verb_past", "verb_past_participle",
+                   "adjective_comparative", "adjective_superative",
+                   "adverb_comparative", "adverb_superative")
+top_names = ("pronunciation",) + inflection_names
 rel_weights = {"synonym": 1.0,
                "hypernym": 0.9,
                "hyponym": 0.8,
@@ -268,6 +268,7 @@ class BuildUnionDBBatch:
       word_entry = {}
       word_entry["word"] = word
       effective_labels = set()
+      surfaces = set([word.lower()])
       for label, entry in entries:
         if label not in self.surfeit_labels:
           effective_labels.add(label)
@@ -276,12 +277,31 @@ class BuildUnionDBBatch:
           value = entry.get(top_name)
           if value:
             word_entry[top_name] = value
+        for infl_name in inflection_names:
+          value = entry.get(infl_name)
+          if value:
+            surfaces.add(value.lower())
       for label, entry in entries:
         texts = entry.get("text")
         if not texts: continue
         for pos, text in texts:
           items = word_entry.get("item") or []
           tran_key = word + "\t" + label + "\t" + pos
+          eg_match = regex.search(r" \[-\] e\.g\.: (.*?)($| \[-\])", text)
+          if eg_match:
+            eg_text = eg_match.group(1).lower()
+            eg_words = regex.findall("[-\p{Latin}]+", eg_text)
+            hit = False
+            for surface in surfaces:
+              if surface in eg_words:
+                hit = True
+                break
+            if not hit:
+              span = eg_match.span()
+              if eg_match.group(2).endswith("[-]"):
+                text = text[:span[0]] + " [-]" + text[span[1]:]
+              else:
+                text = text[:span[0]]
           trans = word_trans.get(tran_key)
           if trans:
             del word_trans[tran_key]

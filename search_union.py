@@ -209,7 +209,7 @@ def PrintResult(entries, mode, query):
               if attr_label:
                 section = "{}: {}".format(attr_label, section[len(attr_match.group(0)):].strip())
             elif eg_match:
-              section = "例文: {}".format(section[len(eg_match.group(0)):].strip())
+              section = "例: {}".format(section[len(eg_match.group(0)):].strip())
             subsections = section.split(" [--] ")
             PrintWrappedText(subsections[0], 6)
             for subsection in subsections[1:]:
@@ -386,14 +386,10 @@ def PrintResultCGI(entries, query, details):
       section = sections[0]
       attr_label = None
       attr_match = regex.search(r"^\[([a-z]+)\]: ", section)
-      eg_match = regex.search(r"^e\.g\.: ", section)
       if attr_match:
         attr_label = WORDNET_ATTRS.get(attr_match.group(1))
         if attr_label:
           section = section[len(attr_match.group(0)):].strip()
-      elif eg_match:
-        attr_label = "例文"
-        section = section[len(eg_match.group(0)):].strip()
       P('<div class="item item_{}">', label)
       P('<div class="item_text item_text1">')
       P('<span class="label">{}</span>', label.upper())
@@ -444,7 +440,10 @@ def PrintResultCGI(entries, query, details):
             if subattr_label:
               section = section[len(attr_match.group(0)):].strip()
           elif eg_match:
-            subattr_label = "例文"
+
+
+            
+            subattr_label = "例"
             section = section[len(eg_match.group(0)):].strip()
           subsections = section.split(" [--] ")
           P('<div class="item_text item_text2 item_text_n">')
@@ -800,7 +799,6 @@ function startup() {{
           edit_result = searcher.SearchPatternMatchReverse("edit", query, CGI_CAPACITY)
         else:
           edit_result = searcher.SearchPatternMatch("edit", query, CGI_CAPACITY)
-
         if index_mode in ("auto", "normal"):
           lemmas = searcher.SearchInflections(query)
           if lemmas:
