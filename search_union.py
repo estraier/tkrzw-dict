@@ -202,11 +202,14 @@ def PrintResult(entries, mode, query):
         if mode == "full":
           for section in sections[1:]:
             attr_match = regex.search(r"^\[([a-z]+)\]: ", section)
+            eg_match = regex.search(r"^e\.g\.: ", section)
             if attr_match:
               if attr_match.group(1) == "synset": continue
               attr_label = WORDNET_ATTRS.get(attr_match.group(1))
               if attr_label:
                 section = "{}: {}".format(attr_label, section[len(attr_match.group(0)):].strip())
+            elif eg_match:
+              section = "例文: {}".format(section[len(eg_match.group(0)):].strip())
             subsections = section.split(" [--] ")
             PrintWrappedText(subsections[0], 6)
             for subsection in subsections[1:]:
@@ -383,10 +386,14 @@ def PrintResultCGI(entries, query, details):
       section = sections[0]
       attr_label = None
       attr_match = regex.search(r"^\[([a-z]+)\]: ", section)
+      eg_match = regex.search(r"^e\.g\.: ", section)
       if attr_match:
         attr_label = WORDNET_ATTRS.get(attr_match.group(1))
         if attr_label:
           section = section[len(attr_match.group(0)):].strip()
+      elif eg_match:
+        attr_label = "例文"
+        section = section[len(eg_match.group(0)):].strip()
       P('<div class="item item_{}">', label)
       P('<div class="item_text item_text1">')
       P('<span class="label">{}</span>', label.upper())
@@ -430,11 +437,15 @@ def PrintResultCGI(entries, query, details):
         for section in sections[1:]:
           subattr_label = None
           attr_match = regex.search(r"^\[([a-z]+)\]: ", section)
+          eg_match = regex.search(r"^e\.g\.: ", section)
           if attr_match:
             if attr_match.group(1) == "synset": continue
             subattr_label = WORDNET_ATTRS.get(attr_match.group(1))
             if subattr_label:
               section = section[len(attr_match.group(0)):].strip()
+          elif eg_match:
+            subattr_label = "例文"
+            section = section[len(eg_match.group(0)):].strip()
           subsections = section.split(" [--] ")
           P('<div class="item_text item_text2 item_text_n">')
           if subattr_label:
@@ -822,7 +833,7 @@ function startup() {{
 <li>類語展開 : 見出し語が検索語と完全一致するものとその類語が該当する。</li>
 </ul>
 <p>デフォルトでは、表示形式は自動的に設定されます。ヒット件数が1件の場合にはその語の語義が詳細に表示され、ヒット件数が5以下の場合には主要語義のみが表示され、ヒット件数がそれ以上の場合には翻訳語のみがリスト表示されます。結果の見出し語を選択すると詳細表示が見られます。</p>
-<p>このサイトはオープンな英和辞書検索のデモです。辞書データは<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>と<a href="https://en.wiktionary.org/">Wiktionary英語版</a>と<a href="https://wordnet.princeton.edu/">WordNet</a>と<a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">日本語WordNet</a>を統合したものです。検索システムは高性能データベースライブラリ<a href="https://dbmx.net/tkrzw/">Tkrzw</a>を用いて実装されています。<a href="https://github.com/estraier/tkrzw-dict">コードベース</a>はGitHubにて公開されています。</p>
+<p>このサイトはオープンな英和辞書検索のデモです。辞書データは<a href="https://wordnet.princeton.edu/">WordNet</a>と<a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">日本語WordNet</a>と<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>と<a href="https://en.wiktionary.org/">Wiktionary英語版</a>を統合したものです。検索システムは高性能データベースライブラリ<a href="https://dbmx.net/tkrzw/">Tkrzw</a>を用いて実装されています。<a href="https://github.com/estraier/tkrzw-dict">コードベース</a>はGitHubにて公開されています。</p>
 </div>""")
   print("""</article>
 </body>

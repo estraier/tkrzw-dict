@@ -52,7 +52,7 @@ h2:hover a.headanc, h3:hover a.headanc {
 
 <h2 id="overview">概要</h2>
 
-<p>本パッケージは、オープンなデータをつかって英和辞書を構築し、それを検索するためのシステムを提供する。ここで言うオープンなデータとは、<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>と<a href="https://en.wiktionary.org/">Wiktionary英語版</a>と<a href="https://wordnet.princeton.edu/">WordNet</a>と<a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">日本語WordNet</a>を指す。それらのデータはインターネットを介して無料で入手することができ、当該ライセンスに基づいて自由に利用することができる。すなわち、本パッケージは、あなたが自分の辞書データを無料で構築し、自由にカスタマイズして利用することを可能にする。</p>
+<p>本パッケージは、オープンなデータをつかって英和辞書を構築し、それを検索するためのシステムを提供する。ここで言うオープンなデータとは、<a href="https://wordnet.princeton.edu/">WordNet</a>と<a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">日本語WordNet</a>と<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>と<a href="https://en.wiktionary.org/">Wiktionary英語版</a>を指す。それらのデータはインターネットを介して無料で入手することができ、当該ライセンスに基づいて自由に利用することができる。すなわち、本パッケージは、あなたが自分の辞書データを無料で構築し、自由にカスタマイズして利用することを可能にする。</p>
 
 <p>まずは<a href="https://dbmx.net/dict/search_union.cgi">デモサイト</a>を利用されたい。検索窓に英単語を入力し、「検索」ボタンを押せば、その英単語の語義が表示される。検索窓に日本語を入力して検索すれば、その日本語を語義に含む英単語のリストが表示される。すなわち、本システムは英和辞書としても和英辞書としても利用できる。単語だけでなく、複数語からなるフレーズでも検索できる。さらに、スペルミスを吸収するための曖昧一致検索や、関連語を検索するための類語検索も実装されている。語の変化形で検索できる屈折索引も利用できる。英文読解の際には英和辞書検索機能が頻繁に用いられるが、その際には曖昧一致検索や屈折索引が自動的に機能し、検索語を入力し直す手間を大幅に削減してくれる。英作文の際には、和英辞書検索機能が頻繁に用いられるが、その際には類語検索を利用すると、所望の英単語を探す手間を大幅に削減できる。</p>
 
@@ -150,10 +150,10 @@ h2:hover a.headanc, h3:hover a.headanc {
 <li>cooccurrence : 主な共起語のリスト。</li>
 </ul>
 
-<p>見出し語のitem属性は、以下の属性を持つJSONの連想配列のリストである。リスト内の要素の順序は、第一キーはラベル順である。第二キーは、Wiktionary由来のデータでは元データにおける収録順であり、WordNet由来のデータでは翻訳語の和文コーパスにおける頻度の降順である。</p>
+<p>見出し語のitem属性は、以下の属性を持つJSONの連想配列のリストである。リスト内の要素の順序は、第一キーはラベル順である。第二キーは、WordNet由来のデータでは翻訳語の和文コーパスにおける頻度の降順であり、Wiktionary由来のデータでは元データにおける収録順である。</p>
 
 <ul>
-<li>label : データソースの名前。wjはWiktionary日本語版、weはWiktionary英語版、wnはWordNetと日本語WordNet</li>
+<li>label : wnはWordNetと日本語WordNet、データソースの名前。wjはWiktionary日本語版、weはWiktionary英語版</li>
 <li>pos : 品詞。noun、verb、adjective、adverb、pronoun、auxverb、preposition、determiner、article、interjection、conjunction、prefix、suffix、abbreviation</li>
 <li>text : 語義。サブセクションは "[-]" で区切り、サブサブセクションは "[--]" で区切り、サブサブサブセクションは "[---]" で区切る。</li>
 </ul>
@@ -222,14 +222,6 @@ h2:hover a.headanc, h3:hover a.headanc {
 <li>unkpos : 品詞不明の語義</li>
 </ul>
 
-<p>Wiktionaryの日本語版および英語版の語義TSVファイルを生成するには、各々のXMLファイルをダウンロードしておいてから、以下のコマンドを実行すればよい。</p>
-
-<pre><![CDATA[$ bzcat ~/jawiktionary-latest-pages-articles.xml.bz2 |
-  ./parse_wiktionary_ja.py > wiktionary-ja.tsv
-$ bzcat ~/enwiktionary-latest-pages-articles.xml.bz2 |
-  ./parse_wiktionary_en.py > wiktionary-en.tsv
-]]></pre>
-
 <p>WordNetと日本語WordNetを統合した語義TSVファイルを生成するには、各々のアーカイブファイルを展開しておいてから、以下のコマンドを実行すればよい。</p>
 
 <pre><![CDATA[$ ./build_wordnet_db.py --dict WordNet-3.0/dict --output wordnet.tkh \
@@ -239,12 +231,20 @@ $ ./append_wordnet_jpn.py --input wordnet.tkh --output wordnet-body.tkh \
 $ ./extract_wordnet_tsv.py --input wordnet-body.tkh > wordnet.tsv
 ]]></pre>
 
+<p>Wiktionaryの日本語版および英語版の語義TSVファイルを生成するには、各々のXMLファイルをダウンロードしておいてから、以下のコマンドを実行すればよい。</p>
+
+<pre><![CDATA[$ bzcat ~/jawiktionary-latest-pages-articles.xml.bz2 |
+  ./parse_wiktionary_ja.py > wiktionary-ja.tsv
+$ bzcat ~/enwiktionary-latest-pages-articles.xml.bz2 |
+  ./parse_wiktionary_en.py > wiktionary-en.tsv
+]]></pre>
+
 <p>規程の書式に準拠した語義TSVファイルを生成することで、任意のデータソースを使った辞書データを構築することができる。既成の以下ファイルをダウンロードしてから適当にカスタマイズしても良い。</p>
 
 <ul>
+<li><a href="https://dbmx.net/dict/wordnet.tsv">wordnet.tsv</a> : WordNetの語義TSVファイル</li>
 <li><a href="https://dbmx.net/dict/wiktionary-ja.tsv">wiktionary-ja.tsv</a> : Wiktionary日本語版の語義TSVファイル</li>
 <li><a href="https://dbmx.net/dict/wiktionary-en.tsv">wiktionary-en.tsv</a> : Wiktionary英語版の語義TSVファイル</li>
-<li><a href="https://dbmx.net/dict/wordnet.tsv">wordnet.tsv</a> : WordNetの語義TSVファイル</li>
 </ul>
 
 <p>語の頻度データベースと語義TSVファイルが揃ったら、以下のコマンドを実行すると、英和辞書データの本体であるDBMファイルが構築できる。</p>
@@ -252,7 +252,7 @@ $ ./extract_wordnet_tsv.py --input wordnet-body.tkh > wordnet.tsv
 <pre><![CDATA[$ ./build_union_db.py --output union-body.tkh \
   --word_prob enwiki-word-prob.tkh --rev_prob jawiki-word-prob.tkh \
   --cooc_prob enwiki-cooc-prob.tkh --min_prob we:0.00001 \
-  wj:wiktionary-ja.tsv wn:wordnet.tsv we:wiktionary-en.tsv
+  wn:wordnet.tsv wj:wiktionary-ja.tsv we:wiktionary-en.tsv
 ]]></pre>
 
 <p>その他の検索用ファイルは、以下の手順を踏めば生成できる。</p>

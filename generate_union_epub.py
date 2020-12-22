@@ -150,9 +150,9 @@ dfn { font-weight: bold; font-style: normal; }
   font-size: 70%; color: #444444;
   display: inline-block; min-width: 4.0ex; text-align: center; padding: 0; margin-left: -0.5ex; }
 .attr_value { color: #000000; }
+.label_wn { background: #f8ffee; }
 .label_wj { background: #eef8ff; }
 .label_we { background: #ffeef8; }
-.label_wn { background: #f8ffee; }
 """
 NAVIGATION_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
@@ -184,7 +184,7 @@ OVERVIEW_TEXT = """
 <body>
 <article>
 <h2>概要</h2>
-<p>これは、オープンなデータから作成された英和辞書である。このデータは<a href="http://idpf.org/epub/dict/epub-dict.html">EPUB Dictionaries and Glossaries 1.0</a>の仕様に準拠しているので、EPUBの閲覧用システムにインストールすれば、検索機能を備える電子辞書として利用することができる。辞書データは<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>と<a href="https://en.wiktionary.org/">Wiktionary英語版</a>と<a href="https://wordnet.princeton.edu/">WordNet</a>と<a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">日本語WordNet</a>を統合したものだ。作成方法については<a href="https://dbmx.net/dict/">公式サイト</a>を参照のこと。利用や再配布の権利については各データのライセンスに従うべきだ。</p>
+<p>これは、オープンなデータから作成された英和辞書である。このデータは<a href="http://idpf.org/epub/dict/epub-dict.html">EPUB Dictionaries and Glossaries 1.0</a>の仕様に準拠しているので、EPUBの閲覧用システムにインストールすれば、検索機能を備える電子辞書として利用することができる。辞書データは<a href="https://wordnet.princeton.edu/">WordNet</a>と<a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">日本語WordNet</a>と<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>と<a href="https://en.wiktionary.org/">Wiktionary英語版</a>を統合したものだ。作成方法については<a href="https://dbmx.net/dict/">公式サイト</a>を参照のこと。利用や再配布の権利については各データのライセンスに従うべきだ。</p>
 <p>見出し語は太字で表示される。IPA発音記号の情報がある場合、見出し語の右に「//」で括って表示される。訳語の情報がある場合、見出し語の下に訳語のリストが表示される。語義の各項目の先頭にはラベルが付いている。「WJ」はWiktionary日本語版由来の語義を示し、「WE」はWiktionary英語版由来の語義を示し、「WN」はWordNet由来の語義を示す。その後に、「名」＝名詞、「動」＝動詞、「形」＝形容詞、「副」＝副詞などの品詞情報が付いている。その後に、日本語の訳語か、日本語または英語の語義説明が来る。「複数」「三単」「現分」「過去」「過分」「比較」「最上」は、名詞や動詞や形容詞の屈折形を示す。</p>
 </article>
 </body>

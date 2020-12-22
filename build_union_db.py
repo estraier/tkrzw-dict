@@ -519,7 +519,7 @@ class BuildUnionDBBatch:
     deduped_translations = sorted(deduped_translations, key=lambda x: x[1], reverse=True)
     uniq_trans = set()
     final_translations = []
-    max_elems = int(min(max(math.log2(len(entry["item"])), 2), 6) * 4)
+    max_elems = int(min(max(math.log2(len(entry["item"])), 2), 6) * 6)
     for tran, score in deduped_translations:
       norm_tran = tkrzw_dict.NormalizeWord(tran)
       if norm_tran in uniq_trans:
@@ -527,8 +527,8 @@ class BuildUnionDBBatch:
       uniq_trans.add(norm_tran)
       if len(final_translations) < max_elems or score >= 0.001:
         final_translations.append(tran)
-    for aux_tran, count in count_aux_trans.items():
-      if count <= 1 and len(final_translations) >= 5: break
+    sorted_aux_trans = sorted(count_aux_trans.items(), key=lambda x: -x[1])
+    for aux_tran, count in sorted_aux_trans:
       if len(final_translations) >= max_elems: break
       norm_tran = tkrzw_dict.NormalizeWord(aux_tran)
       if norm_tran in uniq_trans:
