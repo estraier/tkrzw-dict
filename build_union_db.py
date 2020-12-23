@@ -287,21 +287,23 @@ class BuildUnionDBBatch:
         for pos, text in texts:
           items = word_entry.get("item") or []
           tran_key = word + "\t" + label + "\t" + pos
-          eg_match = regex.search(r" \[-\] e\.g\.: (.*?)($| \[-\])", text)
-          if eg_match:
-            eg_text = eg_match.group(1).lower()
-            eg_words = regex.findall("[-\p{Latin}]+", eg_text)
-            hit = False
-            for surface in surfaces:
-              if surface in eg_words:
-                hit = True
-                break
-            if not hit:
-              span = eg_match.span()
-              if eg_match.group(2).endswith("[-]"):
-                text = text[:span[0]] + " [-]" + text[span[1]:]
-              else:
-                text = text[:span[0]]
+          sections = []
+          for section in text.split(" [-] "):
+            if not sections:
+              sections.append(section)
+              continue
+            eg_match = regex.search(r"^e\.g\.: (.*)", section)
+            if eg_match:
+              eg_text = eg_match.group(1).lower()
+              eg_words = regex.findall("[-\p{Latin}]+", eg_text)
+              hit = False
+              for surface in surfaces:
+                if surface in eg_words:
+                  hit = True
+                  break
+              if not hit: continue
+            sections.append(section)
+          text = " [-] ".join(sections)
           trans = word_trans.get(tran_key)
           if trans:
             del word_trans[tran_key]

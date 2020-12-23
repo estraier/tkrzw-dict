@@ -432,6 +432,7 @@ def PrintResultCGI(entries, query, details):
       if details:
         for section in sections[1:]:
           subattr_label = None
+          subattr_link = False
           attr_match = regex.search(r"^\[([a-z]+)\]: ", section)
           eg_match = regex.search(r"^e\.g\.: ", section)
           if attr_match:
@@ -439,15 +440,15 @@ def PrintResultCGI(entries, query, details):
             subattr_label = WORDNET_ATTRS.get(attr_match.group(1))
             if subattr_label:
               section = section[len(attr_match.group(0)):].strip()
+              subattr_link = True
           elif eg_match:
-
-
-            
             subattr_label = "例"
             section = section[len(eg_match.group(0)):].strip()
           subsections = section.split(" [--] ")
           P('<div class="item_text item_text2 item_text_n">')
           if subattr_label:
+            P('<span class="subattr_label">{}</span>', subattr_label)
+          if subattr_link:
             fields = []
             for subword in subsections[0].split(","):
               subword = subword.strip()
@@ -456,7 +457,6 @@ def PrintResultCGI(entries, query, details):
                 fields.append('<a href="{}" class="subword">{}</a>'.format(
                   esc(subword_url), esc(subword)))
             if fields:
-              P('<span class="subattr_label">{}</span>', subattr_label)
               P('<span class="text">', end="")
               print(", ".join(fields), end="")
               P('</span>')
@@ -567,7 +567,7 @@ def main_cgi():
     value = form[key]
     params[key] = value.value
   query = params.get("q") or ""
-  query = query.strip()
+  query = regex.sub(r"[\p{C}\p{S}]", " ", query).strip()
   index_mode = params.get("i") or "auto"
   search_mode = params.get("s") or "auto"
   view_mode = params.get("v") or "auto"
