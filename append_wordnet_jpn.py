@@ -112,6 +112,10 @@ class AppendWordnetJPNBatch:
         word = item["word"]
         item_translations = translations.get(item["synset"])
         if item_translations:
+          if item["pos"] == "verb":
+            for i, tran in enumerate(item_translations):
+              if tokenizer.IsJaWordSahenNoun(tran):
+                item_translations[i] = tran + "する"
           item_score = 0.0
           if word_prob_dbm or tran_prob_dbm:
             item_translations, item_score, tran_scores = (self.SortWordsByScore(
@@ -180,6 +184,10 @@ class AppendWordnetJPNBatch:
       prob_score = 0.0
       if word_prob_dbm:
         prob_score = self.GetPhraseProb(word_prob_dbm, tokenizer, tran)
+        if tokenizer.IsJaWordSahenVerb(tran):
+          stem = regex.sub(r"する$", "", tran)
+          stem_prob_score = self.GetPhraseProb(word_prob_dbm, tokenizer, stem)
+          prob_score = max(prob_score, stem_prob_score)
         if self._regex_stop_word_hiragana.search(tran):
           prob_score *= 0.5
         elif self._regex_stop_word_single.search(tran):

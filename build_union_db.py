@@ -388,6 +388,7 @@ class BuildUnionDBBatch:
       tsv = tran_prob_dbm.GetStr(key)
       if tsv:
         fields = tsv.split("\t")
+        extra_records = []
         for i in range(0, len(fields), 3):
           src, trg, prob = fields[i], fields[i + 1], float(fields[i + 2])
           if src != word:
@@ -395,7 +396,18 @@ class BuildUnionDBBatch:
           norm_trg = tkrzw_dict.NormalizeWord(trg)
           if tkrzw_dict.IsStopWord("ja", norm_trg) or len(norm_trg) < 2:
             prob *= 0.5
-          tran_probs[norm_trg] = prob ** 0.8
+          prob **= 0.8
+          tran_probs[norm_trg] = prob
+          stem_trg = regex.sub(
+            r"([\p{Han}\p{Katakana}ー]{2,})(する|すること|される|されること|をする)$",
+            r"\1", norm_trg)
+          if stem_trg != norm_trg:
+            extra_records.append((stem_trg, prob * 0.5))
+          if self.tokenizer.IsJaWordSahenNoun(norm_trg):
+            long_trg = norm_trg + "する"
+            extra_records.append((long_trg, prob * 0.5))
+        for extra_trg, extra_prob in extra_records:
+          tran_probs[extra_trg] = max(tran_probs.get(extra_trg) or 0.0, extra_prob)
     word_aux_trans = aux_trans.get(word)
     count_aux_trans = {}
     if word_aux_trans:
@@ -403,11 +415,22 @@ class BuildUnionDBBatch:
         count = (count_aux_trans.get(aux_tran) or 0) + 1
         count_aux_trans[aux_tran] = count
       aux_weight = 1.0
+      extra_records = []
       for aux_tran, count in count_aux_trans.items():
         aux_score = (0.01 ** (1 / count)) * aux_weight
         prob = (tran_probs.get(aux_tran) or 0) + aux_score
         tran_probs[aux_tran] = prob
+        stem_tran = regex.sub(
+          r"([\p{Han}\p{Katakana}ー]{2,})(する|すること|される|されること|をする)$",
+          r"\1", aux_tran)
+        if stem_tran != aux_tran:
+          extra_records.append((stem_tran, aux_score * 0.5))
+        if self.tokenizer.IsJaWordSahenNoun(aux_tran):
+          long_tran = aux_tran + "する"
+          extra_records.append((long_tran, aux_score * 0.5))
         aux_weight *= 0.9
+      for extra_tran, extra_prob in extra_records:
+        tran_probs[extra_tran] = max(tran_probs.get(extra_tran) or 0.0, extra_prob)
     translations = {}
     tran_labels = {}
     def Vote(tran, weight, label):

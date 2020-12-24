@@ -68,7 +68,7 @@ class IndexTranslationsBatch:
           dup_word_trans = word_trans
           for word_tran in word_trans:
             match = regex.search(
-              r"([\p{Han}\p{Katakana}ー]{2,})(する|すること|される|されること)$", word_tran)
+              r"([\p{Han}\p{Katakana}ー]{2,})(する|すること|される|されること|をする)$", word_tran)
             if match:
               short_word_tran = word_tran[:-len(match.group(2))]
               if short_word_tran:

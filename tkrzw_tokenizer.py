@@ -117,10 +117,13 @@ class Tokenizer:
       words.append(word)
     return words
 
-  def TokenizeJaMecab(self, sentence, stemming):
+  def InitMecab(self):
     mecab = importlib.import_module("MeCab")
     if not self.tagger_mecab:
-      self.tagger_mecab = mecab.Tagger(r"--node-format=%m\t%f[6]\n")
+      self.tagger_mecab = mecab.Tagger(r"--node-format=%m\t%f[0]\t%f[1]\t%f[6]\n")
+    
+  def TokenizeJaMecab(self, sentence, stemming):
+    self.InitMecab()
     sentence = self.regex_ja_sections.sub(r" \1 ", sentence)
     words = []
     for section in sentence.split(" "):
@@ -129,11 +132,33 @@ class Tokenizer:
       if self.regex_ja_sections.match(section):
         for token in self.tagger_mecab.parse(section).split("\n"):
           fields = token.split("\t")
-          if len(fields) != 2: continue
-          word, stem = fields
+          if len(fields) != 4: continue
+          word, pos, subpos, stem = fields
           if stemming and stem:
             word = stem
           words.append(word)
       else:
         words.extend(self.TokenizeEnSimple(section))
     return words
+
+  def IsJaWordSahenNoun(self, word):
+    self.InitMecab()
+    is_sahen = False
+    for token in self.tagger_mecab.parse(word).split("\n"):
+      fields = token.split("\t")
+      if len(fields) != 4: continue
+      is_sahen = fields[1] == "名詞" and fields[2] == "サ変接続"
+    return is_sahen
+
+  def IsJaWordSahenVerb(self, word):
+    self.InitMecab()
+    tokens = []
+    for token in self.tagger_mecab.parse(word).split("\n"):
+      fields = token.split("\t")
+      if len(fields) != 4: continue
+      tokens.append(fields)
+    if len(tokens) < 2:
+      return False
+    stem = tokens[-2]
+    suffix = tokens[-1]
+    return stem[1] == "名詞" and stem[2] == "サ変接続" and suffix[0] == "する"
