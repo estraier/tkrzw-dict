@@ -50,6 +50,7 @@ class AppendWordnetJPNBatch:
     self.tran_prob_path = tran_prob_path
 
   def Run(self):
+    tokenizer = tkrzw_tokenizer.Tokenizer()
     start_time = time.time()
     logger.info("Process started: input_path={}, output_path={}, wnjpn_path={}".format(
       self.input_path, self.output_path, self.wnjpn_path))
@@ -110,12 +111,21 @@ class AppendWordnetJPNBatch:
       items = entry["item"]
       for item in items:
         word = item["word"]
+        pos = item["pos"]
         item_translations = translations.get(item["synset"])
         if item_translations:
-          if item["pos"] == "verb":
+          if pos == "verb":
             for i, tran in enumerate(item_translations):
               if tokenizer.IsJaWordSahenNoun(tran):
                 item_translations[i] = tran + "する"
+          if pos == "adjective":
+            for i, tran in enumerate(item_translations):
+              if tokenizer.IsJaWordAdjvNoun(tran):
+                item_translations[i] = tran + "な"
+          if pos == "adverb":
+            for i, tran in enumerate(item_translations):
+              if tokenizer.IsJaWordAdjvNoun(tran):
+                item_translations[i] = tran + "に"
           item_score = 0.0
           if word_prob_dbm or tran_prob_dbm:
             item_translations, item_score, tran_scores = (self.SortWordsByScore(

@@ -169,6 +169,9 @@ class UnionSearcher:
           tran = regex.sub(
             r"([\p{Han}\p{Katakana}ー]{2,})(する|すること|される|されること|をする)$",
             r"\1", tran)
+          tran = regex.sub(
+            r"([\p{Han}\p{Katakana}ー]{2,})(的|的な|的に)$",
+            r"\1", tran)
           if tran in checked_trans: continue
           checked_trans.add(tran)
           for child in self.SearchExactReverse(tran, capacity - len(checked_words)):

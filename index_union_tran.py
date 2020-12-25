@@ -73,13 +73,18 @@ class IndexTranslationsBatch:
               short_word_tran = word_tran[:-len(match.group(2))]
               if short_word_tran:
                 dup_word_trans.append(short_word_tran)
-            else:
-              match = regex.search(
-                r"([\p{Han}]{2,})(が|の|を|に|へ|と|より|から|で|や|な|なる|たる)$", word_tran)
-              if match:
-                short_word_tran = word_tran[:-len(match.group(2))]
-                if short_word_tran:
-                  dup_word_trans.append(short_word_tran)
+            match = regex.search(
+              r"([\p{Han}\p{Katakana}ー]{2,})(的|的な|的に)$", word_tran)
+            if match:
+              short_word_tran = word_tran[:-len(match.group(2))]
+              if short_word_tran:
+                dup_word_trans.append(short_word_tran)
+            match = regex.search(
+              r"([\p{Han}]{2,})(が|の|を|に|へ|と|より|から|で|や|な|なる|たる)$", word_tran)
+            if match:
+              short_word_tran = word_tran[:-len(match.group(2))]
+              if short_word_tran:
+                dup_word_trans.append(short_word_tran)
           for tran in dup_word_trans:
             norm_tran = tkrzw_dict.NormalizeWord(tran)
             if norm_tran in uniq_trans: continue

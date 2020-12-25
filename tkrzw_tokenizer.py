@@ -162,3 +162,22 @@ class Tokenizer:
     stem = tokens[-2]
     suffix = tokens[-1]
     return stem[1] == "名詞" and stem[2] == "サ変接続" and suffix[0] == "する"
+
+  def IsJaWordAdjvNoun(self, word):
+    self.InitMecab()
+    if not regex.search(r"\p{Han}$", word): return False
+    word += "な"
+    tokens = []
+    for token in self.tagger_mecab.parse(word).split("\n"):
+      fields = token.split("\t")
+      if len(fields) != 4: continue
+      tokens.append(fields)
+    if len(tokens) < 2:
+      return False
+    stem = tokens[-2]
+    suffix = tokens[-1]
+    if stem[1] == "名詞" and stem[2] == "形容動詞語幹" and suffix[0] == "な":
+      return True
+    if stem[0] == "的" and stem[1] == "名詞" and stem[2] == "接尾" and suffix[0] == "な":
+      return True
+    return False
