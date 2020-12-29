@@ -39,6 +39,7 @@ import tkrzw
 import tkrzw_dict
 import tkrzw_pron_util
 import tkrzw_tokenizer
+import unicodedata
 
 
 logger = tkrzw_dict.GetLogger()
@@ -103,6 +104,7 @@ class BuildUnionDBBatch:
     num_entries = 0
     with open(input_path) as input_file:
       for line in input_file:
+        line = unicodedata.normalize('NFKC', line)
         word = ""
         ipa = ""
         sampa = ""
@@ -382,6 +384,7 @@ class BuildUnionDBBatch:
 
   def SetTranslations(self, entry, aux_trans, tran_prob_dbm, rev_prob_dbm):
     word = entry["word"]
+    norm_word = word.lower()
     tran_probs = {}
     if tran_prob_dbm:
       key = tkrzw_dict.NormalizeWord(word)
@@ -517,6 +520,12 @@ class BuildUnionDBBatch:
             if tran:
               Vote(tran, weight, label)
               weight *= 0.85
+    poses = set()
+    for item in entry["item"]:
+      poses.add(item["pos"])
+    pure_verb = len(poses) == 1 and "verb" in poses
+    pure_adjective = len(poses) == 1 and "adjective" in poses
+    pure_adverb = len(poses) == 1 and "adverb" in poses
     bonus_translations = []
     scored_translations = set()
     for tran, score in translations.items():
@@ -580,6 +589,12 @@ class BuildUnionDBBatch:
         final_translations.append(tran)
     sorted_aux_trans = sorted(count_aux_trans.items(), key=lambda x: -x[1])
     for aux_tran, count in sorted_aux_trans:
+      if pure_verb and self.tokenizer.IsJaWordSahenNoun(aux_tran):
+        aux_tran += "する"
+      if pure_adjective and self.tokenizer.IsJaWordAdjvNoun(aux_tran):
+        aux_tran += "な"
+      if pure_adverb and self.tokenizer.IsJaWordAdjvNoun(aux_tran):
+        aux_tran += "に"
       if len(final_translations) >= max_elems: break
       norm_tran = tkrzw_dict.NormalizeWord(aux_tran)
       if norm_tran in uniq_trans:
