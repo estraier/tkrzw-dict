@@ -151,8 +151,8 @@ dfn { font-weight: bold; font-style: normal; }
   display: inline-block; min-width: 4.0ex; text-align: center; padding: 0; margin-left: -0.5ex; }
 .attr_value { color: #000000; }
 .label_wn { background: #f8ffee; }
-.label_wj { background: #eef8ff; }
 .label_we { background: #ffeef8; }
+.label_wj { background: #eef8ff; }
 """
 NAVIGATION_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
@@ -440,18 +440,6 @@ class GenerateUnionEPUBBatch:
       P('<li class="top_attr">')
       P('<span class="attr_value">{}</span>', ", ".join(translations[:8]))
       P('</li>')
-    for attr_list in INFLECTIONS:
-      fields = []
-      for name, label in attr_list:
-        value = entry.get(name)
-        if value:
-          value = ('<span class="attr_name">{}</span>'
-                   ' <span class="attr_value">{}</span>').format(esc(label), esc(value))
-          fields.append(value)
-      if fields:
-        P('<li class="top_attr">')
-        print(", ".join(fields), file=out_file, end="")
-        P('</li>')
     labels = set()
     for item in entry["item"]:
       labels.add(item["label"])
@@ -465,6 +453,18 @@ class GenerateUnionEPUBBatch:
         if we_count >= 8: continue
         we_count += 1
       self.MakeMainEntryItem(P, item, False)
+    for attr_list in INFLECTIONS:
+      fields = []
+      for name, label in attr_list:
+        value = entry.get(name)
+        if value:
+          value = ('<span class="attr_name">{}</span>'
+                   ' <span class="attr_value">{}</span>').format(esc(label), esc(value))
+          fields.append(value)
+      if fields:
+        P('<li class="top_attr">')
+        print(", ".join(fields), file=out_file, end="")
+        P('</li>')
     #related = entry.get("related")
     #if related:
     #  P('<li class="top_attr">')
