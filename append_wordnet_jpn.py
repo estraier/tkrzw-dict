@@ -42,12 +42,13 @@ logger = tkrzw_dict.GetLogger()
 
 
 class AppendWordnetJPNBatch:
-  def __init__(self, input_path, output_path, wnjpn_path, word_prob_path, tran_prob_path):
+  def __init__(self, input_path, output_path, wnjpn_path, word_prob_path, tran_prob_path, tran_aux_paths):
     self.input_path = input_path
     self.output_path = output_path
     self.wnjpn_path = wnjpn_path
     self.word_prob_path = word_prob_path
     self.tran_prob_path = tran_prob_path
+    self.tran_aux_paths = tran_aux_paths
 
   def Run(self):
     tokenizer = tkrzw_tokenizer.Tokenizer()
@@ -55,7 +56,8 @@ class AppendWordnetJPNBatch:
     logger.info("Process started: input_path={}, output_path={}, wnjpn_path={}".format(
       self.input_path, self.output_path, self.wnjpn_path))
     translations = self.ReadTranslations()
-    self.AppendTranslations(translations)
+    aux_trans = self.ReadAuxTranslations()
+    self.AppendTranslations(translations, aux_trans)
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
   def ReadTranslations(self):
@@ -80,7 +82,37 @@ class AppendWordnetJPNBatch:
         len(translations), num_translations, time.time() - start_time))
     return translations
 
-  def AppendTranslations(self, translations):
+  def ReadAuxTranslations(self):
+    aux_trans = collections.defaultdict(list)
+    for aux_path in self.tran_aux_paths:
+      if not aux_path: continue
+      start_time = time.time()
+      logger.info("Reading aux translations: path={}".format(aux_path))
+      num_translations = 0
+      tmp_records = set()
+      with open(aux_path) as input_file:
+        for line in input_file:
+          line = line.strip()
+          fields = line.split("\t")
+          if len(fields) <= 2: continue
+          source = fields[0]
+          targets = set()
+          for target in fields[1:]:
+            target = unicodedata.normalize('NFKC', target)
+            if target:
+              tmp_records.add((source, target))
+          num_translations += 1
+          if num_translations % 10000 == 0:
+            logger.info("Reading aux translations: records={}, word_entries={}".format(
+              len(tmp_records), num_translations))
+      logger.info(
+        "Reading aux translations done: records={}, word_entries={}, elapsed_time={:.2f}s".format(
+          len(tmp_records), num_translations, time.time() - start_time))
+      for source, targets in tmp_records:
+        aux_trans[source].append(targets)
+    return aux_trans
+
+  def AppendTranslations(self, translations, aux_trans):
     start_time = time.time()
     logger.info("Appending translations: input_path={}, output_path={}".format(
       self.input_path, self.output_path))
@@ -112,20 +144,65 @@ class AppendWordnetJPNBatch:
       for item in items:
         word = item["word"]
         pos = item["pos"]
-        item_translations = translations.get(item["synset"])
+        norm_word = regex.sub(r"[-_ ]", "", word.lower())
+        synonyms = item.get("synonym") or []
+        hypernyms = item.get("hypernym") or []
+        hyponyms = item.get("hyponym") or []
+        item_translations = translations.get(item["synset"]) or []
+        item_aux_trans = aux_trans.get(word) or []
+        self.NormalizeTranslations(tokenizer, pos, item_aux_trans)
+        syno_tran_counts = collections.defaultdict(int)
+        hyper_tran_counts = collections.defaultdict(int)
+        hypo_tran_counts = collections.defaultdict(int)
+        for rel_words, tran_counts in (
+            (synonyms[:5], syno_tran_counts), (hypernyms[:5], hyper_tran_counts),
+            (hyponyms[:5], hypo_tran_counts)):
+          for rel_word in rel_words:
+            norm_rel_word = regex.sub(r"[-_ ]", "", rel_word.lower())
+            dist = tkrzw.Utility.EditDistanceLev(norm_rel_word, norm_word)
+            if dist / max(len(norm_rel_word), len(norm_word)) <= 0.5:
+              continue
+            rel_aux_trans = aux_trans.get(rel_word)
+            if rel_aux_trans:
+              self.NormalizeTranslations(tokenizer, pos, rel_aux_trans)
+              for item_aux_tran in item_aux_trans:
+                if item_aux_tran in rel_aux_trans:
+                  if item_aux_tran not in item_translations:
+                    item_translations.append(item_aux_tran)
+              for rel_aux_tran in set(rel_aux_trans):
+                tran_counts[rel_aux_tran] += 1
+        for syno_tran, count in syno_tran_counts.items():
+          count += min(hyper_tran_counts[syno_tran], 1)
+          count += min(hypo_tran_counts[syno_tran], 1)
+          if count >= 3 and syno_tran not in item_translations:
+            syno_surface, syno_pos, syno_subpos, syno_lemma = tokenizer.GetJaLastPos(syno_tran)
+            valid_pos = False
+            if pos == "noun":
+              if syno_pos == "名詞":
+                valid_pos = True
+            if pos == "verb":
+              if syno_pos == "動詞":
+                valid_pos = True
+            if pos == "adjective":
+              if syno_pos == "形容詞":
+                valid_pos = True
+              if syno_pos in ("助詞", "助動詞") and syno_surface in ("な", "の", "た"):
+                valid_pos = True
+            if pos == "adverb":
+              if syno_pos == "副詞":
+                valid_pos = True
+              if syno_pos in ("助詞", "助動詞") and syno_surface == "に":
+                valid_pos = True
+              if syno_pos == "形容詞" and syno_surface != syno_lemma and syno_surface.endswith("く"):
+                valid_pos = True
+              if syno_pos in "助詞" and (syno_subpos == "副詞化" or syno_surface == "として"):
+                valid_pos = True
+              if syno_pos in "名詞" and syno_subpos == "副詞可能":
+                valid_pos = True
+            if valid_pos and syno_tran not in item_translations:
+              item_translations.append(syno_tran)
         if item_translations:
-          if pos == "verb":
-            for i, tran in enumerate(item_translations):
-              if tokenizer.IsJaWordSahenNoun(tran):
-                item_translations[i] = tran + "する"
-          if pos == "adjective":
-            for i, tran in enumerate(item_translations):
-              if tokenizer.IsJaWordAdjvNoun(tran):
-                item_translations[i] = tran + "な"
-          if pos == "adverb":
-            for i, tran in enumerate(item_translations):
-              if tokenizer.IsJaWordAdjvNoun(tran):
-                item_translations[i] = tran + "に"
+          self.NormalizeTranslations(tokenizer, pos, item_translations)
           item_score = 0.0
           if word_prob_dbm or tran_prob_dbm:
             item_translations, item_score, tran_scores = (self.SortWordsByScore(
@@ -156,6 +233,20 @@ class AppendWordnetJPNBatch:
     logger.info(
       "Aappending translations done: words={}, elapsed_time={:.2f}s".format(
         num_words, time.time() - start_time))
+
+  def NormalizeTranslations(self, tokenizer, pos, item_translations):
+    if pos == "verb":
+      for i, tran in enumerate(item_translations):
+        if tokenizer.IsJaWordSahenNoun(tran):
+          item_translations[i] = tran + "する"
+    if pos == "adjective":
+      for i, tran in enumerate(item_translations):
+        if tokenizer.IsJaWordAdjvNoun(tran):
+          item_translations[i] = tran + "な"
+    if pos == "adverb":
+      for i, tran in enumerate(item_translations):
+        if tokenizer.IsJaWordAdjvNoun(tran):
+          item_translations[i] = tran + "に"
 
   def GetPhraseProb(self, word_prob_dbm, tokenizer, word):
     min_prob = 1.0
@@ -224,12 +315,13 @@ def main():
   wnjpn_path = tkrzw_dict.GetCommandFlag(args, "--wnjpn", 1) or "wnjpn-ok.tab"
   word_prob_path = tkrzw_dict.GetCommandFlag(args, "--word_prob", 1) or ""
   tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
+  tran_aux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or "").split(",")
   if tkrzw_dict.GetCommandFlag(args, "--quiet", 0):
     logger.setLevel(logging.ERROR)
   if args:
     raise RuntimeError("unknown arguments: {}".format(str(args)))
   AppendWordnetJPNBatch(
-    input_path, output_path, wnjpn_path, word_prob_path, tran_prob_path).Run()
+    input_path, output_path, wnjpn_path, word_prob_path, tran_prob_path, tran_aux_paths).Run()
 
 
 if __name__=="__main__":

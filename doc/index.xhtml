@@ -222,21 +222,23 @@ h2:hover a.headanc, h3:hover a.headanc {
 <li>unkpos : 品詞不明の語義</li>
 </ul>
 
-<p>WordNetと日本語WordNetを統合した語義TSVファイルを生成するには、各々のアーカイブファイルを展開しておいてから、以下のコマンドを実行すればよい。</p>
-
-<pre><![CDATA[$ ./build_wordnet_db.py --dict WordNet-3.0/dict --output wordnet.tkh \
-  --prob result-enwiki-word-prob.tkh
-$ ./append_wordnet_jpn.py --input wordnet.tkh --output wordnet-body.tkh \
-  --wnjpn wnjpn-ok.tab --word_prob result-jawiki-word-prob.tkh
-$ ./extract_wordnet_tsv.py --input wordnet-body.tkh > wordnet.tsv
-]]></pre>
-
 <p>Wiktionaryの日本語版および英語版の語義TSVファイルを生成するには、各々のXMLファイルをダウンロードしておいてから、以下のコマンドを実行すればよい。</p>
 
 <pre><![CDATA[$ bzcat ~/jawiktionary-latest-pages-articles.xml.bz2 |
   ./parse_wiktionary_ja.py > wiktionary-ja.tsv
 $ bzcat ~/enwiktionary-latest-pages-articles.xml.bz2 |
   ./parse_wiktionary_en.py > wiktionary-en.tsv
+$ ./dump_wiktionry_trans.py wiktionary-en.tsv wiktionary-ja.tsv > wiktionary-tran.tsv
+]]></pre>
+
+<p>WordNetと日本語WordNetを統合した語義TSVファイルを生成するには、各々のアーカイブファイルを展開しておいてから、以下のコマンドを実行すればよい。</p>
+
+<pre><![CDATA[$ ./build_wordnet_db.py --dict WordNet-3.0/dict --output wordnet.tkh \
+  --prob result-enwiki-word-prob.tkh
+$ ./append_wordnet_jpn.py --input wordnet.tkh --output wordnet-body.tkh \
+  --wnjpn wnjpn-ok.tab --word_prob result-jawiki-word-prob.tkh \
+  --tran_aux wiktionary-tran.tsv
+$ ./extract_wordnet_tsv.py --input wordnet-body.tkh > wordnet.tsv
 ]]></pre>
 
 <p>規程の書式に準拠した語義TSVファイルを生成することで、任意のデータソースを使った辞書データを構築することができる。既成の以下ファイルをダウンロードしてから適当にカスタマイズしても良い。</p>
@@ -252,7 +254,7 @@ $ bzcat ~/enwiktionary-latest-pages-articles.xml.bz2 |
 <pre><![CDATA[$ ./build_union_db.py --output union-body.tkh \
   --word_prob enwiki-word-prob.tkh --rev_prob jawiki-word-prob.tkh \
   --cooc_prob enwiki-cooc-prob.tkh --min_prob we:0.00001 \
-  wn:wordnet.tsv wj:wiktionary-ja.tsv we:wiktionary-en.tsv
+  wn:wordnet.tsv we:wiktionary-en.tsv wj:wiktionary-ja.tsv
 ]]></pre>
 
 <p>その他の検索用ファイルは、以下の手順を踏めば生成できる。</p>

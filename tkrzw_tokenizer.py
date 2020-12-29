@@ -181,3 +181,11 @@ class Tokenizer:
     if stem[0] == "的" and stem[1] == "名詞" and stem[2] == "接尾" and suffix[0] == "な":
       return True
     return False
+
+  def GetJaLastPos(self, word):
+    self.InitMecab()
+    for token in reversed(self.tagger_mecab.parse(word).split("\n")):
+      fields = token.split("\t")
+      if len(fields) != 4: continue
+      return fields
+    return ["", "", "", ""]
