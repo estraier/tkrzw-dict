@@ -167,7 +167,8 @@ class AppendWordnetJPNBatch:
               self.NormalizeTranslations(tokenizer, pos, rel_aux_trans)
               for item_aux_tran in item_aux_trans:
                 if item_aux_tran in rel_aux_trans:
-                  if item_aux_tran not in item_translations:
+                  valid_pos = self.IsValidPosTran(tokenizer, pos, item_aux_tran)
+                  if valid_pos and item_aux_tran not in item_translations:
                     item_translations.append(item_aux_tran)
               for rel_aux_tran in set(rel_aux_trans):
                 tran_counts[rel_aux_tran] += 1
@@ -175,30 +176,7 @@ class AppendWordnetJPNBatch:
           count += min(hyper_tran_counts[syno_tran], 1)
           count += min(hypo_tran_counts[syno_tran], 1)
           if count >= 3 and syno_tran not in item_translations:
-            syno_surface, syno_pos, syno_subpos, syno_lemma = tokenizer.GetJaLastPos(syno_tran)
-            valid_pos = False
-            if pos == "noun":
-              if syno_pos == "名詞":
-                valid_pos = True
-            if pos == "verb":
-              if syno_pos == "動詞":
-                valid_pos = True
-            if pos == "adjective":
-              if syno_pos == "形容詞":
-                valid_pos = True
-              if syno_pos in ("助詞", "助動詞") and syno_surface in ("な", "の", "た"):
-                valid_pos = True
-            if pos == "adverb":
-              if syno_pos == "副詞":
-                valid_pos = True
-              if syno_pos in ("助詞", "助動詞") and syno_surface == "に":
-                valid_pos = True
-              if syno_pos == "形容詞" and syno_surface != syno_lemma and syno_surface.endswith("く"):
-                valid_pos = True
-              if syno_pos in "助詞" and (syno_subpos == "副詞化" or syno_surface == "として"):
-                valid_pos = True
-              if syno_pos in "名詞" and syno_subpos == "副詞可能":
-                valid_pos = True
+            valid_pos = self.IsValidPosTran(tokenizer, pos, syno_tran)
             if valid_pos and syno_tran not in item_translations:
               item_translations.append(syno_tran)
         if item_translations:
@@ -306,6 +284,32 @@ class AppendWordnetJPNBatch:
     pure_translation_scores = sorted(
       pure_translation_scores, key=operator.itemgetter(1), reverse=True)
     return ([x[0] for x in scored_translations], max_score ** score_bias, pure_translation_scores)
+
+  def IsValidPosTran(self, tokenizer, pos, tran):
+    tran_surface, tran_pos, tran_subpos, tran_lemma = tokenizer.GetJaLastPos(tran)
+    if pos == "noun":
+      if tran_pos == "名詞":
+        return True
+    if pos == "verb":
+      if tran_pos == "動詞":
+        return True
+    if pos == "adjective":
+      if tran_pos == "形容詞":
+        return True
+      if tran_pos in ("助詞", "助動詞") and tran_surface in ("な", "の", "た"):
+        return True
+    if pos == "adverb":
+      if tran_pos == "副詞":
+        return True
+      if tran_pos in ("助詞", "助動詞") and tran_surface == "に":
+        return True
+      if tran_pos == "形容詞" and tran_surface != tran_lemma and tran_surface.endswith("く"):
+        return True
+      if tran_pos in "助詞" and (tran_subpos == "副詞化" or tran_surface == "として"):
+        return True
+      if tran_pos in "名詞" and tran_subpos == "副詞可能":
+        return True
+    return False
 
 
 def main():
