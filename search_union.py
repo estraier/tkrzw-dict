@@ -614,9 +614,9 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
   display: inline-block; border: solid 1px #999999; border-radius: 0.5ex;
   font-size: 65%; min-width: 3.5ex; text-align: center; margin-right: -0.5ex;
   color: #111111; background: #eeeeee; opacity: 0.85; }}
-.item_wj .label {{ background: #ddeeff; opacity: 0.7; }}
-.item_we .label {{ background: #ffddee; opacity: 0.7; }}
 .item_wn .label {{ background: #eeffdd; opacity: 0.7; }}
+.item_we .label {{ background: #ffddee; opacity: 0.7; }}
+.item_wj .label {{ background: #ddeeff; opacity: 0.7; }}
 .tran {{ color: #000000; }}
 .attr_value {{ margin-left: 0.3ex; color: #111111; }}
 .text {{ margin-left: 0.3ex; color: #111111; }}
