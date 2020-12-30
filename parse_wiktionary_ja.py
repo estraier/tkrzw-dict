@@ -693,6 +693,8 @@ class XMLHandler(xml.sax.handler.ContentHandler):
       value = regex.sub(r"^/(.*)/$", r"\1", value)
       value = regex.sub(r"/ ?\(.*", "", value)
       value = regex.sub(r"/", "", value)
+    if value in ("...", "?"):
+      return ""
     return value
 
   def TrimInflections(self, values):

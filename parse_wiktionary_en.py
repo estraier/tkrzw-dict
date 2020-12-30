@@ -443,7 +443,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           if adverb_superative == "-":
             adverb_superative = ""
     ipa = ipa_us or ipa_misc
-    if ipa:
+    if ipa and ipa not in ("...", "?"):
       output.append("pronunciation_ipa={}".format(ipa))
     if self.IsGoodInflection(noun_plural):
       output.append("inflection_noun_plural={}".format(noun_plural))
