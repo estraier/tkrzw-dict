@@ -5,7 +5,7 @@
 #
 # Usage:
 #   append_wordnet_jpn.py [--input str] [--output str] [--wnjpn str]
-#     [--word_prob str] [--tran_prob str] [--quiet]
+#     [--word_prob str] [--rev_prob str] [--tran_prob str] [--tran_aux str] [--quiet]
 #
 # Example:
 #   ./append_wordnet_jpn.py --input wordnet.tkh --output wordnet-body.tkh --wnjpn wnjpn-ok.tab
@@ -23,6 +23,7 @@
 import collections
 import json
 import logging
+import math
 import operator
 import os
 import regex
@@ -42,11 +43,13 @@ logger = tkrzw_dict.GetLogger()
 
 
 class AppendWordnetJPNBatch:
-  def __init__(self, input_path, output_path, wnjpn_path, word_prob_path, tran_prob_path, tran_aux_paths):
+  def __init__(self, input_path, output_path, wnjpn_path,
+               word_prob_path, rev_prob_path, tran_prob_path, tran_aux_paths):
     self.input_path = input_path
     self.output_path = output_path
     self.wnjpn_path = wnjpn_path
     self.word_prob_path = word_prob_path
+    self.rev_prob_path = rev_prob_path
     self.tran_prob_path = tran_prob_path
     self.tran_aux_paths = tran_aux_paths
 
@@ -99,6 +102,8 @@ class AppendWordnetJPNBatch:
           targets = set()
           for target in fields[1:]:
             target = unicodedata.normalize('NFKC', target)
+            target = regex.sub(r"[\p{Ps}\p{Pe}\p{C}]", "", target)
+            target = regex.sub(r"\s+", " ", target).strip()
             if target:
               tmp_records.add((source, target))
           num_translations += 1
@@ -118,11 +123,15 @@ class AppendWordnetJPNBatch:
       self.input_path, self.output_path))
     input_dbm = tkrzw.DBM()
     input_dbm.Open(self.input_path, False, dbm="HashDBM").OrDie()
-    word_prob_dbm, tokenizer = None, None
+    word_prob_dbm = None
     if self.word_prob_path:
       word_prob_dbm = tkrzw.DBM()
       word_prob_dbm.Open(self.word_prob_path, False, dbm="HashDBM").OrDie()
-      tokenizer = tkrzw_tokenizer.Tokenizer()
+    rev_prob_dbm = None
+    if self.rev_prob_path:
+      rev_prob_dbm = tkrzw.DBM()
+      rev_prob_dbm.Open(self.rev_prob_path, False, dbm="HashDBM").OrDie()
+    tokenizer = tkrzw_tokenizer.Tokenizer()
     tran_prob_dbm =None
     if self.tran_prob_path:
       tran_prob_dbm = tkrzw.DBM()
@@ -141,6 +150,11 @@ class AppendWordnetJPNBatch:
       key, serialized = record
       entry = json.loads(serialized)
       items = entry["item"]
+      has_trans = False
+      for item in items:
+        if item["synset"] in translations:
+          has_trans = True
+          break
       for item in items:
         word = item["word"]
         pos = item["pos"]
@@ -148,43 +162,68 @@ class AppendWordnetJPNBatch:
         synonyms = item.get("synonym") or []
         hypernyms = item.get("hypernym") or []
         hyponyms = item.get("hyponym") or []
+        similars = item.get("similar") or []
         item_translations = translations.get(item["synset"]) or []
         item_aux_trans = aux_trans.get(word) or []
         self.NormalizeTranslations(tokenizer, pos, item_aux_trans)
         syno_tran_counts = collections.defaultdict(int)
         hyper_tran_counts = collections.defaultdict(int)
         hypo_tran_counts = collections.defaultdict(int)
+        similar_tran_counts = collections.defaultdict(int)
+        word_prob = 0.0
+        if word_prob_dbm:
+          word_prob = self.GetPhraseProb(word_prob_dbm, tokenizer, "en", word)
         for rel_words, tran_counts in (
             (synonyms[:5], syno_tran_counts), (hypernyms[:5], hyper_tran_counts),
-            (hyponyms[:5], hypo_tran_counts)):
+            (hyponyms[:5], hypo_tran_counts), (similars[:5], similar_tran_counts)):
           for rel_word in rel_words:
             norm_rel_word = regex.sub(r"[-_ ]", "", rel_word.lower())
             dist = tkrzw.Utility.EditDistanceLev(norm_rel_word, norm_word)
-            if dist / max(len(norm_rel_word), len(norm_word)) <= 0.5:
+            dist_ratio = dist / max(len(norm_rel_word), len(norm_word))
+            min_dist_ratio = 0.5
+            if not has_trans and not item_translations:
+              min_dist_ratio = 0.3
+            elif not item_translations:
+              min_dist_ratio = 0.4
+            if dist_ratio <= min_dist_ratio:
               continue
+            rel_word_prob = 0.0
+            if word_prob_dbm:
+              rel_word_prob = self.GetPhraseProb(word_prob_dbm, tokenizer, "en", rel_word)
+            mean_prob = (word_prob * rel_word_prob) ** 0.5
             rel_aux_trans = aux_trans.get(rel_word)
             if rel_aux_trans:
               self.NormalizeTranslations(tokenizer, pos, rel_aux_trans)
-              for item_aux_tran in item_aux_trans:
-                if item_aux_tran in rel_aux_trans:
-                  valid_pos = self.IsValidPosTran(tokenizer, pos, item_aux_tran)
-                  if valid_pos and item_aux_tran not in item_translations:
-                    item_translations.append(item_aux_tran)
-              for rel_aux_tran in set(rel_aux_trans):
-                tran_counts[rel_aux_tran] += 1
+              if mean_prob < 0.0005:
+                for item_aux_tran in item_aux_trans:
+                  if regex.fullmatch(r"[\p{Hiragana}]{,3}", item_aux_tran): continue
+                  if item_aux_tran in rel_aux_trans:
+                    valid_pos = self.IsValidPosTran(tokenizer, pos, item_aux_tran)
+                    if valid_pos and item_aux_tran not in item_translations:
+                      #print("MATCH", word, rel_word, item_aux_tran, mean_prob, item["gross"])
+                      item_translations.append(item_aux_tran)
+              if mean_prob < 0.005:
+                for rel_aux_tran in set(rel_aux_trans):
+                  tran_counts[rel_aux_tran] += 1
         for syno_tran, count in syno_tran_counts.items():
+          if regex.fullmatch(r"[\p{Hiragana}]{,3}", syno_tran): continue
           count += min(hyper_tran_counts[syno_tran], 1)
           count += min(hypo_tran_counts[syno_tran], 1)
-          if count >= 3 and syno_tran not in item_translations:
+          count += min(similar_tran_counts[syno_tran], 1)
+          min_count = 3
+          if not has_trans and not item_translations:
+            min_count = 2
+          if count >= min_count and syno_tran not in item_translations:
             valid_pos = self.IsValidPosTran(tokenizer, pos, syno_tran)
             if valid_pos and syno_tran not in item_translations:
+              #print("VOTE", word, syno_tran, count, mean_prob, item["gross"])
               item_translations.append(syno_tran)
         if item_translations:
           self.NormalizeTranslations(tokenizer, pos, item_translations)
           item_score = 0.0
-          if word_prob_dbm or tran_prob_dbm:
+          if rev_prob_dbm or tran_prob_dbm:
             item_translations, item_score, tran_scores = (self.SortWordsByScore(
-              word, item_translations, word_prob_dbm, tokenizer, tran_prob_dbm))
+              word, item_translations, rev_prob_dbm, tokenizer, tran_prob_dbm))
           item["translation"] = item_translations[:MAX_TRANSLATIONS_PER_WORD]
           if tran_scores:
             tran_score_map = {}
@@ -193,7 +232,7 @@ class AppendWordnetJPNBatch:
             item["translation_score"] = tran_score_map
           if item_score > 0.0:
             item["score"] = "{:.6f}".format(item_score).replace("0.", ".")
-      if word_prob_dbm:
+      if rev_prob_dbm:
         entry["item"] = sorted(
           items, key=lambda item: float(item.get("score") or 0.0), reverse=True)
       serialized = json.dumps(entry, separators=(",", ":"), ensure_ascii=False)
@@ -205,6 +244,8 @@ class AppendWordnetJPNBatch:
     output_dbm.Close().OrDie()
     if tran_prob_dbm:
       tran_prob_dbm.Close().OrDie()
+    if rev_prob_dbm:
+      rev_prob_dbm.Close().OrDie()
     if word_prob_dbm:
       word_prob_dbm.Close().OrDie()
     input_dbm.Close().OrDie()
@@ -226,11 +267,11 @@ class AppendWordnetJPNBatch:
         if tokenizer.IsJaWordAdjvNoun(tran):
           item_translations[i] = tran + "に"
 
-  def GetPhraseProb(self, word_prob_dbm, tokenizer, word):
+  def GetPhraseProb(self, prob_dbm, tokenizer, language, word):
     min_prob = 1.0
-    tokens = tokenizer.Tokenize("ja", word, True, True)
+    tokens = tokenizer.Tokenize(language, word, True, True)
     for token in tokens:
-      prob = float(word_prob_dbm.GetStr(token) or 0.0)
+      prob = float(prob_dbm.GetStr(token) or 0.0)
       min_prob = min(min_prob, prob)
     min_prob = max(min_prob, MIN_PROB)
     min_prob *= 0.3 ** (len(tokens) - 1)
@@ -255,18 +296,20 @@ class AppendWordnetJPNBatch:
 
   _regex_stop_word_hiragana = regex.compile(r"^[\p{Hiragana}ー]+$")
   _regex_stop_word_single = regex.compile(r"^.$")
-  def SortWordsByScore(self, word, translations, word_prob_dbm, tokenizer, tran_prob_dbm):
+  def SortWordsByScore(self, word, translations, rev_prob_dbm, tokenizer, tran_prob_dbm):
     scored_translations = []
     pure_translation_scores = []
     max_score = 0.0
     for tran in translations:
       prob_score = 0.0
-      if word_prob_dbm:
-        prob_score = self.GetPhraseProb(word_prob_dbm, tokenizer, tran)
+      if rev_prob_dbm:
+        prob_score = self.GetPhraseProb(rev_prob_dbm, tokenizer, "ja", tran)
         if tokenizer.IsJaWordSahenVerb(tran):
           stem = regex.sub(r"する$", "", tran)
-          stem_prob_score = self.GetPhraseProb(word_prob_dbm, tokenizer, stem)
+          stem_prob_score = self.GetPhraseProb(rev_prob_dbm, tokenizer, "ja", stem)
           prob_score = max(prob_score, stem_prob_score)
+        prob_score = max(prob_score, 0.0000001)
+        prob_score = math.exp(-abs(math.log(0.001) - math.log(prob_score))) * 0.1
         if self._regex_stop_word_hiragana.search(tran):
           prob_score *= 0.5
         elif self._regex_stop_word_single.search(tran):
@@ -318,6 +361,7 @@ def main():
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "wordnet-body.tkh"
   wnjpn_path = tkrzw_dict.GetCommandFlag(args, "--wnjpn", 1) or "wnjpn-ok.tab"
   word_prob_path = tkrzw_dict.GetCommandFlag(args, "--word_prob", 1) or ""
+  rev_prob_path = tkrzw_dict.GetCommandFlag(args, "--rev_prob", 1) or ""
   tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
   tran_aux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or "").split(",")
   if tkrzw_dict.GetCommandFlag(args, "--quiet", 0):
@@ -325,7 +369,7 @@ def main():
   if args:
     raise RuntimeError("unknown arguments: {}".format(str(args)))
   AppendWordnetJPNBatch(
-    input_path, output_path, wnjpn_path, word_prob_path, tran_prob_path, tran_aux_paths).Run()
+    input_path, output_path, wnjpn_path, word_prob_path, rev_prob_path, tran_prob_path, tran_aux_paths).Run()
 
 
 if __name__=="__main__":

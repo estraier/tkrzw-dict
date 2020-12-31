@@ -236,7 +236,8 @@ $ ./dump_wiktionry_trans.py wiktionary-en.tsv wiktionary-ja.tsv > wiktionary-tra
 <pre><![CDATA[$ ./build_wordnet_db.py --dict WordNet-3.0/dict --output wordnet.tkh \
   --prob result-enwiki-word-prob.tkh
 $ ./append_wordnet_jpn.py --input wordnet.tkh --output wordnet-body.tkh \
-  --wnjpn wnjpn-ok.tab --word_prob result-jawiki-word-prob.tkh \
+  --wnjpn wnjpn-ok.tab \
+  --word_prob result-enwiki-word-prob.tkh --rev_prob result-jawiki-word-prob.tkh \
   --tran_aux wiktionary-tran.tsv
 $ ./extract_wordnet_tsv.py --input wordnet-body.tkh > wordnet.tsv
 ]]></pre>
