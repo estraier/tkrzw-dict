@@ -4,10 +4,11 @@
 # Script to make an index of translations of a union dictionary
 #
 # Usage:
-#   extract_union_tran_keys.py [--input str] [--output str] [--quiet]
+#   extract_union_tran_keys.py [--input str] [--output str] [--rev_prob str] [--quiet]
 #
 # Example:
-#   ./extract_union_tran_keys.py --input wordnet-body.tkh --output union-keys.txt
+#   ./extract_union_tran_keys.py --input wordnet-body.tkh --output union-keys.txt \
+#     --rev_prob jawiki-word-prob.tkh
 #
 # Copyright 2020 Google LLC
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
@@ -35,9 +36,11 @@ logger = tkrzw_dict.GetLogger()
 
 
 class ExtractKeysBatch:
-  def __init__(self, input_path, output_path):
+  def __init__(self, input_path, output_path, rev_prob_path):
     self.input_path = input_path
+    self.rev_prob_path = rev_prob_path
     self.output_path = output_path
+    self.tokenizer = tkrzw_tokenizer.Tokenizer()
 
   def Run(self):
     start_time = time.time()
@@ -45,6 +48,10 @@ class ExtractKeysBatch:
       self.input_path, self.output_path))
     input_dbm = tkrzw.DBM()
     input_dbm.Open(self.input_path, False, dbm="HashDBM").OrDie()
+    rev_prob_dbm = None
+    if self.rev_prob_path:
+      rev_prob_dbm = tkrzw.DBM()
+      rev_prob_dbm.Open(self.rev_prob_path, False, dbm="HashDBM").OrDie()
     it = input_dbm.MakeIterator()
     it.First()
     num_entries = 0
@@ -53,12 +60,19 @@ class ExtractKeysBatch:
       record = it.GetStr()
       if not record: break
       key, expr = record
-      score = len(expr.split("\t")) - len(key) * 0.001
+      num_items = len(expr.split("\t"))
+      rev_prob = 1.0
+      if rev_prob_dbm:
+        rev_prob = self.GetRevProb(rev_prob_dbm, key)
+      score = (num_items * rev_prob) ** 0.5
+      score -= len(key) * 0.0000001
       scores.append((key, score))
       num_entries += 1
       if num_entries % 10000 == 0:
         logger.info("Reading: entries={}".format(num_entries))
       it.Next()
+    if rev_prob_dbm:
+      rev_prob_dbm.Close().OrDie()
     input_dbm.Close().OrDie()
     logger.info("Reading done: entries={}".format(num_entries))
     scores = sorted(scores, key=lambda x: x[1], reverse=True)
@@ -72,16 +86,26 @@ class ExtractKeysBatch:
       logger.info("Writing done: entries={}".format(num_entries))
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
+  def GetRevProb(self, rev_prob_dbm, phrase):
+    tokens = self.tokenizer.Tokenize("ja", phrase, True, True)
+    min_prob = 1.0
+    for token in tokens:
+      prob = float(rev_prob_dbm.GetStr(token) or 0.000001)
+      min_prob = min(prob, min_prob)
+    min_prob *= 0.5 ** (len(tokens) - 1)
+    return min_prob
+
 
 def main():
   args = sys.argv[1:]
   input_path = tkrzw_dict.GetCommandFlag(args, "--input", 1) or "union-body.tkh"
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-tran-keys.txt"
+  rev_prob_path = tkrzw_dict.GetCommandFlag(args, "--rev_prob", 1) or ""
   if tkrzw_dict.GetCommandFlag(args, "--quiet", 0):
     logger.setLevel(logging.ERROR)
   if args:
     raise RuntimeError("unknown arguments: {}".format(str(args)))
-  ExtractKeysBatch(input_path, output_path).Run()
+  ExtractKeysBatch(input_path, output_path, rev_prob_path).Run()
 
 
 if __name__=="__main__":
