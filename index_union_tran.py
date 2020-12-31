@@ -4,8 +4,8 @@
 # Script to make an index of translations of a union dictionary
 #
 # Usage:
-#   index_union_tran.py [--input str] [--output str] [--quiet]
-#     [--word_prob str]  [--tran_prob str]
+#   index_union_tran.py [--input str] [--output str] [--word_prob str]
+#     [--tran_prob str] [--quiet]
 #
 # Example:
 #   ./index_union_tran.py --input union-body.tkh --output union-tran-index.tkh

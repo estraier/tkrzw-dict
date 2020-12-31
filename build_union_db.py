@@ -4,9 +4,9 @@
 # Script to build a union database by merging TSV dictionaries
 #
 # Usage:
-#   build_union_db.py [--output str] [--quiet] [--top str] [--slim str] [--rank str]
+#   build_union_db.py [--output str] [--top str] [--slim str] [--rank str]
 #     [--word_prob str] [--tran_prob str] [--tran_aux str] [--rev_prob str] [--cooc_prob str]
-#     [--min_prob str] inputs...
+#     [--min_prob str] [--quiet] inputs...
 #   (An input specified as "label:tsv_file".
 #
 # Example:
@@ -169,7 +169,10 @@ class BuildUnionDBBatch:
         values = aux_trans.get(word) or []
         uniq_trans = set()
         for tran in fields[1:]:
+          tran = regex.sub(r"[\p{Ps}\p{Pe}\p{C}]", "", tran)
+          tran = regex.sub(r"\s+", " ", tran).strip()
           norm_tran = tkrzw_dict.NormalizeWord(tran)
+          if not tran or not norm_tran: continue
           if norm_tran in uniq_trans: continue
           uniq_trans.add(norm_tran)
           values.append(tran)
@@ -240,7 +243,7 @@ class BuildUnionDBBatch:
     for label, word_dict in word_dicts:
       dict_entries = word_dict.get(key)
       if not dict_entries: continue
-      for i, entry in enumerate(dict_entries):
+      for entry in dict_entries:
         num_words += 1
         word = entry["word"]
         entries = word_entries.get(word) or []
@@ -271,8 +274,9 @@ class BuildUnionDBBatch:
       word_entry["word"] = word
       effective_labels = set()
       surfaces = set([word.lower()])
+      match_aux_trans = word in aux_trans
       for label, entry in entries:
-        if label not in self.surfeit_labels:
+        if label not in self.surfeit_labels or match_aux_trans:
           effective_labels.add(label)
         for top_name in top_names:
           if label not in self.top_labels and top_name in word_entry: continue
@@ -315,16 +319,17 @@ class BuildUnionDBBatch:
           item = {"label": label, "pos": pos, "text": text}
           items.append(item)
           word_entry["item"] = items
-      if "item" not in word_entry: continue
+      if "item" not in word_entry:
+        continue
       if word_prob_dbm:
         prob = self.GetPhraseProb(word_prob_dbm, cooc_prob_dbm, "en", word)
         word_entry["probability"] = "{:.6f}".format(prob).replace("0.", ".")
-        if self.min_prob_map:
+        if self.min_prob_map and not match_aux_trans:
           has_good_label = False
           for item in word_entry["item"]:
-              if item["label"] not in self.min_prob_map:
-                has_good_label = True
-                break
+            if item["label"] not in self.min_prob_map:
+              has_good_label = True
+              break
           if not has_good_label:
             new_items = []
             for item in word_entry["item"]:
@@ -384,7 +389,6 @@ class BuildUnionDBBatch:
 
   def SetTranslations(self, entry, aux_trans, tran_prob_dbm, rev_prob_dbm):
     word = entry["word"]
-    norm_word = word.lower()
     tran_probs = {}
     if tran_prob_dbm:
       key = tkrzw_dict.NormalizeWord(word)
@@ -447,6 +451,8 @@ class BuildUnionDBBatch:
       score = 0.00001
       if rev_prob_dbm:
         prob = self.GetPhraseProb(rev_prob_dbm, None, "ja", tran)
+        prob = max(prob, 0.0000001)
+        prob = math.exp(-abs(math.log(0.001) - math.log(prob))) * 0.1
         if tkrzw_dict.IsStopWord("ja", tran) or tran in ("又は"):
           prob *= 0.5
         score += prob
@@ -497,6 +503,10 @@ class BuildUnionDBBatch:
           tran = regex.sub(r"[～〜]", "", tran)
           tokens = self.tokenizer.Tokenize("ja", tran, False, False)
           if len(tokens) > 6:
+            break
+          if regex.search(r"^[ \p{Latin}]+ *など", tran):
+            continue
+          if regex.search(r"[\p{Latin}].*の.*(詞形|綴り)$", tran):
             continue
           tran = " ".join(tokens)
           tran = regex.sub(r"([\p{Han}\p{Hiragana}\p{Katakana}ー]) +", r"\1", tran)
@@ -687,8 +697,9 @@ class BuildUnionDBBatch:
           total_weight += bonus
       score = 1.0
       if word_prob_dbm:
-        prob = self.GetPhraseProb(word_prob_dbm, cooc_prob_dbm, "en", rel_word) ** 0.5
-        score += min(prob, 0.5)
+        prob = self.GetPhraseProb(word_prob_dbm, cooc_prob_dbm, "en", rel_word)
+        prob = max(prob, 0.0000001)
+        score += math.exp(-abs(math.log(0.001) - math.log(prob))) * 0.1
       score *= total_weight
       rel_words.append((rel_word, score))
     rel_words = sorted(rel_words, key=lambda x: x[1], reverse=True)

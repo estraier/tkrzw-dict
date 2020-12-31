@@ -22,6 +22,7 @@
 import collections
 import json
 import logging
+import math
 import operator
 import os
 import re
@@ -220,8 +221,9 @@ class BuildWordNetDBBatch:
   def SortWordsByProb(self, prob_dbm, words):
     prob_words = []
     for word in words:
-      prob = self.GetPhraseProb(prob_dbm, word)
-      prob_words.append((word, prob))
+      prob = max(self.GetPhraseProb(prob_dbm, word), 0.0000001)
+      score = math.exp(-abs(math.log(0.001) - math.log(prob)))
+      prob_words.append((word, score))
     prob_words = sorted(prob_words, key=operator.itemgetter(1), reverse=True)
     return [x[0] for x in  prob_words]
 
