@@ -4,7 +4,7 @@
 # Script to build a union database by merging TSV dictionaries
 #
 # Usage:
-#   build_union_db.py [--output str] [--top str] [--slim str] [--rank str]
+#   build_union_db.py [--output str] [--top str] [--slim str]
 #     [--word_prob str] [--tran_prob str] [--tran_aux str] [--rev_prob str] [--cooc_prob str]
 #     [--min_prob str] [--quiet] inputs...
 #   (An input specified as "label:tsv_file".
@@ -62,7 +62,7 @@ rel_weights = {"synonym": 1.0,
 
 class BuildUnionDBBatch:
   def __init__(self, input_confs, output_path, gross_labels,
-               surfeit_labels, top_labels, rank_labels, slim_labels, tran_list_labels,
+               surfeit_labels, top_labels, slim_labels, tran_list_labels,
                word_prob_path, tran_prob_path, tran_aux_paths, rev_prob_path, cooc_prob_path,
                min_prob_map):
     self.input_confs = input_confs
@@ -70,7 +70,6 @@ class BuildUnionDBBatch:
     self.gross_labels = gross_labels
     self.surfeit_labels = surfeit_labels
     self.top_labels = top_labels
-    self.rank_labels = rank_labels
     self.slim_labels = slim_labels
     self.tran_list_labels = tran_list_labels
     self.word_prob_path = word_prob_path
@@ -104,7 +103,6 @@ class BuildUnionDBBatch:
     num_entries = 0
     with open(input_path) as input_file:
       for line in input_file:
-        line = unicodedata.normalize('NFKC', line)
         word = ""
         ipa = ""
         sampa = ""
@@ -237,8 +235,9 @@ class BuildUnionDBBatch:
   def MakeRecord(self, key, word_dicts, aux_trans, word_prob_dbm, tran_prob_dbm,
                  rev_prob_dbm, cooc_prob_dbm):
     word_entries = {}
-    word_ranks = {}
-    word_trans = {}
+    word_shares = collections.defaultdict(float)
+    word_trans = collections.defaultdict(set)
+    entry_tran_texts = collections.defaultdict(list)
     num_words = 0
     for label, word_dict in word_dicts:
       dict_entries = word_dict.get(key)
@@ -249,12 +248,15 @@ class BuildUnionDBBatch:
         entries = word_entries.get(word) or []
         entries.append((label, entry))
         word_entries[word] = entries
-        old_rank = word_ranks.get(word) or sys.maxsize
-        if label in self.rank_labels:
-          rank = num_words / 10000
-        else:
-          rank = num_words
-        word_ranks[word] = min(old_rank, rank)
+        texts = entry.get("text")
+        if texts:
+          text_score = len(texts) * 1.0
+          for pos, text in texts:
+            trans = self.ExtractTextLabelTrans(text)
+            if trans:
+              text_score += 0.5
+              word_trans[word].update(trans)
+          word_shares[word] += math.log2(1 + text_score)
       dict_entries = word_dict.get(key + "\ttranslation")
       if dict_entries:
         for entry in dict_entries:
@@ -263,12 +265,49 @@ class BuildUnionDBBatch:
           if not tran_texts: continue
           for tran_pos, tran_text in tran_texts:
             tran_key = word + "\t" + label + "\t" + tran_pos
-            trans = word_trans.get(tran_key) or []
-            trans.append(tran_text)
-            word_trans[tran_key] = trans
-    sorted_word_ranks = sorted(word_ranks.items(), key=lambda x: x[1])
+            entry_tran_texts[tran_key].append(tran_text)
+            trans = self.ExtractTextLabelTrans(tran_text)
+            if trans:
+              word_trans[word].update(trans)
+    sorted_word_shares = sorted(word_shares.items(), key=lambda x: x[1], reverse=True)
+    if len(sorted_word_shares) > 1 and aux_trans and tran_prob_dbm:
+      word_scores = []
+      for word, share in sorted_word_shares:
+        score = 0.0
+        cap_aux_trans = aux_trans.get(word) or []
+        if cap_aux_trans:
+          score += 0.1
+        cap_word_trans = word_trans.get(word) or []
+        cap_trans = set(cap_aux_trans).union(cap_word_trans)
+        if cap_trans:
+          key = tkrzw_dict.NormalizeWord(word)
+          tsv = tran_prob_dbm.GetStr(key)
+          if tsv:
+            fields = tsv.split("\t")
+            max_prob = 0.0
+            sum_prob = 0.0
+            for i in range(0, len(fields), 3):
+              src, trg, prob = fields[i], fields[i + 1], float(fields[i + 2])
+              if src != word:
+                prob *= 0.1
+              if not regex.search(r"[\p{Han}\{Hiragana}]", trg):
+                prob *= 0.5
+                if regex.match(r"[A-Z]", src):
+                  prob *= 0.5
+              if trg in cap_trans:
+                print("HIT", word, trg, prob)
+                max_prob = max(max_prob, prob)
+                sum_prob += prob
+            score += (sum_prob * max_prob) ** 0.5
+        score = ((score + 0.01) * (share + 0.01)) ** 0.5
+        word_scores.append((word, score))
+      print("BEF", sorted_word_shares)
+      sorted_word_shares = sorted(word_scores, key=lambda x: x[1], reverse=True)
+      print("AFT", sorted_word_shares)
+
+    share_sum = sum([x[1] for x in sorted_word_shares])
     merged_entry = []
-    for word, rank in sorted_word_ranks:
+    for word, share in sorted_word_shares:
       entries = word_entries[word]
       word_entry = {}
       word_entry["word"] = word
@@ -282,6 +321,7 @@ class BuildUnionDBBatch:
           if label not in self.top_labels and top_name in word_entry: continue
           value = entry.get(top_name)
           if value:
+            value = unicodedata.normalize('NFKC', value)
             word_entry[top_name] = value
         for infl_name in inflection_names:
           value = entry.get(infl_name)
@@ -310,10 +350,10 @@ class BuildUnionDBBatch:
               if not hit: continue
             sections.append(section)
           text = " [-] ".join(sections)
-          trans = word_trans.get(tran_key)
-          if trans:
-            del word_trans[tran_key]
-            for tran_text in trans:
+          tran_texts = entry_tran_texts.get(tran_key)
+          if tran_texts:
+            del entry_tran_texts[tran_key]
+            for tran_text in tran_texts:
               tran_item = {"label": label, "pos": pos, "text": tran_text}
               items.append(tran_item)
           item = {"label": label, "pos": pos, "text": text}
@@ -321,6 +361,8 @@ class BuildUnionDBBatch:
           word_entry["item"] = items
       if "item" not in word_entry:
         continue
+      if share < 1:
+        word_entry["share"] = "{:.3f}".format(share / share_sum).replace("0.", ".")
       if word_prob_dbm:
         prob = self.GetPhraseProb(word_prob_dbm, cooc_prob_dbm, "en", word)
         word_entry["probability"] = "{:.6f}".format(prob).replace("0.", ".")
@@ -386,6 +428,23 @@ class BuildUnionDBBatch:
       min_prob = max(min_prob, first_prob * second_prob)
     min_prob = max(min_prob, 0.000001)
     return min_prob
+
+  def ExtractTextLabelTrans(self, text):
+    trans = []
+    match = regex.search(r"\[translation\]: ", text)
+    if match:
+      text = text[match.end():]
+      text = regex.sub(r"\[-.*", "", text)
+      text = regex.sub(r"\(.*?\)", "", text)
+      for tran in text.split(","):
+        tran = unicodedata.normalize('NFKC', tran)
+        tran = tran.strip()
+        tran = regex.sub(r"[\p{S}\p{P}]+ *(が|の|を|に|へ|と|より|から|で|や)", "", tran)
+        tran = regex.sub(r"[～\p{S}\p{P}]", " ", tran)
+        tran = regex.sub(r"[\s]+", " ", tran).strip()
+        if tran:
+          trans.append(tran)
+    return trans
 
   def SetTranslations(self, entry, aux_trans, tran_prob_dbm, rev_prob_dbm):
     word = entry["word"]
@@ -517,19 +576,13 @@ class BuildUnionDBBatch:
             weight *= 0.8
       if label in self.tran_list_labels:
         for section in sections:
-          if not section.startswith("[translation]: "): continue
+          trans = self.ExtractTextLabelTrans(section)
+          if not trans: continue
           weight = tran_weight
           tran_weight *= 0.9
-          text = regex.sub(r"^[^:]+: ", "", section)
-          text = regex.sub(r"\(.*?\)", "", text).strip()
-          for tran in text.split(","):
-            tran = tran.strip()
-            tran = regex.sub(r"[\p{S}\p{P}]+ *(が|の|を|に|へ|と|より|から|で|や)", "", tran)
-            tran = regex.sub(r"[～\p{S}\p{P}]", " ", tran)
-            tran = regex.sub(r"[\s]+", " ", tran).strip()
-            if tran:
-              Vote(tran, weight, label)
-              weight *= 0.85
+          for tran in trans:
+            Vote(tran, weight, label)
+            weight *= 0.85
     poses = set()
     for item in entry["item"]:
       poses.add(item["pos"])
@@ -539,6 +592,7 @@ class BuildUnionDBBatch:
     bonus_translations = []
     scored_translations = set()
     for tran, score in translations.items():
+      tran = unicodedata.normalize('NFKC', tran)
       norm_tran = tkrzw_dict.NormalizeWord(tran)
       prob = tran_probs.get(norm_tran)
       if prob:
@@ -617,6 +671,7 @@ class BuildUnionDBBatch:
   def SetRelations(self, word_entry, entries, word_dicts,
                    word_prob_dbm, tran_prob_dbm, cooc_prob_dbm):
     word = word_entry["word"]
+    norm_word = tkrzw_dict.NormalizeWord(word)
     scores = {}
     def Vote(rel_word, label, weight):
       values = scores.get(rel_word) or []
@@ -653,8 +708,7 @@ class BuildUnionDBBatch:
             base_weight *= 0.95
     translations = list(word_entry.get("translation") or [])
     if tran_prob_dbm:
-      key = tkrzw_dict.NormalizeWord(word)
-      tsv = tran_prob_dbm.GetStr(key)
+      tsv = tran_prob_dbm.GetStr(norm_word)
       if tsv:
         fields = tsv.split("\t")
         for i in range(0, len(fields), 3):
@@ -663,6 +717,7 @@ class BuildUnionDBBatch:
     translations = set([tkrzw_dict.NormalizeWord(x) for x in translations])
     rel_words = []
     for rel_word, votes in scores.items():
+      norm_rel_word = tkrzw_dict.NormalizeWord(rel_word)
       label_weights = {}
       for weight, label in votes:
         old_weight = label_weights.get(label) or 0.0
@@ -671,8 +726,7 @@ class BuildUnionDBBatch:
       for label, weight in label_weights.items():
         total_weight += weight
       if tran_prob_dbm:
-        key = tkrzw_dict.NormalizeWord(rel_word)
-        tsv = tran_prob_dbm.GetStr(key)
+        tsv = tran_prob_dbm.GetStr(norm_rel_word)
         if tsv:
           bonus = 0.0
           fields = tsv.split("\t")
@@ -701,6 +755,11 @@ class BuildUnionDBBatch:
         prob = max(prob, 0.0000001)
         score += math.exp(-abs(math.log(0.001) - math.log(prob))) * 0.1
       score *= total_weight
+      if tkrzw_dict.IsStopWord("en", norm_rel_word):
+        if tkrzw_dict.IsStopWord("en", norm_word):
+          score *= 0.3
+        else:
+          score *= 0.1
       rel_words.append((rel_word, score))
     rel_words = sorted(rel_words, key=lambda x: x[1], reverse=True)
     uniq_words = set()
@@ -724,6 +783,7 @@ class BuildUnionDBBatch:
 
   def SetCoocurrences(self, word_entry, entries, word_dicts, word_prob_dbm, cooc_prob_dbm):
     word = word_entry["word"]
+    norm_word = tkrzw_dict.NormalizeWord(word)
     tokens = self.tokenizer.Tokenize("en", word, True, True)
     cooc_words = {}
     for token in tokens:
@@ -743,6 +803,11 @@ class BuildUnionDBBatch:
       cooc_prob = self.GetPhraseProb(word_prob_dbm, cooc_prob_dbm, "en", cooc_word)
       cooc_idf = math.log(cooc_prob) * -1
       cooc_score *= cooc_idf ** 2
+      if tkrzw_dict.IsStopWord("en", cooc_word):
+        if tkrzw_dict.IsStopWord("en", norm_word):
+          cooc_score *= 0.3
+        else:
+          cooc_score *= 0.1
       weighed_cooc_words.append((cooc_word, cooc_score))
     sorted_cooc_words = sorted(weighed_cooc_words, key=lambda x: x[1], reverse=True)
     final_cooc_words = []
@@ -765,7 +830,6 @@ def main():
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-body.tkh"
   gross_labels = set((tkrzw_dict.GetCommandFlag(args, "--gross", 1) or "wj").split(","))
   top_labels = set((tkrzw_dict.GetCommandFlag(args, "--top", 1) or "we").split(","))
-  rank_labels = set((tkrzw_dict.GetCommandFlag(args, "--rank", 1) or "wn").split(","))
   slim_labels = set((tkrzw_dict.GetCommandFlag(args, "--slim", 1) or "we").split(","))
   surfeit_labels = set((tkrzw_dict.GetCommandFlag(args, "--surfeit", 1) or "we").split(","))
   tran_list_labels = set((tkrzw_dict.GetCommandFlag(args, "--tran_list", 1) or "wn,we").split(","))
@@ -795,7 +859,7 @@ def main():
       raise RuntimeError("invalid input: " + input)
     input_confs.append(input_conf)
   BuildUnionDBBatch(input_confs, output_path, gross_labels,
-                    surfeit_labels, top_labels, rank_labels, slim_labels, tran_list_labels,
+                    surfeit_labels, top_labels, slim_labels, tran_list_labels,
                     word_prob_path, tran_prob_path, tran_aux_paths,
                     rev_prob_path, cooc_prob_path, min_prob_map).Run()
 
