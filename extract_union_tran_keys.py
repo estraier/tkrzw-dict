@@ -66,6 +66,10 @@ class ExtractKeysBatch:
         rev_prob = self.GetRevProb(rev_prob_dbm, key)
       score = (num_items * rev_prob) ** 0.5
       score -= len(key) * 0.0000001
+      if regex.fullmatch(r"[\p{Hiragana}]+", key):
+        score *= 0.2
+      if len(key) == 1:
+        score *= 0.5
       scores.append((key, score))
       num_entries += 1
       if num_entries % 10000 == 0:
@@ -88,6 +92,8 @@ class ExtractKeysBatch:
 
   def GetRevProb(self, rev_prob_dbm, phrase):
     tokens = self.tokenizer.Tokenize("ja", phrase, True, True)
+    if not tokens:
+      return 0.000001
     min_prob = 1.0
     for token in tokens:
       prob = float(rev_prob_dbm.GetStr(token) or 0.000001)
