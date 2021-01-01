@@ -27,6 +27,7 @@ import random
 import regex
 import sys
 import tkrzw_dict
+import unicodedata
 import xml.sax
 import xml.sax.handler
 
@@ -599,6 +600,8 @@ class XMLHandler(xml.sax.handler.ContentHandler):
       uniq_trans = set()
       out_trans = []
       for tran in trans:
+        if not regex.search(r"[\p{Han}\p{Hiragana}\p{Katakana}]", tran):
+          continue
         norm_tran = tran.lower()
         if norm_tran in uniq_trans:
           continue
@@ -656,6 +659,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     text = regex.sub(r"<!-- *", "(", text)
     text = regex.sub(r" *-->", ")", text)
     text = regex.sub(r"^ *[,:;] *", "", text)
+    text = unicodedata.normalize('NFKC', text)
     return regex.sub(r"\s+", " ", text).strip()
 
   def TrimInflections(self, values):
