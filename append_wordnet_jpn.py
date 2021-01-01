@@ -59,17 +59,18 @@ class AppendWordnetJPNBatch:
     start_time = time.time()
     logger.info("Process started: input_path={}, output_path={}, wnjpn_path={}".format(
                   self.input_path, self.output_path, self.wnjpn_path))
-    wnjpn_trans = self.ReadTranslations(self.wnjpn_path)
+    wnjpn_trans = self.ReadTranslations()
     aux_trans = self.ReadAuxTranslations()
-    self.AppendTranslations(wnjpn_trans, aux_trans)
+    synset_index = self.ReadSynsetIndex()
+    self.AppendTranslations(wnjpn_trans, aux_trans, synset_index)
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
-  def ReadTranslations(self, path):
+  def ReadTranslations(self):
     start_time = time.time()
-    logger.info("Reading translations: path={}".format(path))
+    logger.info("Reading translations: path={}".format(self.wnjpn_path))
     trans = collections.defaultdict(list)
     num_trans = 0
-    with open(path) as input_file:
+    with open(self.wnjpn_path) as input_file:
       for line in input_file:
         line = line.strip()
         fields = line.split("\t")
@@ -118,7 +119,31 @@ class AppendWordnetJPNBatch:
         aux_trans[source].append(targets)
     return aux_trans
 
-  def AppendTranslations(self, wnjpn_trans, aux_trans):
+  def ReadSynsetIndex(self):
+    logger.info("Reading synset index: input_path={}".format(self.input_path))
+    synset_index = collections.defaultdict(set)
+    input_dbm = tkrzw.DBM()
+    input_dbm.Open(self.input_path, False, dbm="HashDBM").OrDie()
+    num_words = 0
+    it = input_dbm.MakeIterator()
+    it.First()
+    while True:
+      record = it.GetStr()
+      if not record: break
+      key, serialized = record
+      entry = json.loads(serialized)
+      for item in entry["item"]:
+        word = item["word"]
+        synset = item["synset"]
+        synset_index[word].add(synset)
+      num_words += 1
+      if num_words % 10000 == 0:
+        logger.info("Reading words: words={}".format(num_words))
+      it.Next()
+    logger.info("Reading synset index done: records={}".format(len(synset_index)))
+    return synset_index
+
+  def AppendTranslations(self, wnjpn_trans, aux_trans, synset_index):
     start_time = time.time()
     logger.info("Appending translations: input_path={}, output_path={}".format(
       self.input_path, self.output_path))
@@ -143,17 +168,18 @@ class AppendWordnetJPNBatch:
       self.output_path, True, dbm="HashDBM", truncate=True,
       align_pow=0, num_buckets=num_buckets).OrDie()
     num_words = 0
+    num_orig_trans = 0
+    num_match_trans = 0
+    num_voted_trans = 0
+    num_items = 0
+    num_items_bare = 0
+    num_items_rescued = 0
     it = input_dbm.MakeIterator()
     it.First()
     while True:
       record = it.GetStr()
       if not record: break
       key, serialized = record
-
-      #if key != "fissure":
-      #  it.Next()
-      #  continue
-      
       entry = json.loads(serialized)
       items = entry["item"]
       has_trans = False
@@ -165,6 +191,7 @@ class AppendWordnetJPNBatch:
         word = item["word"]
         pos = item["pos"]
         synset = item["synset"]
+        links = item.get("link") or {}
         norm_word = regex.sub(r"[-_ ]", "", word.lower())
         word_prob = 0.0
         if word_prob_dbm:
@@ -173,18 +200,31 @@ class AppendWordnetJPNBatch:
         hypernyms = item.get("hypernym") or []
         hyponyms = item.get("hyponym") or []
         similars = item.get("similar") or []
+        synonym_ids = links.get("synonym") or []
+        hypernym_ids = links.get("hypernym") or []
+        hyponym_ids = links.get("hyponym") or []
+        similar_ids = links.get("similar") or []
         item_trans = wnjpn_trans.get(synset) or []
         self.NormalizeTranslations(tokenizer, pos, item_trans)
         item_aux_trans = aux_trans.get(word) or []
         self.NormalizeTranslations(tokenizer, pos, item_aux_trans)
+        num_items += 1
+        bare = not item_trans
+        if bare:
+          num_items_bare += 1
+        num_orig_trans += len(item_trans)
         syno_tran_counts = collections.defaultdict(int)
         hyper_tran_counts = collections.defaultdict(int)
         hypo_tran_counts = collections.defaultdict(int)
         similar_tran_counts = collections.defaultdict(int)
         aux_trans_set = set(item_aux_trans)
-        for rel_words, tran_counts in (
-            (synonyms[:5], syno_tran_counts), (hypernyms[:5], hyper_tran_counts),
-            (hyponyms[:5], hypo_tran_counts), (similars[:5], similar_tran_counts)):
+        checked_words = set()
+        checked_ids = set([synset])
+        for rel_words, rel_ids, tran_counts in (
+            (synonyms, synonym_ids, syno_tran_counts),
+            (hypernyms, hypernym_ids, hyper_tran_counts),
+            (hyponyms, hyponym_ids, hypo_tran_counts),
+            (similars, similar_ids, similar_tran_counts)):
           for rel_word in rel_words:
             norm_rel_word = regex.sub(r"[-_ ]", "", rel_word.lower())
             dist = tkrzw.Utility.EditDistanceLev(norm_rel_word, norm_word)
@@ -200,7 +240,19 @@ class AppendWordnetJPNBatch:
             if word_prob_dbm:
               rel_word_prob = self.GetPhraseProb(word_prob_dbm, tokenizer, "en", rel_word)
             mean_prob = (word_prob * rel_word_prob) ** 0.5
-            rel_aux_trans = aux_trans.get(rel_word)
+            rel_aux_trans = []
+            if rel_word not in checked_words:
+              checked_words.add(rel_word)
+              tmp_aux_trans = aux_trans.get(rel_word)
+              if tmp_aux_trans:
+                rel_aux_trans.extend(tmp_aux_trans)
+            for rel_id in synset_index[rel_word]:
+              if rel_id not in rel_ids: continue
+              if rel_id not in checked_ids:
+                checked_ids.add(rel_id)
+                tmp_aux_trans = wnjpn_trans.get(rel_id)
+                if tmp_aux_trans:
+                  rel_aux_trans.extend(tmp_aux_trans)
             if rel_aux_trans:
               self.NormalizeTranslations(tokenizer, pos, rel_aux_trans)
               if mean_prob < 0.0005:
@@ -211,6 +263,7 @@ class AppendWordnetJPNBatch:
                     if valid_pos and item_aux_tran not in item_trans:
                       #print("MATCH", word, synset, rel_word, item_aux_tran, mean_prob, item["gross"])
                       item_trans.append(item_aux_tran)
+                      num_match_trans += 1
               if mean_prob < 0.005:
                 for rel_aux_tran in set(rel_aux_trans):
                   tran_counts[rel_aux_tran] += 1
@@ -225,7 +278,10 @@ class AppendWordnetJPNBatch:
             if valid_pos and syno_tran not in item_trans:
               #print("VOTE", word, synset, syno_tran, count, mean_prob, item["gross"])
               item_trans.append(syno_tran)
+              num_voted_trans += 1
         if item_trans:
+          if bare:
+            num_items_rescued += 1
           item_score = 0.0
           if rev_prob_dbm or tran_prob_dbm:
             item_trans, item_score, tran_scores = (self.SortWordsByScore(
@@ -238,6 +294,8 @@ class AppendWordnetJPNBatch:
             item["translation_score"] = tran_score_map
           if item_score > 0.0:
             item["score"] = "{:.6f}".format(item_score).replace("0.", ".")
+        if "link" in item:
+          del item["link"]
       if rev_prob_dbm:
         entry["item"] = sorted(
           items, key=lambda item: float(item.get("score") or 0.0), reverse=True)
@@ -258,6 +316,9 @@ class AppendWordnetJPNBatch:
     logger.info(
       "Aappending translations done: words={}, elapsed_time={:.2f}s".format(
         num_words, time.time() - start_time))
+    logger.info("Stats: orig={}, match={}, voted={}, items={}, bare={}, rescued={}".format(
+      num_orig_trans, num_match_trans, num_voted_trans,
+      num_items, num_items_bare, num_items_rescued))
 
   def NormalizeTranslations(self, tokenizer, pos, item_trans):
     if pos == "verb":

@@ -154,14 +154,21 @@ class BuildWordNetDBBatch:
           if synonyms:
             item["synonym"] = synonyms
         rel_words = collections.defaultdict(set)
+        rel_ids = collections.defaultdict(set)
         for ptr_type, ptr_dest in ptrs:
           dest = synsets.get(ptr_dest)
           if dest:
             for dest_word in dest[0]:
               if dest_word.lower() == key: continue
               rel_words[ptr_type].add(dest_word)
+            rel_ids[ptr_type].add(ptr_dest)
         for rel_symbol, rel_word_set in rel_words.items():
           item[rel_symbol] = list(rel_word_set)
+        if rel_ids:
+          links = {}
+          for rel_symbol, rel_id_set in rel_ids.items():
+            links[rel_symbol] = list(rel_id_set)
+          item["link"] = links
         words[key].append(item)
       num_synsets += 1
       if num_synsets % 10000 == 0:
