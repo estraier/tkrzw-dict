@@ -522,6 +522,9 @@ class BuildUnionDBBatch:
             r"\1", norm_trg)
           if stem_trg != norm_trg:
             extra_records.append((stem_trg, prob * 0.5))
+          stem_trg = self.tokenizer.CutJaWordNounParticle(norm_trg)
+          if stem_trg != norm_trg:
+            extra_records.append((stem_trg, prob * 0.5))
           stem_trg = regex.sub(r"([\p{Han}\p{Katakana}ー]{2,})(的|的な|的に)$", r"\1", norm_trg)
           if stem_trg != norm_trg:
             extra_records.append((stem_trg, prob * 0.5))
@@ -545,6 +548,9 @@ class BuildUnionDBBatch:
         stem_tran = regex.sub(
           r"([\p{Han}\p{Katakana}ー]{2,})(する|すること|される|されること|をする)$",
           r"\1", aux_tran)
+        if stem_tran != aux_tran:
+          extra_records.append((stem_tran, aux_score * 0.5))
+        stem_tran = self.tokenizer.CutJaWordNounParticle(aux_tran)
         if stem_tran != aux_tran:
           extra_records.append((stem_tran, aux_score * 0.5))
         stem_tran = regex.sub(r"([\p{Han}\p{Katakana}ー]{2,})(的|的な|的に)$", r"\1", aux_tran)

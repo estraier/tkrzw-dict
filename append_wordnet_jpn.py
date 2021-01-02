@@ -97,9 +97,8 @@ class AppendWordnetJPNBatch:
       tmp_records = set()
       with open(aux_path) as input_file:
         for line in input_file:
-          line = line.strip()
-          fields = line.split("\t")
-          if len(fields) <= 2: continue
+          fields = line.strip().split("\t")
+          if len(fields) < 2: continue
           source = fields[0]
           targets = set()
           for target in fields[1:]:
@@ -192,7 +191,6 @@ class AppendWordnetJPNBatch:
         pos = item["pos"]
         synset = item["synset"]
         links = item.get("link") or {}
-        norm_word = regex.sub(r"[-_ ]", "", word.lower())
         word_prob = 0.0
         if word_prob_dbm:
           word_prob = self.GetPhraseProb(word_prob_dbm, tokenizer, "en", word)
@@ -200,10 +198,12 @@ class AppendWordnetJPNBatch:
         hypernyms = item.get("hypernym") or []
         hyponyms = item.get("hyponym") or []
         similars = item.get("similar") or []
+        derivatives = item.get("derivative") or []
         synonym_ids = links.get("synonym") or []
         hypernym_ids = links.get("hypernym") or []
         hyponym_ids = links.get("hyponym") or []
         similar_ids = links.get("similar") or []
+        derivative_ids = links.get("derivative") or []
         item_trans = wnjpn_trans.get(synset) or []
         self.NormalizeTranslations(tokenizer, pos, item_trans)
         item_aux_trans = aux_trans.get(word) or []
@@ -217,25 +217,20 @@ class AppendWordnetJPNBatch:
         hyper_tran_counts = collections.defaultdict(int)
         hypo_tran_counts = collections.defaultdict(int)
         similar_tran_counts = collections.defaultdict(int)
+        derivative_tran_counts = collections.defaultdict(int)
         aux_trans_set = set(item_aux_trans)
         checked_words = set()
         checked_ids = set([synset])
+        voted_rel_words = set()
+        voted_rel_records = set()
         for rel_words, rel_ids, tran_counts in (
             (synonyms, synonym_ids, syno_tran_counts),
             (hypernyms, hypernym_ids, hyper_tran_counts),
             (hyponyms, hyponym_ids, hypo_tran_counts),
-            (similars, similar_ids, similar_tran_counts)):
+            (similars, similar_ids, similar_tran_counts),
+            (derivatives, derivative_ids, derivative_tran_counts)):
           for rel_word in rel_words:
-            norm_rel_word = regex.sub(r"[-_ ]", "", rel_word.lower())
-            dist = tkrzw.Utility.EditDistanceLev(norm_rel_word, norm_word)
-            dist_ratio = dist / max(len(norm_rel_word), len(norm_word))
-            min_dist_ratio = 0.5
-            if not has_trans and not item_trans:
-              min_dist_ratio = 0.3
-            elif not item_trans:
-              min_dist_ratio = 0.4
-            if dist_ratio <= min_dist_ratio:
-              continue
+            is_similar = self.AreSimilarWords(rel_word, word)
             rel_word_prob = 0.0
             if word_prob_dbm:
               rel_word_prob = self.GetPhraseProb(word_prob_dbm, tokenizer, "en", rel_word)
@@ -255,28 +250,41 @@ class AppendWordnetJPNBatch:
                   rel_aux_trans.extend(tmp_aux_trans)
             if rel_aux_trans:
               self.NormalizeTranslations(tokenizer, pos, rel_aux_trans)
-              if mean_prob < 0.0005:
+              if not (is_similar and len(items) > 1) and mean_prob < 0.0005:
                 for item_aux_tran in item_aux_trans:
                   if regex.fullmatch(r"[\p{Hiragana}]{,3}", item_aux_tran): continue
                   if item_aux_tran in rel_aux_trans:
                     valid_pos = self.IsValidPosTran(tokenizer, pos, item_aux_tran)
                     if valid_pos and item_aux_tran not in item_trans:
-                      #print("MATCH", word, synset, rel_word, item_aux_tran, mean_prob, item["gross"])
                       item_trans.append(item_aux_tran)
                       num_match_trans += 1
               if mean_prob < 0.005:
+                voted_top = rel_word
+                for voted_rel_word in voted_rel_words:
+                  if self.AreSimilarWords(rel_word, voted_rel_word):
+                    voted_top = voted_rel_word
+                    break
+                voted_rel_words.add(rel_word)
                 for rel_aux_tran in set(rel_aux_trans):
+                  voted_record = (voted_top, rel_aux_tran)
+                  if voted_record in voted_rel_records:
+                    continue
+                  voted_rel_records.add(voted_record)
                   tran_counts[rel_aux_tran] += 1
+        if not has_trans:
+          for deri_tran, count in derivative_tran_counts.items():
+            syno_tran_counts[deri_tran] = syno_tran_counts[deri_tran] + count
+          derivative_tran_counts.clear()
         for syno_tran, count in syno_tran_counts.items():
           if regex.fullmatch(r"[\p{Hiragana}]{,3}", syno_tran): continue
           if syno_tran in hyper_tran_counts: count += 1
           if syno_tran in hypo_tran_counts: count += 1
           if syno_tran in similar_tran_counts: count += 1
+          if syno_tran in derivative_tran_counts: count += 1
           if not has_trans and syno_tran in aux_trans_set: count += 1
           if count >= 3 and syno_tran not in item_trans:
             valid_pos = self.IsValidPosTran(tokenizer, pos, syno_tran)
             if valid_pos and syno_tran not in item_trans:
-              #print("VOTE", word, synset, syno_tran, count, mean_prob, item["gross"])
               item_trans.append(syno_tran)
               num_voted_trans += 1
         if item_trans:
@@ -320,6 +328,19 @@ class AppendWordnetJPNBatch:
       num_orig_trans, num_match_trans, num_voted_trans,
       num_items, num_items_bare, num_items_rescued))
 
+  def AreSimilarWords(self, word_a, word_b):
+    word_a = word_a.lower()
+    word_b = word_b.lower()
+    mono_a = regex.sub(r"[-_ ]", "", word_a)
+    mono_b = regex.sub(r"[-_ ]", "", word_b)
+    dist = tkrzw.Utility.EditDistanceLev(mono_a, mono_b)
+    dist_ratio = dist / max(len(mono_a), len(mono_b))
+    if dist_ratio <= 0.3:
+      return True
+    if word_a.startswith(word_b) or word_b.startswith(word_a):
+      return True
+    return False
+
   def NormalizeTranslations(self, tokenizer, pos, item_trans):
     if pos == "verb":
       for i, tran in enumerate(item_trans):
@@ -327,7 +348,9 @@ class AppendWordnetJPNBatch:
           item_trans[i] = tran + "する"
     if pos == "adjective":
       for i, tran in enumerate(item_trans):
-        if tokenizer.IsJaWordAdjvNoun(tran):
+        if tokenizer.IsJaWordNoun(tran):
+          item_trans[i] = tran + "の"
+        elif tokenizer.IsJaWordAdjvNoun(tran):
           item_trans[i] = tran + "な"
     if pos == "adverb":
       for i, tran in enumerate(item_trans):
@@ -373,6 +396,10 @@ class AppendWordnetJPNBatch:
         prob_score = self.GetPhraseProb(rev_prob_dbm, tokenizer, "ja", tran)
         if tokenizer.IsJaWordSahenVerb(tran):
           stem = regex.sub(r"する$", "", tran)
+          stem_prob_score = self.GetPhraseProb(rev_prob_dbm, tokenizer, "ja", stem)
+          prob_score = max(prob_score, stem_prob_score)
+        stem = tokenizer.CutJaWordNounParticle(tran)
+        if stem != tran:
           stem_prob_score = self.GetPhraseProb(rev_prob_dbm, tokenizer, "ja", stem)
           prob_score = max(prob_score, stem_prob_score)
         prob_score = max(prob_score, 0.0000001)

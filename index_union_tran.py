@@ -73,6 +73,9 @@ class IndexTranslationsBatch:
               short_word_tran = word_tran[:-len(match.group(2))]
               if short_word_tran:
                 dup_word_trans.append(short_word_tran)
+            short_word_tran = self.tokenizer.CutJaWordNounParticle(word_tran)
+            if short_word_tran != word_tran:
+              dup_word_trans.append(short_word_tran)
             match = regex.search(
               r"([\p{Han}\p{Katakana}ー]{2,})(的|的な|的に)$", word_tran)
             if match:

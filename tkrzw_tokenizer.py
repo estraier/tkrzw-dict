@@ -141,6 +141,15 @@ class Tokenizer:
         words.extend(self.TokenizeEnSimple(section))
     return words
 
+  def IsJaWordNoun(self, word):
+    self.InitMecab()
+    is_noun = False
+    for token in self.tagger_mecab.parse(word).split("\n"):
+      fields = token.split("\t")
+      if len(fields) != 4: continue
+      is_noun = fields[1] == "名詞"
+    return is_noun
+
   def IsJaWordSahenNoun(self, word):
     self.InitMecab()
     is_sahen = False
@@ -181,6 +190,22 @@ class Tokenizer:
     if stem[0] == "的" and stem[1] == "名詞" and stem[2] == "接尾" and suffix[0] == "な":
       return True
     return False
+
+  def CutJaWordNounParticle(self, word):
+    self.InitMecab()
+    tokens = []
+    for token in self.tagger_mecab.parse(word).split("\n"):
+      fields = token.split("\t")
+      if len(fields) != 4: continue
+      tokens.append(fields)
+    if len(tokens) < 2:
+      return word
+    stem = tokens[-2]
+    suffix = tokens[-1]
+    if stem[1] == "名詞" and suffix[1] in ("助詞", "助動詞"):
+      if word.endswith(suffix[0]):
+        return word[:-len(suffix[0])]
+    return word
 
   def GetJaLastPos(self, word):
     self.InitMecab()
