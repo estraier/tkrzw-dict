@@ -6,7 +6,7 @@
 # Usage:
 #   build_union_db.py [--output str] [--top str] [--slim str]
 #     [--word_prob str] [--tran_prob str] [--tran_aux str] [--rev_prob str] [--cooc_prob str]
-#     [--keyword str] [--min_prob str] [--quiet] inputs...
+#     [--aoa str] [--keyword str] [--min_prob str] [--quiet] inputs...
 #   (An input specified as "label:tsv_file".
 #
 # Example:
@@ -64,7 +64,7 @@ class BuildUnionDBBatch:
   def __init__(self, input_confs, output_path, gross_labels,
                surfeit_labels, top_labels, slim_labels, tran_list_labels,
                word_prob_path, tran_prob_path, tran_aux_paths, rev_prob_path,
-               cooc_prob_path, keyword_path, min_prob_map):
+               cooc_prob_path, aoa_path, keyword_path, min_prob_map):
     self.input_confs = input_confs
     self.output_path = output_path
     self.gross_labels = gross_labels
@@ -77,6 +77,7 @@ class BuildUnionDBBatch:
     self.tran_aux_paths = tran_aux_paths
     self.rev_prob_path = rev_prob_path
     self.cooc_prob_path = cooc_prob_path
+    self.aoa_path = aoa_path
     self.keyword_path = keyword_path
     self.min_prob_map = min_prob_map
     self.tokenizer = tkrzw_tokenizer.Tokenizer()
@@ -94,10 +95,13 @@ class BuildUnionDBBatch:
     for tran_aux_path in self.tran_aux_paths:
       if not tran_aux_path: continue
       self.ReadTranAuxTSV(tran_aux_path, aux_trans)
+    aoa_words = {}
+    if self.aoa_path:
+      self.ReadAOAWords(self.aoa_path, aoa_words)
     keywords = set()
     if self.keyword_path:
       self.ReadKeywords(self.keyword_path, keywords)
-    self.SaveWords(word_dicts, aux_trans, keywords)
+    self.SaveWords(word_dicts, aux_trans, aoa_words, keywords)
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
   def ReadInput(self, input_path, slim):
@@ -185,6 +189,34 @@ class BuildUnionDBBatch:
     logger.info("Reading a translation aux file: num_entries={}, elapsed_time={:.2f}s".format(
       num_entries, time.time() - start_time))
 
+  def ReadAOAWords(self, input_path, aoa_words):
+    start_time = time.time()
+    logger.info("Reading a AOA file: input_path={}".format(input_path))
+    num_entries = 0
+    with open(input_path) as input_file:
+      is_first = True
+      for line in input_file:
+        if is_first:
+          is_first = False
+          continue
+        fields = line.strip().split(",")
+        if len(fields) != 7: continue
+        word = fields[0].strip()
+        mean = fields[4]
+        stddev = fields[5]
+        if not word or not regex.fullmatch(r"[0-9.]+", mean): continue
+        mean = float(mean)
+        if regex.fullmatch(r"[0-9.]+", stddev):
+          mean += float(stddev)
+        else:
+          mean += 3.0
+        aoa_words[word] = mean
+        num_entries += 1
+        if num_entries % 10000 == 0:
+          logger.info("Reading a AOA file: num_entries={}".format(num_entries))
+    logger.info("Reading a translation aux file: num_entries={}, elapsed_time={:.2f}s".format(
+      num_entries, time.time() - start_time))
+
   def ReadKeywords(self, input_path, keywords):
     start_time = time.time()
     logger.info("Reading a keyword file: input_path={}".format(input_path))
@@ -199,7 +231,7 @@ class BuildUnionDBBatch:
     logger.info("Reading a translation aux file: num_entries={}, elapsed_time={:.2f}s".format(
       num_entries, time.time() - start_time))
 
-  def SaveWords(self, word_dicts, aux_trans, keywords):
+  def SaveWords(self, word_dicts, aux_trans, aoa_words, keywords):
     keys = set()
     logger.info("Extracting keys")
     for label, word_dict in word_dicts:
@@ -229,7 +261,7 @@ class BuildUnionDBBatch:
       cooc_prob_dbm.Open(self.cooc_prob_path, False, dbm="HashDBM").OrDie()
     num_records = 0
     for key in keys:
-      record = self.MakeRecord(key, word_dicts, aux_trans, keywords,
+      record = self.MakeRecord(key, word_dicts, aux_trans, aoa_words, keywords,
                                word_prob_dbm, tran_prob_dbm, rev_prob_dbm, cooc_prob_dbm)
       if not record: continue
       serialized = json.dumps(record, separators=(",", ":"), ensure_ascii=False)
@@ -250,7 +282,7 @@ class BuildUnionDBBatch:
     word_dbm.Close().OrDie()
     logger.info("Saving words done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
-  def MakeRecord(self, key, word_dicts, aux_trans, keywords,
+  def MakeRecord(self, key, word_dicts, aux_trans, aoa_words, keywords,
                  word_prob_dbm, tran_prob_dbm,
                  rev_prob_dbm, cooc_prob_dbm):
     word_entries = {}
@@ -331,10 +363,9 @@ class BuildUnionDBBatch:
       word_entry["word"] = word
       effective_labels = set()
       surfaces = set([word.lower()])
-      match_aux_trans = word in aux_trans
-      match_keywords = word in keywords
+      is_keyword = word in aux_trans or word in aoa_words or word in keywords
       for label, entry in entries:
-        if label not in self.surfeit_labels or match_aux_trans or match_keywords:
+        if label not in self.surfeit_labels or is_keyword:
           effective_labels.add(label)
         for top_name in top_names:
           if label not in self.top_labels and top_name in word_entry: continue
@@ -380,12 +411,15 @@ class BuildUnionDBBatch:
           word_entry["item"] = items
       if "item" not in word_entry:
         continue
+      aoa = aoa_words.get(word.lower())
+      if aoa:
+        word_entry["aoa"] = "{:.3f}".format(aoa)
       if share < 1:
         word_entry["share"] = "{:.3f}".format(share / share_sum).replace("0.", ".")
       if word_prob_dbm:
         prob = self.GetPhraseProb(word_prob_dbm, cooc_prob_dbm, "en", word)
         word_entry["probability"] = "{:.6f}".format(prob).replace("0.", ".")
-        if self.min_prob_map and not match_aux_trans and not match_keywords:
+        if self.min_prob_map and not is_keyword:
           has_good_label = False
           for item in word_entry["item"]:
             if item["label"] not in self.min_prob_map:
@@ -857,6 +891,7 @@ def main():
   tran_aux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or "").split(",")
   rev_prob_path = tkrzw_dict.GetCommandFlag(args, "--rev_prob", 1) or ""
   cooc_prob_path = tkrzw_dict.GetCommandFlag(args, "--cooc_prob", 1) or ""
+  aoa_path = tkrzw_dict.GetCommandFlag(args, "--aoa", 1) or ""
   keyword_path = tkrzw_dict.GetCommandFlag(args, "--keyword", 1) or ""
   min_prob_exprs = tkrzw_dict.GetCommandFlag(args, "--min_prob", 1) or ""
   min_prob_map = {}
@@ -881,7 +916,7 @@ def main():
   BuildUnionDBBatch(input_confs, output_path, gross_labels,
                     surfeit_labels, top_labels, slim_labels, tran_list_labels,
                     word_prob_path, tran_prob_path, tran_aux_paths,
-                    rev_prob_path, cooc_prob_path, keyword_path,
+                    rev_prob_path, cooc_prob_path, aoa_path, keyword_path,
                     min_prob_map).Run()
 
 
