@@ -6,7 +6,7 @@
 # Usage:
 #   build_union_db.py [--output str] [--top str] [--slim str]
 #     [--word_prob str] [--tran_prob str] [--tran_aux str] [--rev_prob str] [--cooc_prob str]
-#     [--min_prob str] [--quiet] inputs...
+#     [--keyword str] [--min_prob str] [--quiet] inputs...
 #   (An input specified as "label:tsv_file".
 #
 # Example:
@@ -63,8 +63,8 @@ rel_weights = {"synonym": 1.0,
 class BuildUnionDBBatch:
   def __init__(self, input_confs, output_path, gross_labels,
                surfeit_labels, top_labels, slim_labels, tran_list_labels,
-               word_prob_path, tran_prob_path, tran_aux_paths, rev_prob_path, cooc_prob_path,
-               min_prob_map):
+               word_prob_path, tran_prob_path, tran_aux_paths, rev_prob_path,
+               cooc_prob_path, keyword_path, min_prob_map):
     self.input_confs = input_confs
     self.output_path = output_path
     self.gross_labels = gross_labels
@@ -77,6 +77,7 @@ class BuildUnionDBBatch:
     self.tran_aux_paths = tran_aux_paths
     self.rev_prob_path = rev_prob_path
     self.cooc_prob_path = cooc_prob_path
+    self.keyword_path = keyword_path
     self.min_prob_map = min_prob_map
     self.tokenizer = tkrzw_tokenizer.Tokenizer()
 
@@ -93,7 +94,10 @@ class BuildUnionDBBatch:
     for tran_aux_path in self.tran_aux_paths:
       if not tran_aux_path: continue
       self.ReadTranAuxTSV(tran_aux_path, aux_trans)
-    self.SaveWords(word_dicts, aux_trans)
+    keywords = set()
+    if self.keyword_path:
+      self.ReadKeywords(self.keyword_path, keywords)
+    self.SaveWords(word_dicts, aux_trans, keywords)
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
   def ReadInput(self, input_path, slim):
@@ -149,7 +153,7 @@ class BuildUnionDBBatch:
             key += "\t" + mode
           word_dict[key].append(entry)
           num_entries += 1
-        if num_entries % 1000 == 0:
+        if num_entries % 10000 == 0:
           logger.info("Reading an input: num_entries={}".format(num_entries))
     logger.info("Reading an input done: num_entries={}, elapsed_time={:.2f}s".format(
       num_entries, time.time() - start_time))
@@ -176,12 +180,26 @@ class BuildUnionDBBatch:
           values.append(tran)
         aux_trans[word] = values
         num_entries += 1
-        if num_entries % 1000 == 0:
+        if num_entries % 10000 == 0:
           logger.info("Reading a translation aux file: num_entries={}".format(num_entries))
     logger.info("Reading a translation aux file: num_entries={}, elapsed_time={:.2f}s".format(
       num_entries, time.time() - start_time))
 
-  def SaveWords(self, word_dicts, aux_trans):
+  def ReadKeywords(self, input_path, keywords):
+    start_time = time.time()
+    logger.info("Reading a keyword file: input_path={}".format(input_path))
+    num_entries = 0
+    with open(input_path) as input_file:
+      for line in input_file:
+        keyword = line.strip()
+        keywords.add(keyword)
+        num_entries += 1
+        if num_entries % 10000 == 0:
+          logger.info("Reading a keyword file: num_entries={}".format(num_entries))
+    logger.info("Reading a translation aux file: num_entries={}, elapsed_time={:.2f}s".format(
+      num_entries, time.time() - start_time))
+
+  def SaveWords(self, word_dicts, aux_trans, keywords):
     keys = set()
     logger.info("Extracting keys")
     for label, word_dict in word_dicts:
@@ -211,7 +229,7 @@ class BuildUnionDBBatch:
       cooc_prob_dbm.Open(self.cooc_prob_path, False, dbm="HashDBM").OrDie()
     num_records = 0
     for key in keys:
-      record = self.MakeRecord(key, word_dicts, aux_trans,
+      record = self.MakeRecord(key, word_dicts, aux_trans, keywords,
                                word_prob_dbm, tran_prob_dbm, rev_prob_dbm, cooc_prob_dbm)
       if not record: continue
       serialized = json.dumps(record, separators=(",", ":"), ensure_ascii=False)
@@ -232,7 +250,8 @@ class BuildUnionDBBatch:
     word_dbm.Close().OrDie()
     logger.info("Saving words done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
-  def MakeRecord(self, key, word_dicts, aux_trans, word_prob_dbm, tran_prob_dbm,
+  def MakeRecord(self, key, word_dicts, aux_trans, keywords,
+                 word_prob_dbm, tran_prob_dbm,
                  rev_prob_dbm, cooc_prob_dbm):
     word_entries = {}
     word_shares = collections.defaultdict(float)
@@ -274,11 +293,14 @@ class BuildUnionDBBatch:
       word_scores = []
       for word, share in sorted_word_shares:
         score = 0.0
+        if word in keywords:
+          score += 0.1
         cap_aux_trans = aux_trans.get(word) or []
         if cap_aux_trans:
           score += 0.1
         cap_word_trans = word_trans.get(word) or []
         cap_trans = set(cap_aux_trans).union(cap_word_trans)
+        tran_score = 0.0
         if cap_trans:
           key = tkrzw_dict.NormalizeWord(word)
           tsv = tran_prob_dbm.GetStr(key)
@@ -295,16 +317,12 @@ class BuildUnionDBBatch:
                 if regex.match(r"[A-Z]", src):
                   prob *= 0.5
               if trg in cap_trans:
-                print("HIT", word, trg, prob)
                 max_prob = max(max_prob, prob)
                 sum_prob += prob
-            score += (sum_prob * max_prob) ** 0.5
-        score = ((score + 0.01) * (share + 0.01)) ** 0.5
+            tran_score += (sum_prob * max_prob) ** 0.5
+        score += ((tran_score + 0.01) * (share + 0.01)) ** 0.5
         word_scores.append((word, score))
-      print("BEF", sorted_word_shares)
       sorted_word_shares = sorted(word_scores, key=lambda x: x[1], reverse=True)
-      print("AFT", sorted_word_shares)
-
     share_sum = sum([x[1] for x in sorted_word_shares])
     merged_entry = []
     for word, share in sorted_word_shares:
@@ -314,8 +332,9 @@ class BuildUnionDBBatch:
       effective_labels = set()
       surfaces = set([word.lower()])
       match_aux_trans = word in aux_trans
+      match_keywords = word in keywords
       for label, entry in entries:
-        if label not in self.surfeit_labels or match_aux_trans:
+        if label not in self.surfeit_labels or match_aux_trans or match_keywords:
           effective_labels.add(label)
         for top_name in top_names:
           if label not in self.top_labels and top_name in word_entry: continue
@@ -366,7 +385,7 @@ class BuildUnionDBBatch:
       if word_prob_dbm:
         prob = self.GetPhraseProb(word_prob_dbm, cooc_prob_dbm, "en", word)
         word_entry["probability"] = "{:.6f}".format(prob).replace("0.", ".")
-        if self.min_prob_map and not match_aux_trans:
+        if self.min_prob_map and not match_aux_trans and not match_keywords:
           has_good_label = False
           for item in word_entry["item"]:
             if item["label"] not in self.min_prob_map:
@@ -838,6 +857,7 @@ def main():
   tran_aux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or "").split(",")
   rev_prob_path = tkrzw_dict.GetCommandFlag(args, "--rev_prob", 1) or ""
   cooc_prob_path = tkrzw_dict.GetCommandFlag(args, "--cooc_prob", 1) or ""
+  keyword_path = tkrzw_dict.GetCommandFlag(args, "--keyword", 1) or ""
   min_prob_exprs = tkrzw_dict.GetCommandFlag(args, "--min_prob", 1) or ""
   min_prob_map = {}
   for min_prob_expr in min_prob_exprs.split(","):
@@ -861,7 +881,8 @@ def main():
   BuildUnionDBBatch(input_confs, output_path, gross_labels,
                     surfeit_labels, top_labels, slim_labels, tran_list_labels,
                     word_prob_path, tran_prob_path, tran_aux_paths,
-                    rev_prob_path, cooc_prob_path, min_prob_map).Run()
+                    rev_prob_path, cooc_prob_path, keyword_path,
+                    min_prob_map).Run()
 
 
 if __name__=="__main__":
