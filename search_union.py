@@ -227,6 +227,10 @@ def PrintResult(entries, mode, query):
         if coocs:
           text = "[共起] {}".format(", ".join(coocs[:8]))
           PrintWrappedText(text, 4)
+        aoa = entry.get("aoa")
+        if aoa:
+          text = "[年齢] {:.2f}".format(float(aoa))
+          PrintWrappedText(text, 4)
         prob = entry.get("probability")
         if prob:
           text = "[確率] {:.4f}%".format(float(prob) * 100)
@@ -503,10 +507,17 @@ def PrintResultCGI(entries, query, details):
         print(", ".join(fields), end="")
         P('</span>')
         P('</div>')
+      aoa = entry.get("aoa")
       prob = entry.get("probability")
-      if prob:
-        P('<div class="attr attr_prob"><span class="attr_label">頻度</span>' +
-          ' <span class="attr_value">{:.4f}%</span></div>', float(prob) * 100)
+      if aoa or prob:
+        P('<div class="attr attr_prob">')
+        if aoa:
+          P('<span class="attr_label">年齢</span>' +
+            ' <span class="attr_value">{:.2f}</span>', float(aoa))
+        if prob:
+          P('<span class="attr_label">頻度</span>' +
+            ' <span class="attr_value">{:.4f}%</span>', float(prob) * 100)
+        P('</div>')
     P('</div>')
 
 
