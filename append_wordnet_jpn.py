@@ -5,7 +5,8 @@
 #
 # Usage:
 #   append_wordnet_jpn.py [--input str] [--output str] [--wnjpn str]
-#     [--word_prob str] [--rev_prob str] [--tran_prob str] [--tran_aux str] [--quiet]
+#     [--word_prob str] [--rev_prob str] [--tran_prob str]
+#     [--tran_aux str] [--tran_subaux str] [--quiet]
 #
 # Example:
 #   ./append_wordnet_jpn.py --input wordnet.tkh --output wordnet-body.tkh \
@@ -45,7 +46,8 @@ logger = tkrzw_dict.GetLogger()
 
 class AppendWordnetJPNBatch:
   def __init__(self, input_path, output_path, wnjpn_path,
-               word_prob_path, rev_prob_path, tran_prob_path, tran_aux_paths):
+               word_prob_path, rev_prob_path, tran_prob_path,
+               tran_aux_paths, tran_subaux_paths):
     self.input_path = input_path
     self.output_path = output_path
     self.wnjpn_path = wnjpn_path
@@ -53,6 +55,7 @@ class AppendWordnetJPNBatch:
     self.rev_prob_path = rev_prob_path
     self.tran_prob_path = tran_prob_path
     self.tran_aux_paths = tran_aux_paths
+    self.tran_subaux_paths = tran_subaux_paths
 
   def Run(self):
     tokenizer = tkrzw_tokenizer.Tokenizer()
@@ -60,9 +63,9 @@ class AppendWordnetJPNBatch:
     logger.info("Process started: input_path={}, output_path={}, wnjpn_path={}".format(
                   self.input_path, self.output_path, self.wnjpn_path))
     wnjpn_trans = self.ReadTranslations()
-    aux_trans = self.ReadAuxTranslations()
+    aux_trans, subaux_trans = self.ReadAuxTranslations()
     synset_index = self.ReadSynsetIndex()
-    self.AppendTranslations(wnjpn_trans, aux_trans, synset_index)
+    self.AppendTranslations(wnjpn_trans, aux_trans, subaux_trans, synset_index)
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
   def ReadTranslations(self):
@@ -89,34 +92,38 @@ class AppendWordnetJPNBatch:
 
   def ReadAuxTranslations(self):
     aux_trans = collections.defaultdict(list)
-    for aux_path in self.tran_aux_paths:
-      if not aux_path: continue
-      start_time = time.time()
-      logger.info("Reading aux translations: path={}".format(aux_path))
-      num_trans = 0
-      tmp_records = set()
-      with open(aux_path) as input_file:
-        for line in input_file:
-          fields = line.strip().split("\t")
-          if len(fields) < 2: continue
-          source = fields[0]
-          targets = set()
-          for target in fields[1:]:
-            target = unicodedata.normalize('NFKC', target)
-            target = regex.sub(r"[\p{Ps}\p{Pe}\p{C}]", "", target)
-            target = regex.sub(r"\s+", " ", target).strip()
-            if target:
-              tmp_records.add((source, target))
-          num_trans += 1
-          if num_trans % 10000 == 0:
-            logger.info("Reading aux translations: records={}, word_entries={}".format(
-              len(tmp_records), num_trans))
-      logger.info(
-        "Reading aux translations done: records={}, word_entries={}, elapsed_time={:.2f}s".format(
-          len(tmp_records), num_trans, time.time() - start_time))
-      for source, targets in tmp_records:
-        aux_trans[source].append(targets)
-    return aux_trans
+    subaux_trans = collections.defaultdict(list)
+    for records, paths in (
+        (aux_trans, self.tran_aux_paths),
+        (subaux_trans, self.tran_subaux_paths)):
+      for aux_path in paths:
+        if not aux_path: continue
+        start_time = time.time()
+        logger.info("Reading aux translations: path={}".format(aux_path))
+        num_trans = 0
+        tmp_records = set()
+        with open(aux_path) as input_file:
+          for line in input_file:
+            fields = line.strip().split("\t")
+            if len(fields) < 2: continue
+            source = fields[0]
+            targets = set()
+            for target in fields[1:]:
+              target = unicodedata.normalize('NFKC', target)
+              target = regex.sub(r"[\p{Ps}\p{Pe}\p{C}]", "", target)
+              target = regex.sub(r"\s+", " ", target).strip()
+              if target:
+                tmp_records.add((source, target))
+            num_trans += 1
+            if num_trans % 10000 == 0:
+              logger.info("Reading aux translations: records={}, word_entries={}".format(
+                len(tmp_records), num_trans))
+        logger.info(
+          "Reading aux translations done: records={}, word_entries={}, elapsed_time={:.2f}s".format(
+            len(tmp_records), num_trans, time.time() - start_time))
+        for source, targets in tmp_records:
+          records[source].append(targets)
+    return aux_trans, subaux_trans
 
   def ReadSynsetIndex(self):
     logger.info("Reading synset index: input_path={}".format(self.input_path))
@@ -142,7 +149,7 @@ class AppendWordnetJPNBatch:
     logger.info("Reading synset index done: records={}".format(len(synset_index)))
     return synset_index
 
-  def AppendTranslations(self, wnjpn_trans, aux_trans, synset_index):
+  def AppendTranslations(self, wnjpn_trans, aux_trans, subaux_trans, synset_index):
     start_time = time.time()
     logger.info("Appending translations: input_path={}, output_path={}".format(
       self.input_path, self.output_path))
@@ -207,6 +214,7 @@ class AppendWordnetJPNBatch:
         item_trans = wnjpn_trans.get(synset) or []
         self.NormalizeTranslations(tokenizer, pos, item_trans)
         item_aux_trans = aux_trans.get(word) or []
+        item_aux_trans.extend(subaux_trans.get(word) or [])
         self.NormalizeTranslations(tokenizer, pos, item_aux_trans)
         num_items += 1
         bare = not item_trans
@@ -458,13 +466,14 @@ def main():
   rev_prob_path = tkrzw_dict.GetCommandFlag(args, "--rev_prob", 1) or ""
   tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
   tran_aux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or "").split(",")
+  tran_subaux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_subaux", 1) or "").split(",")
   if tkrzw_dict.GetCommandFlag(args, "--quiet", 0):
     logger.setLevel(logging.ERROR)
   if args:
     raise RuntimeError("unknown arguments: {}".format(str(args)))
   AppendWordnetJPNBatch(
     input_path, output_path, wnjpn_path,
-    word_prob_path, rev_prob_path, tran_prob_path, tran_aux_paths).Run()
+    word_prob_path, rev_prob_path, tran_prob_path, tran_aux_paths, tran_subaux_paths).Run()
 
 
 if __name__=="__main__":
