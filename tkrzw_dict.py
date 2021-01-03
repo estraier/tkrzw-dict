@@ -199,20 +199,24 @@ def TwiddleWords(words, query):
   scored_words = []
   for i, word in enumerate(words):
     score = 10 / (10 + i)
+    gain = 1.0
     if word == query:
-      score *= 1.6
+      gain = 1.6
     elif len(query) > 1 and word.startswith(query):
-      score *= 1.4
+      gain = 1.4
     elif len(word) > 1 and query.startswith(word):
-      score *= 1.3
+      gain = 1.3
     elif word.find(query) >= 0 or query.find(word) >= 0:
-      score *= 1.2
+      gain = 1.2
     else:
       dist = tkrzw.Utility.EditDistanceLev(word, query) / max(len(word), len(query))
       if dist <= 0.3:
-        score *= 1.2
+        gain = 1.2
       elif dist <= 0.5:
-        score *= 1.1
+        gain = 1.1
+    if len(words) > 8:
+      gain **= math.log(len(words)) / math.log(8)
+    score *= gain
     scored_words.append((word, score))
   scored_words = sorted(scored_words, key=lambda x: x[1], reverse=True)
   return [x[0] for x in scored_words]
