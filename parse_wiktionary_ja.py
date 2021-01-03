@@ -120,7 +120,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     hypernyms = []
     hyponyms = []
     antonyms = []
-    derivations = []
+    derivatives = []
     relations = []
     for line in fulltext.split("\n"):
       line = line.strip()
@@ -179,7 +179,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         elif CheckMode(("{{ant}}", "antonym", "対義語")):
           rel_words = antonyms
         elif CheckMode(("{{derived}}", "{{drv}}", "derived terms", "derived term", "派生語")):
-          rel_words = derivations
+          rel_words = derivatives
         elif CheckMode(("{{rel}}", "related terms", "related term", "関連語")):
           rel_words = relations
         if rel_words != None:
@@ -575,7 +575,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           out_alts.append(alt)
         output.append("alternative={}".format(", ".join(out_alts)))
       for rel in ((synonyms, "synonym"), (hypernyms, "hypernym"), (hyponyms, "hyponym"),
-                  (antonyms, "antonym"), (derivations, "derivation"), (relations, "relation")):
+                  (antonyms, "antonym"), (derivatives, "derivative"), (relations, "relation")):
         if rel[0]:
           output.append("{}={}".format(rel[1], ", ".join(rel[0])))
       print("word={}\t{}".format(title, "\t".join(output)))
