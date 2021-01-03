@@ -398,6 +398,7 @@ class AppendWordnetJPNBatch:
     scored_trans = []
     pure_translation_scores = []
     max_score = 0.0
+    sum_score = 0.0
     for tran in trans:
       prob_score = 0.0
       if rev_prob_dbm:
@@ -424,11 +425,13 @@ class AppendWordnetJPNBatch:
       score = max(prob_score, tran_score)
       scored_trans.append((tran, score))
       max_score = max(max_score, score)
+      sum_score += score
     scored_trans = sorted(scored_trans, key=operator.itemgetter(1), reverse=True)
     score_bias = 1000 / (1000 + min(10, len(trans) - 1))
     pure_translation_scores = sorted(
       pure_translation_scores, key=operator.itemgetter(1), reverse=True)
-    return ([x[0] for x in scored_trans], max_score ** score_bias, pure_translation_scores)
+    mean_score = (max_score * sum_score) ** 0.5 + 0.00001
+    return ([x[0] for x in scored_trans], mean_score ** score_bias, pure_translation_scores)
 
   def IsValidPosTran(self, tokenizer, pos, tran):
     tran_surface, tran_pos, tran_subpos, tran_lemma = tokenizer.GetJaLastPos(tran)
