@@ -35,10 +35,6 @@ class WordNetSearcher:
     self.tran_index_dbm.Close().OrDie()
     self.body_dbm.Close().OrDie()
 
-  _regex_spaces = regex.compile(r"[\s]+")
-  def NormalizeText(self, text):
-    return self._regex_spaces.sub(" ", text).strip().lower()
-
   def SearchBody(self, text):
     serialized = self.body_dbm.GetStr(text)
     if not serialized:
@@ -53,7 +49,7 @@ class WordNetSearcher:
     return result
 
   def SearchExact(self, text):
-    text = self.NormalizeText(text)
+    text = tkrzw_dict.NormalizeWord(text)
     result = []
     entry = self.SearchBody(text)
     if entry:
@@ -61,7 +57,7 @@ class WordNetSearcher:
     return result
 
   def SearchReverse(self, text):
-    text = self.NormalizeText(text)
+    text = tkrzw_dict.NormalizeWord(text)
     result = []
     src_words = self.SearchTranIndex(text)
     if src_words:

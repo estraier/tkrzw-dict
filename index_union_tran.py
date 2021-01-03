@@ -4,8 +4,7 @@
 # Script to make an index of translations of a union dictionary
 #
 # Usage:
-#   index_union_tran.py [--input str] [--output str] [--word_prob str]
-#     [--tran_prob str] [--quiet]
+#   index_union_tran.py [--input str] [--output str] [--tran_prob str] [--quiet]
 #
 # Example:
 #   ./index_union_tran.py --input union-body.tkh --output union-tran-index.tkh
@@ -36,10 +35,9 @@ logger = tkrzw_dict.GetLogger()
 
 
 class IndexTranslationsBatch:
-  def __init__(self, input_path, output_path, word_prob_path, tran_prob_path):
+  def __init__(self, input_path, output_path, tran_prob_path):
     self.input_path = input_path
     self.output_path = output_path
-    self.word_prob_path = word_prob_path
     self.tran_prob_path = tran_prob_path
     self.tokenizer = tkrzw_tokenizer.Tokenizer()
 
@@ -60,44 +58,43 @@ class IndexTranslationsBatch:
       if not record: break
       key, serialized = record
       entry = json.loads(serialized)
-      uniq_trans = set()
-      translations = []
       for word_entry in entry:
-        word_trans = word_entry.get("translation")
-        if word_trans:
-          dup_word_trans = word_trans
-          for word_tran in word_trans:
-            match = regex.search(
-              r"([\p{Han}\p{Katakana}ー]{2,})(する|すること|される|されること|をする)$", word_tran)
-            if match:
-              short_word_tran = word_tran[:-len(match.group(2))]
-              if short_word_tran:
-                dup_word_trans.append(short_word_tran)
-            short_word_tran = self.tokenizer.CutJaWordNounParticle(word_tran)
-            if short_word_tran != word_tran:
+        prob = max(float(word_entry.get("probability") or "0"), 0.0000001)
+        aoa = min(float(word_entry.get("aoa") or "20"), 20.0)
+        score = prob * ((30 - aoa) / 10)
+        word_trans = word_entry.get("translation") or []
+        dup_word_trans = word_trans
+        for word_tran in word_trans:
+          match = regex.search(
+            r"([\p{Han}\p{Katakana}ー]{2,})(する|すること|される|されること|をする)$", word_tran)
+          if match:
+            short_word_tran = word_tran[:-len(match.group(2))]
+            if short_word_tran:
               dup_word_trans.append(short_word_tran)
-            match = regex.search(
-              r"([\p{Han}\p{Katakana}ー]{2,})(的|的な|的に)$", word_tran)
-            if match:
-              short_word_tran = word_tran[:-len(match.group(2))]
-              if short_word_tran:
-                dup_word_trans.append(short_word_tran)
-            match = regex.search(
-              r"([\p{Han}]{2,})(が|の|を|に|へ|と|より|から|で|や|な|なる|たる)$", word_tran)
-            if match:
-              short_word_tran = word_tran[:-len(match.group(2))]
-              if short_word_tran:
-                dup_word_trans.append(short_word_tran)
-          for tran in dup_word_trans:
-            norm_tran = tkrzw_dict.NormalizeWord(tran)
-            if norm_tran in uniq_trans: continue
-            uniq_trans.add(norm_tran)
-            translations.append(norm_tran)
-      if translations:
-        for i, tran in enumerate(translations):
-          pair = "{}\t{}".format(key, str(i))
-          mem_index.Append(tran, pair, "\t").OrDie()
-        num_translations += len(translations)
+          short_word_tran = self.tokenizer.CutJaWordNounParticle(word_tran)
+          if short_word_tran != word_tran:
+            dup_word_trans.append(short_word_tran)
+          match = regex.search(
+            r"([\p{Han}\p{Katakana}ー]{2,})(的|的な|的に)$", word_tran)
+          if match:
+            short_word_tran = word_tran[:-len(match.group(2))]
+            if short_word_tran:
+              dup_word_trans.append(short_word_tran)
+          match = regex.search(
+            r"([\p{Han}]{2,})(が|の|を|に|へ|と|より|から|で|や|な|なる|たる)$", word_tran)
+          if match:
+            short_word_tran = word_tran[:-len(match.group(2))]
+            if short_word_tran:
+              dup_word_trans.append(short_word_tran)
+        uniq_trans = set()
+        for tran in dup_word_trans:
+          norm_tran = tkrzw_dict.NormalizeWord(tran)
+          if norm_tran in uniq_trans: continue
+          uniq_trans.add(norm_tran)
+          pair = "{}\t{:.8f}".format(key, score)
+          score *= 0.98
+          mem_index.Append(norm_tran, pair, "\t").OrDie()
+        num_translations += len(uniq_trans)
       num_entries += 1
       if num_entries % 10000 == 0:
         logger.info("Reading: entries={}, translations={}".format(
@@ -111,10 +108,6 @@ class IndexTranslationsBatch:
     output_dbm.Open(
       self.output_path, True, dbm="HashDBM", truncate=True,
       align_pow=0, num_buckets=num_buckets).OrDie()
-    word_prob_dbm =None
-    if self.word_prob_path:
-      word_prob_dbm = tkrzw.DBM()
-      word_prob_dbm.Open(self.word_prob_path, False, dbm="HashDBM").OrDie()
     tran_prob_dbm =None
     if self.tran_prob_path:
       tran_prob_dbm = tkrzw.DBM()
@@ -127,13 +120,13 @@ class IndexTranslationsBatch:
       if not record: break
       key, value = record
       scored_trans = []
+      uniq_words = set()
       fields = value.split("\t")
       for i in range(0, len(fields), 2):
         word = fields[i]
-        score = 1 / (i / 2 + 100000)
-        if word_prob_dbm:
-          prob = self.GetPhraseProb(word_prob_dbm, "en", word)
-          score += prob
+        score = float(fields[i + 1])
+        if word in uniq_words: continue
+        uniq_words.add(word)
         if tran_prob_dbm:
           prob = self.GetTranProb(tran_prob_dbm, word, key)
           score = (score * max(prob, 0.000001)) ** 0.5
@@ -147,28 +140,10 @@ class IndexTranslationsBatch:
       it.Next()
     if tran_prob_dbm:
       tran_prob_dbm.Close().OrDie()
-    if word_prob_dbm:
-      word_prob_dbm.Close().OrDie()
     output_dbm.Close().OrDie()
     logger.info("Writing done: records={}".format(num_records))
     mem_index.Close().OrDie()
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
-
-  def GetPhraseProb(self, word_prob_dbm, language, word):
-    tokens = self.tokenizer.Tokenize(language, word, True, True)
-    probs = []
-    for token in tokens:
-      token = tkrzw_dict.NormalizeWord(token)
-      prob = float(word_prob_dbm.GetStr(token) or 0.0)
-      probs.append(prob)
-    probs = sorted(probs)
-    min_prob = 0.0
-    if probs:
-      min_prob =probs[0]
-    for prob in probs[1:]:
-      min_prob *= min(prob ** 0.5, 0.2)
-    min_prob = max(min_prob, 0.000001)
-    return min_prob
 
   def GetTranProb(self, tran_prob_dbm, src_text, trg_text):
     src_text = tkrzw_dict.NormalizeWord(src_text)
@@ -193,13 +168,12 @@ def main():
   args = sys.argv[1:]
   input_path = tkrzw_dict.GetCommandFlag(args, "--input", 1) or "union-body.tkh"
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-tran-index.tkh"
-  word_prob_path = tkrzw_dict.GetCommandFlag(args, "--word_prob", 1) or ""
   tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
   if tkrzw_dict.GetCommandFlag(args, "--quiet", 0):
     logger.setLevel(logging.ERROR)
   if args:
     raise RuntimeError("unknown arguments: {}".format(str(args)))
-  IndexTranslationsBatch(input_path, output_path, word_prob_path, tran_prob_path).Run()
+  IndexTranslationsBatch(input_path, output_path, tran_prob_path).Run()
 
 
 if __name__=="__main__":

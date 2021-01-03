@@ -44,10 +44,6 @@ class UnionSearcher:
     self.tran_index_dbm.Close().OrDie()
     self.body_dbm.Close().OrDie()
 
-  _regex_spaces = regex.compile(r"[\s]+")
-  def NormalizeText(self, text):
-    return tkrzw_dict.NormalizeWord(self._regex_spaces.sub(" ", text).strip())
-
   def SearchBody(self, text):
     serialized = self.body_dbm.GetStr(text)
     if not serialized:
@@ -55,7 +51,7 @@ class UnionSearcher:
     return json.loads(serialized)
 
   def SearchTranIndex(self, text):
-    text = self.NormalizeText(text).strip()
+    text = tkrzw_dict.NormalizeWord(text)
     tsv = self.tran_index_dbm.GetStr(text)
     result = []
     if tsv:
@@ -65,7 +61,7 @@ class UnionSearcher:
   def GetResultKeys(self, entries):
     keys = set()
     for entry in entries:
-      keys.add(self.NormalizeText(entry["word"]))
+      keys.add(tkrzw_dict.NormalizeWord(entry["word"]))
     return keys
 
   def SearchInflections(self, text):
@@ -80,7 +76,7 @@ class UnionSearcher:
     uniq_words = set()
     for word in text.split(","):
       if len(result) >= capacity: break
-      word = self.NormalizeText(word)
+      word = tkrzw_dict.NormalizeWord(word)
       if not word: continue
       entries = self.SearchBody(word)
       if not entries: continue
@@ -96,7 +92,7 @@ class UnionSearcher:
     ja_words = []
     ja_uniq_words = set()
     for ja_word in text.split(","):
-      ja_word = self.NormalizeText(ja_word)
+      ja_word = tkrzw_dict.NormalizeWord(ja_word)
       if not ja_word: continue
       if ja_word in ja_uniq_words: continue
       ja_uniq_words.add(ja_word)
@@ -123,7 +119,7 @@ class UnionSearcher:
           translations = entry.get("translation")
           if translations:
             for tran in translations:
-              tran = self.NormalizeText(tran)
+              tran = tkrzw_dict.NormalizeWord(tran)
               for ja_word in ja_words:
                 if tran.find(ja_word) >= 0:
                   match = True
@@ -198,20 +194,20 @@ class UnionSearcher:
 
   def GetFeatures(self, entry):
     SCORE_DECAY = 0.95
-    word = self.NormalizeText(entry["word"])
+    word = tkrzw_dict.NormalizeWord(entry["word"])
     features = {word: 1.0}
     score = 1.0
     rel_words = entry.get("related")
     if rel_words:
       for rel_word in rel_words[:20]:
-        rel_word = self.NormalizeText(rel_word)
+        rel_word = tkrzw_dict.NormalizeWord(rel_word)
         if rel_word not in features:
           score *= SCORE_DECAY
           features[rel_word] = score
     trans = entry.get("translation")
     if trans:
       for tran in trans[:20]:
-        tran = self.NormalizeText(tran)
+        tran = tkrzw_dict.NormalizeWord(tran)
         tran = regex.sub(
           r"([\p{Han}\p{Katakana}ー]{2,})(する|すること|される|されること|をする)$",
           r"\1", tran)
@@ -221,7 +217,7 @@ class UnionSearcher:
     coocs = entry.get("cooccurrence")
     if coocs:
       for cooc in coocs[:20]:
-        cooc = self.NormalizeText(cooc)
+        cooc = tkrzw_dict.NormalizeWord(cooc)
         if cooc not in features:
           score *= SCORE_DECAY
           features[cooc] = score
@@ -245,7 +241,7 @@ class UnionSearcher:
     base_weight = 1.0
     uniq_words = set()
     for seed in seeds:
-      norm_word = self.NormalizeText(seed["word"])
+      norm_word = tkrzw_dict.NormalizeWord(seed["word"])
       weight = base_weight
       if norm_word in uniq_words:
         weight *= 0.1
@@ -283,7 +279,7 @@ class UnionSearcher:
     return self.SearchRelatedWithSeeds(seeds, capacity)
 
   def SearchPatternMatch(self, mode, text, capacity):
-    text = self.NormalizeText(text)
+    text = tkrzw_dict.NormalizeWord(text)
     keys = self.keys_file.Search(mode, text, capacity, True)
     result = []
     for key in keys:
@@ -293,7 +289,7 @@ class UnionSearcher:
     return result
 
   def SearchPatternMatchReverse(self, mode, text, capacity):
-    text = self.NormalizeText(text)
+    text = tkrzw_dict.NormalizeWord(text)
     keys = self.tran_keys_file.Search(mode, text, capacity, True)
     result = []
     uniq_words = set()

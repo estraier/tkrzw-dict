@@ -260,8 +260,7 @@ $ ./extract_wordnet_tsv.py --input wordnet-body.tkh > wordnet.tsv
 
 <p>その他の検索用ファイルは、以下の手順を踏めば生成できる。</p>
 
-<pre><![CDATA[$ ./index_union_tran.py --input union-body.tkh --output union-tran-index.tkh \
- --word_prob enwiki-word-prob.tkh
+<pre><![CDATA[$ ./index_union_tran.py --input union-body.tkh --output union-tran-index.tkh
 $ ./index_union_infl.py --input union-body.tkh --output union-infl-index.tkh
 $ ./extract_union_keys.py --input union-body.tkh --output union-keys.txt
 $ ./extract_union_tran_keys.py --input union-tran-index.tkh --output union-tran-keys.txt

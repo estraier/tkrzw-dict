@@ -57,7 +57,9 @@ class ExtractKeysBatch:
       max_score = 0
       for word_entry in entry:
         prob = max(float(word_entry.get("probability") or "0"), 0.0000001)
-        score = prob * math.log2(len(word_entry["item"]))
+        aoa = min(float(word_entry.get("aoa") or "20"), 20.0)
+        score = prob * ((30 - aoa) / 10)
+        score *= math.log2(len(word_entry["item"]) + 2)
         if "translation" in word_entry:
           score *= 2
         max_score = max(max_score, score)

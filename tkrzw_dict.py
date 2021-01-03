@@ -127,7 +127,11 @@ def RemoveDiacritic(text):
   return unicodedata.normalize('NFC', stripped)
 
 
+_regex_spaces = regex.compile(r"[\s]+")
+_regex_middle_dots = regex.compile(r"[・·]+")
 def NormalizeWord(text):
+  text = _regex_spaces.sub(" ", text)
+  text = _regex_middle_dots.sub("", text)
   return RemoveDiacritic(text.lower()).strip()
 
 
