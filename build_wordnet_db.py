@@ -89,7 +89,7 @@ class BuildWordNetDBBatch:
           field_index += 1
           ptrs = []
           for i in range(0, num_ptrs):
-            ptr_type = self.GetPointerType(fields[field_index])
+            ptr_type = self.GetPointerType(fields[field_index], pos)
             ptr_dest = fields[field_index + 1] + "-" + fields[field_index + 2]
             if ptr_type not in IGNORED_POINTERS:
               ptrs.append((ptr_type, ptr_dest))
@@ -111,7 +111,7 @@ class BuildWordNetDBBatch:
     raise RuntimeError("unknown:" + symbol)
     return "misc"
 
-  def GetPointerType(self, symbol):
+  def GetPointerType(self, symbol, pos):
     if symbol.startswith("!"): return "antonym"
     if symbol.startswith("@"): return "hypernym"
     if symbol.startswith("~"): return "hyponym"
@@ -125,7 +125,8 @@ class BuildWordNetDBBatch:
     if symbol.startswith("$"): return "group"
     if symbol.startswith("&"): return "similar"
     if symbol.startswith("<"): return "perticiple"
-    if symbol.startswith("\\"): return "pertainym"
+    if symbol.startswith("\\"):
+      return "derivative" if pos == "adverb" else "pertainym"
     if symbol == ";c" or symbol == "-c": return "topic"
     if symbol == ";r" or symbol == "-r": return "region"
     if symbol == ";u" or symbol == "-u": return "usage"
