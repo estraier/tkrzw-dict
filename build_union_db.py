@@ -202,9 +202,11 @@ class BuildUnionDBBatch:
         fields = line.strip().split(",")
         if len(fields) != 7: continue
         word = fields[0].strip()
+        occur = fields[3]
         mean = fields[4]
         stddev = fields[5]
         if not word or not regex.fullmatch(r"[0-9.]+", mean): continue
+        if not regex.fullmatch(r"[.0-9]+", occur): continue
         mean = float(mean)
         if regex.fullmatch(r"[0-9.]+", stddev):
           mean += float(stddev)
