@@ -14,6 +14,7 @@
 #--------------------------------------------------------------------------------------------------
 
 import collections
+import heapq
 import json
 import math
 import operator
@@ -130,22 +131,32 @@ class UnionSearcher:
             capacity -= 1
     return result
 
-  def ExpandEntries(self, entries, capacity):
+  def ExpandEntries(self, seed_entries, seed_features, capacity):
     result = []
-    seeds = collections.deque()
+    seeds = []
+    num_steps = 0
+    def AddSeed(entry):
+      nonlocal num_steps
+      features = self.GetFeatures(entry)
+      score = self.GetSimilarity(seed_features, features)
+      heapq.heappush(seeds, (-score, num_steps, entry))
+      num_steps += 1
     checked_words = set()
     checked_trans = set()
-    for entry in entries:
+    for entry in seed_entries:
       word = entry["word"]
       if word in checked_words: continue
       checked_words.add(word)
-      seeds.append(entry)
+      AddSeed(entry)
     while seeds:
-      entry = seeds.popleft()
+      score, cur_steps, entry = heapq.heappop(seeds)
+      score *= -1
       result.append(entry)
       num_appends = 0
-      max_rel_words = max(int(16 / math.log2(len(result) + 1)), 4)
-      max_trans = max(int(8 / math.log2(len(result) + 1)), 3)
+      max_rel_words = 16 / math.log2(len(result) + 1) * score
+      max_trans = 8 / math.log2(len(result) + 1) * score
+      max_rel_words = max(int(max_rel_words), 4)
+      max_trans = max(int(max_trans), 2)
       rel_words = entry.get("related")
       if rel_words:
         for rel_word in rel_words[:max_rel_words]:
@@ -156,7 +167,7 @@ class UnionSearcher:
             word = child["word"]
             if word in checked_words: continue
             checked_words.add(word)
-            seeds.append(child)
+            AddSeed(child)
             num_appends += 1
       trans = entry.get("translation")
       if trans:
@@ -170,12 +181,16 @@ class UnionSearcher:
             r"\1", tran)
           if tran in checked_trans: continue
           checked_trans.add(tran)
-          for child in self.SearchExactReverse(tran, capacity - len(checked_words)):
+          max_children = min(capacity - len(checked_words), 10)
+          num_tran_adopts = 0
+          for child in self.SearchExactReverse(tran, max_children):
             if len(checked_words) >= capacity: break
+            if num_tran_adopts >= 5: break
             word = child["word"]
             if word in checked_words: continue
             checked_words.add(word)
-            seeds.append(child)
+            AddSeed(child)
+            num_tran_adopts += 1
             num_appends += 1
       coocs = entry.get("cooccurrence")
       if coocs:
@@ -188,7 +203,7 @@ class UnionSearcher:
             word = child["word"]
             if word in checked_words: continue
             checked_words.add(word)
-            seeds.append(child)
+            AddSeed(child)
             num_appends += 1
     return result
 
@@ -260,18 +275,8 @@ class UnionSearcher:
       for word, score in self.GetFeatures(seed).items():
         seed_features[word] += score * weight
       base_weight *= 0.8
-    scores = []
-    bonus = 0.5
-    for entry in self.ExpandEntries(seeds, min(int(capacity * 1.2), 100)):
-      cand_features = self.GetFeatures(entry)
-      score = self.GetSimilarity(seed_features, cand_features)
-      score += bonus
-      if "translation" not in entry:
-        score -= 0.5
-      scores.append((entry, score))
-      bonus *= 0.95
-    scores = sorted(scores, key=lambda x: x[1], reverse=True)[:capacity]
-    return [x[0] for x in scores]
+    result = self.ExpandEntries(seeds, seed_features, max(int(capacity * 1.2), 100))
+    return result[:capacity]
 
   def SearchRelated(self, text, capacity):
     seeds = []
