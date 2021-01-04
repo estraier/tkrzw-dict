@@ -174,7 +174,6 @@ class Tokenizer:
 
   def IsJaWordAdjvNoun(self, word):
     self.InitMecab()
-    if not regex.search(r"\p{Han}$", word): return False
     word += "な"
     tokens = []
     for token in self.tagger_mecab.parse(word).split("\n"):
@@ -190,6 +189,58 @@ class Tokenizer:
     if stem[0] == "的" and stem[1] == "名詞" and stem[2] == "接尾" and suffix[0] == "な":
       return True
     return False
+
+  def RestoreJaWordAdjSaNoun(self, word):
+    self.InitMecab()
+    if not regex.search(r"[\p{Han}\p{Hiragana}]さ$", word):
+      return word
+    tokens = []
+    for token in self.tagger_mecab.parse(word).split("\n"):
+      fields = token.split("\t")
+      if len(fields) != 4: continue
+      tokens.append(fields)
+    if len(tokens) < 2:
+      return word
+    stem = tokens[-2]
+    suffix = tokens[-1]
+    if stem[1] == "名詞" and stem[2] == "形容動詞語幹" and suffix[0] == "さ":
+      return stem[0] + "な"
+    if stem[1] == "形容詞" and suffix[0] == "さ":
+      return stem[3]
+    return word
+
+  def ConvertJaWordBaseForm(self, word):
+    self.InitMecab()
+    tokens = []
+    for token in self.tagger_mecab.parse(word).split("\n"):
+      fields = token.split("\t")
+      if len(fields) != 4: continue
+      tokens.append(fields)
+    last = tokens[-1]
+    if (last[0] == "た" and last[1] == "助動詞" and len(tokens) > 1 and
+        tokens[-2][1] == "動詞" and word.endswith(last[0])):
+      word = word[:-len(last[0])]
+      last = tokens[-2]
+    if (last[0] != last[3] and regex.search(r"\p{Hiragana}", last[3]) and
+        word.endswith(last[0])):
+      return word[:-len(last[0])] + last[3]
+    return word
+
+  def CutJaWordNounThing(self, word):
+    self.InitMecab()
+    tokens = []
+    for token in self.tagger_mecab.parse(word).split("\n"):
+      fields = token.split("\t")
+      if len(fields) != 4: continue
+      tokens.append(fields)
+    if len(tokens) < 2:
+      return word
+    stem = tokens[-2]
+    suffix = tokens[-1]
+    if (suffix[0] in ("もの", "物", "こと", "事") and suffix[1] == "名詞" and
+        stem[1] != "名詞" and stem[0] == stem[3] and word.endswith(suffix[0])):
+      return word[:-len(suffix[0])]
+    return word
 
   def CutJaWordNounParticle(self, word):
     self.InitMecab()
