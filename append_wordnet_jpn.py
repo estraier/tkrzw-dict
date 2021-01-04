@@ -212,10 +212,10 @@ class AppendWordnetJPNBatch:
         similar_ids = links.get("similar") or []
         derivative_ids = links.get("derivative") or []
         item_trans = wnjpn_trans.get(synset) or []
-        self.NormalizeTranslations(tokenizer, pos, item_trans)
+        self.NormalizeTranslationList(tokenizer, pos, item_trans)
         item_aux_trans = aux_trans.get(word) or []
         item_aux_trans.extend(subaux_trans.get(word) or [])
-        self.NormalizeTranslations(tokenizer, pos, item_aux_trans)
+        self.NormalizeTranslationList(tokenizer, pos, item_aux_trans)
         num_items += 1
         bare = not item_trans
         if bare:
@@ -257,7 +257,7 @@ class AppendWordnetJPNBatch:
                 if tmp_aux_trans:
                   rel_aux_trans.extend(tmp_aux_trans)
             if rel_aux_trans:
-              self.NormalizeTranslations(tokenizer, pos, rel_aux_trans)
+              self.NormalizeTranslationList(tokenizer, pos, rel_aux_trans)
               if not (is_similar and len(items) > 1) and mean_prob < 0.0005:
                 for item_aux_tran in item_aux_trans:
                   if regex.fullmatch(r"[\p{Hiragana}]{,3}", item_aux_tran): continue
@@ -349,21 +349,49 @@ class AppendWordnetJPNBatch:
       return True
     return False
 
-  def NormalizeTranslations(self, tokenizer, pos, item_trans):
+  def NormalizeTranslation(self, tokenizer, pos, tran):
+    if pos in ("verb", "adjective", "adverb"):
+      tran = tokenizer.CutJaWordNounThing(tran)
+    if pos == "noun":
+      stem = regex.sub(
+        r"を(する|される|行う|実行する|実施する|挙行する|遂行する)", "", tran)
+      if stem != tran and len(stem) >= 2:
+        return stem
+      if tokenizer.IsJaWordSahenVerb(tran):
+        return regex.sub(r"する$", "", tran)
+      if tran and tran[-1] in ("な", "に", "さ"):
+        stem = tran[:-1]
+        if tokenizer.IsJaWordAdjvNoun(stem):
+          return stem
     if pos == "verb":
-      for i, tran in enumerate(item_trans):
-        if tokenizer.IsJaWordSahenNoun(tran):
-          item_trans[i] = tran + "する"
+      if not tran.endswith("な"):
+        restored = tokenizer.ConvertJaWordBaseForm(tran)
+        if restored != tran:
+          return restored
+      if tokenizer.IsJaWordSahenNoun(tran):
+        return tran + "する"
     if pos == "adjective":
-      for i, tran in enumerate(item_trans):
-        if tokenizer.IsJaWordNoun(tran):
-          item_trans[i] = tran + "の"
-        elif tokenizer.IsJaWordAdjvNoun(tran):
-          item_trans[i] = tran + "な"
+      restored = tokenizer.RestoreJaWordAdjSaNoun(tran)
+      if restored != tran:
+        return restored
+      if tran.endswith("である"):
+        tran = tran[:-3]
+      if tokenizer.IsJaWordAdjvNoun(tran):
+        return tran + "な"
+      if tokenizer.IsJaWordNoun(tran):
+        return tran + "の"
+      if tran.endswith("く"):
+        tran = tokenizer.ConvertJaWordBaseForm(tran)
     if pos == "adverb":
-      for i, tran in enumerate(item_trans):
-        if tokenizer.IsJaWordAdjvNoun(tran):
-          item_trans[i] = tran + "に"
+      if tokenizer.IsJaWordAdjvNoun(tran):
+        return tran + "に"
+    return tran
+
+  def NormalizeTranslationList(self, tokenizer, pos, item_trans):
+    for i, tran in enumerate(item_trans):
+      restored = self.NormalizeTranslation(tokenizer, pos, tran)
+      if restored != tran:
+        item_trans[i] = restored
 
   def GetPhraseProb(self, prob_dbm, tokenizer, language, word):
     min_prob = 1.0
@@ -407,10 +435,11 @@ class AppendWordnetJPNBatch:
           stem = regex.sub(r"する$", "", tran)
           stem_prob_score = self.GetPhraseProb(rev_prob_dbm, tokenizer, "ja", stem)
           prob_score = max(prob_score, stem_prob_score)
+        stem = tokenizer.CutJaWordNounThing(tran)
         stem = tokenizer.CutJaWordNounParticle(tran)
         if stem != tran:
           stem_prob_score = self.GetPhraseProb(rev_prob_dbm, tokenizer, "ja", stem)
-          prob_score = max(prob_score, stem_prob_score)
+          prob_score = max(prob_score, stem_prob_score * 0.9)
         prob_score = max(prob_score, 0.0000001)
         prob_score = math.exp(-abs(math.log(0.001) - math.log(prob_score))) * 0.1
         if self._regex_stop_word_hiragana.search(tran):
