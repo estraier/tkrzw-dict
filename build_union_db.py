@@ -56,17 +56,33 @@ rel_weights = {"synonym": 1.0,
                "hypernym": 0.9,
                "hyponym": 0.8,
                "antonym": 0.2,
-               "derivation": 0.7,
+               "derivative": 0.7,
                "relation": 0.5}
+noun_suffixes = [
+  "ment", "age", "tion", "ics", "ness", "ity", "ism", "or", "er", "ist",
+  "ian", "ee", "tion", "sion", "ty", "ance", "ence", "ency", "cy", "ry",
+  "al", "age", "dom", "hood", "ship", "nomy",
+]
+verb_suffixes = [
+  "ify", "en", "ize", "ise", "fy", "ate",
+]
+adjective_suffixes = [
+  "some", "able", "ible", "ic", "ical", "ive", "ful", "less", "ly", "ous", "y",
+  "ised", "ing", "ed", "ish",
+]
+adverb_suffixes = [
+  "ly",
+]
 
 
 class BuildUnionDBBatch:
-  def __init__(self, input_confs, output_path, gross_labels,
+  def __init__(self, input_confs, output_path, stem_labels, gross_labels,
                surfeit_labels, top_labels, slim_labels, tran_list_labels,
                word_prob_path, tran_prob_path, tran_aux_paths, rev_prob_path,
                cooc_prob_path, aoa_path, keyword_path, min_prob_map):
     self.input_confs = input_confs
     self.output_path = output_path
+    self.stem_labels = stem_labels
     self.gross_labels = gross_labels
     self.surfeit_labels = surfeit_labels
     self.top_labels = top_labels
@@ -241,6 +257,24 @@ class BuildUnionDBBatch:
         if key.find("\t") >= 0: continue
         keys.add(key)
     logger.info("Extracting keys done: num_keys={}".format(len(keys)))
+    logger.info("Indexing stems")
+    stem_index = collections.defaultdict(list)
+    for label, word_dict in word_dicts:
+      if label not in self.stem_labels: continue
+      for key, entries in word_dict.items():
+        for entry in entries:
+          word = entry["word"]
+          if not regex.fullmatch("[a-z]+", word): continue
+          stems = self.GetDerivativeStems(entry)
+          if stems:
+            valid_stems = set()
+            for stem in stems:
+              if stem in keys:
+                stem_index[stem].append(word)
+                valid_stems.add(stem)
+            if valid_stems:
+              entry["stem"] = list(valid_stems)
+    logger.info("Indexing stems done: num_stems={}".format(len(stem_index)))
     start_time = time.time()
     logger.info("Saving words: output_path={}".format(self.output_path))
     word_dbm = tkrzw.DBM()
@@ -263,7 +297,7 @@ class BuildUnionDBBatch:
       cooc_prob_dbm.Open(self.cooc_prob_path, False, dbm="HashDBM").OrDie()
     num_records = 0
     for key in keys:
-      record = self.MakeRecord(key, word_dicts, aux_trans, aoa_words, keywords,
+      record = self.MakeRecord(key, word_dicts, aux_trans, aoa_words, keywords, stem_index,
                                word_prob_dbm, tran_prob_dbm, rev_prob_dbm, cooc_prob_dbm)
       if not record: continue
       serialized = json.dumps(record, separators=(",", ":"), ensure_ascii=False)
@@ -284,8 +318,54 @@ class BuildUnionDBBatch:
     word_dbm.Close().OrDie()
     logger.info("Saving words done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
+  def GetDerivativeStems(self, entry):
+    word = entry["word"]
+    poses = set()
+    deris = set()
+    for pos, text in entry["text"]:
+      poses.add(pos)
+      while True:
+        match = regex.search(r"\[(synonym|derivative)\]: ", text)
+        if match:
+          text = text[match.end():]
+          expr = regex.sub(r"\[-.*", "", text)
+          for deri in expr.split(","):
+            deri = deri.strip()
+            if regex.fullmatch("[a-z]+", deri):
+              deris.add(deri)
+        else:
+          break
+    stems = set()
+    for pos in poses:
+      for rule_pos, suffixes in (
+          ("noun", noun_suffixes),
+          ("verb", verb_suffixes),
+          ("adjective", adjective_suffixes),
+          ("adverb", adverb_suffixes)):
+        if pos == rule_pos:
+          for suffix in suffixes:
+            if word.endswith(suffix):
+              stem = word[:-len(suffix)]
+              if len(stem) >= 2:
+                stems.add(stem)
+    valid_stems = set()
+    for stem in stems:
+      if len(stem) >= 8:
+        valid_stems.add(stem)
+      for deri in deris:
+        hit = False
+        if deri == stem:
+          hit = True
+        if stem[:3] == deri[:3] and len(stem) >= 4:
+          prefix = deri[:len(stem)]
+          if tkrzw.Utility.EditDistanceLev(stem, prefix) < 2:
+            hit = True
+        if hit:
+          valid_stems.add(deri)
+    return list(valid_stems)
+
   def MakeRecord(self, key, word_dicts, aux_trans, aoa_words, keywords,
-                 word_prob_dbm, tran_prob_dbm,
+                 stem_index, word_prob_dbm, tran_prob_dbm,
                  rev_prob_dbm, cooc_prob_dbm):
     word_entries = {}
     word_shares = collections.defaultdict(float)
@@ -413,9 +493,7 @@ class BuildUnionDBBatch:
           word_entry["item"] = items
       if "item" not in word_entry:
         continue
-      aoa = aoa_words.get(word.lower())
-      if aoa:
-        word_entry["aoa"] = "{:.3f}".format(aoa)
+      self.SetAOA(word_entry, entries, aoa_words, word_prob_dbm, cooc_prob_dbm)
       if share < 1:
         word_entry["share"] = "{:.3f}".format(share / share_sum).replace("0.", ".")
       if word_prob_dbm:
@@ -440,7 +518,7 @@ class BuildUnionDBBatch:
       if merged_entry and not effective_labels:
         continue
       self.SetTranslations(word_entry, aux_trans, tran_prob_dbm, rev_prob_dbm)
-      self.SetRelations(word_entry, entries, word_dicts,
+      self.SetRelations(word_entry, entries, word_dicts, stem_index.get(word),
                         word_prob_dbm, tran_prob_dbm, cooc_prob_dbm)
       if word_prob_dbm and cooc_prob_dbm:
         self.SetCoocurrences(word_entry, entries, word_dicts, word_prob_dbm, cooc_prob_dbm)
@@ -483,6 +561,29 @@ class BuildUnionDBBatch:
       min_prob = max(min_prob, first_prob * second_prob)
     min_prob = max(min_prob, 0.000001)
     return min_prob
+
+  def SetAOA(self, word_entry, entries, aoa_words, word_prob_dbm, cooc_prob_dbm):
+    word = word_entry["word"]
+    aoa = aoa_words.get(word.lower())
+    if not aoa:
+      word_prob = 0
+      if word_prob_dbm and cooc_prob_dbm:
+        word_prob = self.GetPhraseProb(word_prob_dbm, cooc_prob_dbm, "en", word)
+      for label, entry in entries:
+        stems = entry.get("stem")
+        if stems:
+          for stem in stems:
+            stem_aoa = aoa_words.get(stem)
+            if stem_aoa:
+              if word_prob:
+                stem_prob = self.GetPhraseProb(word_prob_dbm, cooc_prob_dbm, "en", stem)
+                diff = max(math.log(stem_prob) - math.log(word_prob), 0.0)
+                stem_aoa += diff * 0.5 + 0.5
+              else:
+                stem_aoa += 1.0
+              aoa = min(aoa, stem_aoa) if aoa else stem_aoa
+    if aoa:
+      word_entry["aoa"] = "{:.3f}".format(aoa)
 
   def ExtractTextLabelTrans(self, text):
     trans = []
@@ -729,7 +830,7 @@ class BuildUnionDBBatch:
     if final_translations:
       entry["translation"] = final_translations
 
-  def SetRelations(self, word_entry, entries, word_dicts,
+  def SetRelations(self, word_entry, entries, word_dicts, derivatives,
                    word_prob_dbm, tran_prob_dbm, cooc_prob_dbm):
     word = word_entry["word"]
     norm_word = tkrzw_dict.NormalizeWord(word)
@@ -738,7 +839,14 @@ class BuildUnionDBBatch:
       values = scores.get(rel_word) or []
       values.append((weight, label))
       scores[rel_word] = values
+    if derivatives:
+      for deri in derivatives:
+        Vote(deri, "", 1.0)
     for label, entry in entries:
+      stems = entry.get("stem")
+      if stems:
+        for stem in stems:
+          Vote(stem, "", 1.0)
       for rel_name, rel_weight in rel_weights.items():
         ent_rel_words = []
         expr = entry.get(rel_name)
@@ -889,6 +997,7 @@ class BuildUnionDBBatch:
 def main():
   args = sys.argv[1:]
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-body.tkh"
+  stem_labels = set((tkrzw_dict.GetCommandFlag(args, "--stem", 1) or "wn").split(","))
   gross_labels = set((tkrzw_dict.GetCommandFlag(args, "--gross", 1) or "wj").split(","))
   top_labels = set((tkrzw_dict.GetCommandFlag(args, "--top", 1) or "we").split(","))
   slim_labels = set((tkrzw_dict.GetCommandFlag(args, "--slim", 1) or "we").split(","))
@@ -921,7 +1030,7 @@ def main():
     if len(input_conf) != 2:
       raise RuntimeError("invalid input: " + input)
     input_confs.append(input_conf)
-  BuildUnionDBBatch(input_confs, output_path, gross_labels,
+  BuildUnionDBBatch(input_confs, output_path, stem_labels, gross_labels,
                     surfeit_labels, top_labels, slim_labels, tran_list_labels,
                     word_prob_path, tran_prob_path, tran_aux_paths,
                     rev_prob_path, cooc_prob_path, aoa_path, keyword_path,
