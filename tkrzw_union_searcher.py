@@ -196,6 +196,17 @@ class UnionSearcher:
     SCORE_DECAY = 0.95
     word = tkrzw_dict.NormalizeWord(entry["word"])
     features = {word: 1.0}
+    pos_score = 1.0
+    pos_score_max = 0.0
+    pos_features = collections.defaultdict(float)
+    for item in entry["item"]:
+      pos = "__" + item["pos"]
+      new_score = (pos_features.get(pos) or 0.0) + pos_score
+      pos_features[pos] = new_score
+      pos_score_max = max(pos_score_max, new_score)
+      pos_score *= SCORE_DECAY
+    for pos, pos_feature_score in pos_features.items():
+      features[pos] = pos_feature_score / pos_score_max
     score = 1.0
     rel_words = entry.get("related")
     if rel_words:
@@ -209,7 +220,7 @@ class UnionSearcher:
       for tran in trans[:20]:
         tran = tkrzw_dict.NormalizeWord(tran)
         tran = regex.sub(
-          r"([\p{Han}\p{Katakana}ー]{2,})(する|すること|される|されること|をする)$",
+          r"([\p{Han}\p{Katakana}ー]{2,})(する|すること|される|されること|をする|な|に|さ)$",
           r"\1", tran)
         if tran not in features:
           score *= SCORE_DECAY
@@ -237,7 +248,7 @@ class UnionSearcher:
     return score
 
   def SearchRelatedWithSeeds(self, seeds, capacity):
-    seed_features = collections.defaultdict(int)
+    seed_features = collections.defaultdict(float)
     base_weight = 1.0
     uniq_words = set()
     for seed in seeds:
