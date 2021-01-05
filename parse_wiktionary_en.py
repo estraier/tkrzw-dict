@@ -133,6 +133,9 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     hypernyms = []
     hyponyms = []
     antonyms = []
+    etym_core = None
+    etym_prefix = None
+    etym_suffix = None
     derivatives = []
     relations = []
     translations = {}
@@ -196,6 +199,33 @@ class XMLHandler(xml.sax.handler.ContentHandler):
             rel_words.append(rel_word)
           for rel_word in regex.findall(r"\[\[([- \p{Latin}]+?)\]\]", line):
             rel_words.append(rel_word)
+
+        if mode == "etymology":
+          match = regex.search(r"\{\{([a-z]+)\|en\|(.*?)\}\}", line)
+          if match and not etym_core and not etym_prefix and not etym_suffix:
+            label = match.group(1)
+            values = []
+            for value in match.group(2).split("|"):
+              if value.find("=") >= 0: continue
+              values.append(value)
+            if (len(values) == 2 and regex.fullmatch("[-A-Za-z]+", values[0]) and
+                regex.fullmatch("[-A-Za-z]+", values[1])):
+              if label == "prefix":
+                etym_prefix = regex.sub(r"-$", "", values[0])
+                etym_core = values[1]
+              elif label == "suffix":
+                etym_core = values[0]
+                etym_suffix = regex.sub(r"^-", "", values[1])
+              elif label == "affix":
+                if values[0].endswith("-") and values[1].startswith("-"):
+                  etym_prefix = values[0][:-1]
+                  etym_suffix = values[1][1:]
+                elif values[0].endswith("-"):
+                  etym_prefix = values[0][:-1]
+                  etym_core = values[1]
+                elif values[1].startswith("-"):
+                  etym_core = values[0]
+                  etym_suffix = values[1][1:]
         if mode and submode in ("translation", "translations"):
           for tr, expr in regex.findall(r"\{\{(trans-top|checktrans-top)\|(.*?)\}\}", line):
             tran_top = regex.sub(r"^id=[^\|]+\|", "", expr)
@@ -376,24 +406,28 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         if not stop:
           adjective_comparative = None
           adjective_superative = None
+          stem = title
+          stem = regex.sub(r"e$", "", stem)
+          stem = regex.sub(r"([^aeiou])y$", r"\1i", stem)
           if len(values) == 1 and values[0] == "er":
-            stem = title
-            stem = regex.sub(r"e$", "", stem)
-            stem = regex.sub(r"([^aeiou])y$", r"\1i", stem)
             adjective_comparative = stem + "er"
             adjective_superative = stem + "est"
           elif len(values) == 1 and values[0].endswith("er"):
             adjective_comparative = values[0]
             adjective_superative = values[0][:-2] + "est"
           elif len(values) == 2 and values[1] == "er":
-            adjective_comparative = values[0] + "er"
-            adjective_superative = values[0] + "est"
+            if values[0] in ("-", "more"):
+              adjective_comparative = stem + "er"
+              adjective_superative = stem + "est"
+            else:
+              adjective_comparative = values[0] + "er"
+              adjective_superative = values[0] + "est"
           elif len(values) == 2 and values[0] == "r" and values[1] == "more":
             adjective_comparative = title + "r"
             adjective_superative = ""
           elif len(values) == 2 and values[0] == "er" and values[1] == "more":
-            adjective_comparative = title + "er"
-            adjective_superative = ""
+            adjective_comparative = stem + "er"
+            adjective_superative = stem + "est"
           elif len(values) == 2:
             adjective_comparative = values[0]
             adjective_superative = values[1]
@@ -418,24 +452,28 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         if not stop:
           adverb_comparative = None
           adverb_superative = None
+          stem = title
+          stem = regex.sub(r"e$", "", stem)
+          stem = regex.sub(r"([^aeiou])y$", r"\1i", stem)
           if len(values) == 1 and values[0] == "er":
-            stem = title
-            stem = regex.sub(r"e$", "", stem)
-            stem = regex.sub(r"([^aeiou])y]$", r"\1i", stem)
             adverb_comparative = stem + "er"
             adverb_superative = stem + "est"
           elif len(values) == 1 and values[0].endswith("er"):
             adverb_comparative = values[0]
             adverb_superative = values[0][:-2] + "est"
           elif len(values) == 2 and values[1] == "er":
-            adverb_comparative = values[0] + "er"
-            adverb_superative = values[0] + "est"
+            if values[0] in ("-", "more"):
+              adverb_comparative = stem + "er"
+              adverb_superative = stem + "est"
+            else:
+              adverb_comparative = values[0] + "er"
+              adverb_superative = values[0] + "est"
           elif len(values) == 2 and values[0] == "r" and values[1] == "more":
             adverb_comparative = title + "r"
             adverb_superative = ""
           elif len(values) == 2 and values[0] == "er" and values[1] == "more":
-            adverb_comparative = title + "er"
-            adverb_superative = ""
+            adverb_comparative = stem + "er"
+            adverb_superative = stem + "est"
           elif len(values) == 2:
             adverb_comparative = values[0]
             adverb_superative = values[1]
@@ -464,6 +502,12 @@ class XMLHandler(xml.sax.handler.ContentHandler):
       output.append("inflection_adverb_comparative={}".format(adverb_comparative))
     if self.IsGoodInflection(adverb_superative):
       output.append("inflection_adverb_superative={}".format(adverb_superative))
+    if etym_prefix:
+      output.append("etymology_prefix={}".format(etym_prefix))
+    if etym_core:
+      output.append("etymology_core={}".format(etym_core))
+    if etym_suffix:
+      output.append("etymology_suffix={}".format(etym_suffix))
     alternatives = []
     for mode, lines in sections:
       translation = translations.get(mode)
