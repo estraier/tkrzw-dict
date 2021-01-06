@@ -227,6 +227,16 @@ def PrintResult(entries, mode, query):
         if coocs:
           text = "[共起] {}".format(", ".join(coocs[:8]))
           PrintWrappedText(text, 4)
+        etym_parts = []
+        etym_prefix = entry.get("etymology_prefix")
+        if etym_prefix: etym_parts.append(etym_prefix + "-")
+        etym_core = entry.get("etymology_core")
+        if etym_core: etym_parts.append(etym_core)
+        etym_suffix = entry.get("etymology_suffix")
+        if etym_suffix: etym_parts.append("-" + etym_suffix)
+        if etym_parts:
+          text = "[語源] {}".format(" + ".join(etym_parts))
+          PrintWrappedText(text, 4)
         aoa = entry.get("aoa")
         if aoa:
           text = "[年齢] {:.2f}".format(float(aoa))
@@ -507,6 +517,26 @@ def PrintResultCGI(entries, query, details):
         print(", ".join(fields), end="")
         P('</span>')
         P('</div>')
+      etym_fields = []
+      etym_prefix = entry.get("etymology_prefix")
+      if etym_prefix:
+        etym_fields.append('<span class="attr_value">{} +</span>'.format(
+          esc(etym_prefix)))
+      etym_core = entry.get("etymology_core")
+      if etym_core:
+        etym_core_url = "?q={}".format(urllib.parse.quote(etym_core))
+        etym_fields.append('<a href="{}" class="subword">{}</a>'.format(
+            esc(etym_core_url), esc(etym_core)))
+      etym_suffix = entry.get("etymology_suffix")
+      if etym_suffix:
+        etym_fields.append('<span class="attr_value">+ {}</span>'.format(
+          esc(etym_suffix)))
+      if etym_fields:
+        P('<div class="attr attr_prob">')
+        P('<span class="attr_label">語源</span> ')
+        print(" ".join(etym_fields))
+        P('</div>')
+        
       aoa = entry.get("aoa")
       prob = entry.get("probability")
       if aoa or prob:
