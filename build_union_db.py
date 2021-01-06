@@ -51,7 +51,8 @@ inflection_names = ("noun_plural","verb_singular", "verb_present_participle",
                    "verb_past", "verb_past_participle",
                    "adjective_comparative", "adjective_superative",
                    "adverb_comparative", "adverb_superative")
-top_names = ("pronunciation",) + inflection_names
+etymology_names = ("etymology_prefix", "etymology_core", "etymology_suffix")
+top_names = ("pronunciation",) + inflection_names + etymology_names
 rel_weights = {"synonym": 1.0,
                "hypernym": 0.9,
                "hyponym": 0.8,
@@ -132,6 +133,7 @@ class BuildUnionDBBatch:
         sampa = ""
         texts = []
         inflections = {}
+        etymologies = {}
         mode = ""
         rel_words = {}
         for field in line.strip().split("\t"):
@@ -147,6 +149,8 @@ class BuildUnionDBBatch:
           elif name.startswith("inflection_"):
             name = regex.sub(r"^[a-z]+_", "", name)
             inflections[name] = inflections.get(name) or value
+          elif name.startswith("etymology_"):
+            etymologies[name] = value
           elif name in poses:
             if slim:
               value = regex.sub(r" \[-+\] .*", "", value).strip()
@@ -158,12 +162,14 @@ class BuildUnionDBBatch:
             mode = value
         if not ipa and sampa:
           ipa = tkrzw_pron_util.SampaToIPA(sampa)
-        if word and (ipa or texts or inflections):
+        if word and (ipa or texts or inflections or etymologies):
           key = tkrzw_dict.NormalizeWord(word)
           entry = {"word": word}
           if ipa:
             entry["pronunciation"] = ipa
           for name, value in inflections.items():
+            entry[name] = value
+          for name, value in etymologies.items():
             entry[name] = value
           if texts:
             entry["text"] = texts
@@ -217,7 +223,7 @@ class BuildUnionDBBatch:
           continue
         fields = line.strip().split(",")
         if len(fields) != 7: continue
-        word = fields[0].strip()
+        word = fields[0].lower().strip()
         occur = fields[3]
         mean = fields[4]
         stddev = fields[5]
@@ -250,13 +256,19 @@ class BuildUnionDBBatch:
       num_entries, time.time() - start_time))
 
   def SaveWords(self, word_dicts, aux_trans, aoa_words, keywords):
-    keys = set()
+    start_time = time.time()
     logger.info("Extracting keys")
+    keys = set()
     for label, word_dict in word_dicts:
       for key in word_dict.keys():
         if key.find("\t") >= 0: continue
         keys.add(key)
-    logger.info("Extracting keys done: num_keys={}".format(len(keys)))
+    logger.info("Extracting keys done: num_keys={}, elapsed_time={:.2f}s".format(
+      len(keys), time.time() - start_time))
+
+    #keys = set(["large", "largely"])
+    
+    start_time = time.time()
     logger.info("Indexing stems")
     stem_index = collections.defaultdict(list)
     for label, word_dict in word_dicts:
@@ -274,7 +286,73 @@ class BuildUnionDBBatch:
                 valid_stems.add(stem)
             if valid_stems:
               entry["stem"] = list(valid_stems)
-    logger.info("Indexing stems done: num_stems={}".format(len(stem_index)))
+    for label, word_dict in word_dicts:
+      if label not in self.stem_labels: continue
+      for key, entries in word_dict.items():
+        for entry in entries:
+          word = entry["word"]
+          children = stem_index.get(word)
+          if children:
+            entry["stem_child"] = list(set(children))
+
+
+              
+    logger.info("Indexing stems done: num_stems={}, elapsed_time={:.2f}s".format(
+      len(stem_index), time.time() - start_time))
+    start_time = time.time()
+    logger.info("Indexing base forms")
+    noun_words = set()
+    verb_words = set()
+    adj_words = set()
+    adv_words = set()
+    for label, word_dict in word_dicts:
+      if label not in self.stem_labels: continue
+      for key, entries in word_dict.items():
+        for entry in entries:
+          word = entry["word"]
+          if not regex.fullmatch("[a-z]+", word): continue
+          for pos, text in entry["text"]:
+            if pos == "noun": noun_words.add(word)
+            if pos == "verb": verb_words.add(word)
+            if pos == "adjective": adj_words.add(word)
+            if pos == "adverb": adv_words.add(word)
+    base_index = collections.defaultdict(list)
+    core_index = collections.defaultdict(list)
+    for label, word_dict in word_dicts:
+      if label not in self.top_labels: continue
+      for key, entries in word_dict.items():
+        for entry in entries:
+          word = entry["word"]
+          if not regex.fullmatch("[a-z]+", word): continue
+          if word in verb_words:
+            children = set()
+            for part_name in ("verb_present_participle", "verb_past_participle"):
+              part = entry.get(part_name)
+              if part and (part in noun_words or part in adj_words):
+                base_index[part].append(word)
+                children.add(part)
+            if children:
+              entry["base_child"] = list(children)
+          core = entry.get("etymology_core")
+          prefix = entry.get("etymology_prefix")
+          suffix = entry.get("etymology_suffix")
+          if core and len(core) >= 4 and not prefix and suffix and (
+              core in noun_words or core in verb_words or
+              core in adj_words or core in adv_words):
+            entry["core"] = core
+            core_index[core].append(word)
+      for key, entries in word_dict.items():
+        for entry in entries:
+          word = entry["word"]
+          if not regex.fullmatch("[a-z]+", word): continue
+          bases = base_index.get(word)
+          if bases:
+            entry["base"] = list(bases)
+          children = core_index.get(word)
+          if children:
+            entry["core_child"] = list(children)
+    logger.info("Indexing base forms done: num_participles={}, elapsed_time={:.2f}s".format(
+      len(base_index), time.time() - start_time))
     start_time = time.time()
     logger.info("Saving words: output_path={}".format(self.output_path))
     word_dbm = tkrzw.DBM()
@@ -297,8 +375,9 @@ class BuildUnionDBBatch:
       cooc_prob_dbm.Open(self.cooc_prob_path, False, dbm="HashDBM").OrDie()
     num_records = 0
     for key in keys:
-      record = self.MakeRecord(key, word_dicts, aux_trans, aoa_words, keywords, stem_index,
-                               word_prob_dbm, tran_prob_dbm, rev_prob_dbm, cooc_prob_dbm)
+      record = self.MakeRecord(
+        key, word_dicts, aux_trans, aoa_words, keywords,
+        word_prob_dbm, tran_prob_dbm, rev_prob_dbm, cooc_prob_dbm)
       if not record: continue
       serialized = json.dumps(record, separators=(",", ":"), ensure_ascii=False)
       word_dbm.Set(key, serialized)
@@ -316,7 +395,7 @@ class BuildUnionDBBatch:
     logger.info("Optiizing: num_records={}".format(word_dbm.Count()))
     word_dbm.Rebuild().OrDie()
     word_dbm.Close().OrDie()
-    logger.info("Saving words done: elapsed_time={:.2f}s".format(time.time() - start_time))
+    logger.info("Saving words done: elapsed_time={:.2f}s".format(time.time() - start_time))   
 
   def GetDerivativeStems(self, entry):
     word = entry["word"]
@@ -365,7 +444,7 @@ class BuildUnionDBBatch:
     return list(valid_stems)
 
   def MakeRecord(self, key, word_dicts, aux_trans, aoa_words, keywords,
-                 stem_index, word_prob_dbm, tran_prob_dbm,
+                 word_prob_dbm, tran_prob_dbm,
                  rev_prob_dbm, cooc_prob_dbm):
     word_entries = {}
     word_shares = collections.defaultdict(float)
@@ -518,7 +597,7 @@ class BuildUnionDBBatch:
       if merged_entry and not effective_labels:
         continue
       self.SetTranslations(word_entry, aux_trans, tran_prob_dbm, rev_prob_dbm)
-      self.SetRelations(word_entry, entries, word_dicts, stem_index.get(word),
+      self.SetRelations(word_entry, entries, word_dicts,
                         word_prob_dbm, tran_prob_dbm, cooc_prob_dbm)
       if word_prob_dbm and cooc_prob_dbm:
         self.SetCoocurrences(word_entry, entries, word_dicts, word_prob_dbm, cooc_prob_dbm)
@@ -559,7 +638,7 @@ class BuildUnionDBBatch:
       second_word = probs[0][0]
       second_prob = GetCoocProb(first_word, second_word)
       min_prob = max(min_prob, first_prob * second_prob)
-    min_prob = max(min_prob, 0.000001)
+    min_prob = max(min_prob, 0.0000001)
     return min_prob
 
   def SetAOA(self, word_entry, entries, aoa_words, word_prob_dbm, cooc_prob_dbm):
@@ -569,19 +648,34 @@ class BuildUnionDBBatch:
       word_prob = 0
       if word_prob_dbm and cooc_prob_dbm:
         word_prob = self.GetPhraseProb(word_prob_dbm, cooc_prob_dbm, "en", word)
+      concepts = set()
       for label, entry in entries:
         stems = entry.get("stem")
         if stems:
           for stem in stems:
-            stem_aoa = aoa_words.get(stem)
-            if stem_aoa:
-              if word_prob:
-                stem_prob = self.GetPhraseProb(word_prob_dbm, cooc_prob_dbm, "en", stem)
-                diff = max(math.log(stem_prob) - math.log(word_prob), 0.0)
-                stem_aoa += diff * 0.5 + 0.5
-              else:
-                stem_aoa += 1.0
-              aoa = min(aoa, stem_aoa) if aoa else stem_aoa
+            concepts.add(stem)
+        core = entry.get("core")
+        if core:
+          concepts.add(core)
+      for concept in concepts:
+        concept_aoa = aoa_words.get(concept.lower())
+        if concept_aoa:
+          if word_prob:
+            concept_prob = self.GetPhraseProb(word_prob_dbm, cooc_prob_dbm, "en", concept)
+            diff = max(math.log(concept_prob) - math.log(word_prob), 0.0)
+            concept_aoa += diff * 1.0 + 0.5
+          else:
+            concept_aoa += 1.0
+          aoa = min(aoa, concept_aoa) if aoa else concept_aoa
+    if not aoa:
+      for label, entry in entries:
+        bases = entry.get("base")
+        if bases:
+          for base in bases:
+            base_aoa = aoa_words.get(base.lower())
+            if base_aoa:
+              base_aoa += 1.0
+              aoa = min(aoa, base_aoa) if aoa else base_aoa
     if aoa:
       word_entry["aoa"] = "{:.3f}".format(aoa)
 
@@ -830,7 +924,7 @@ class BuildUnionDBBatch:
     if final_translations:
       entry["translation"] = final_translations
 
-  def SetRelations(self, word_entry, entries, word_dicts, derivatives,
+  def SetRelations(self, word_entry, entries, word_dicts,
                    word_prob_dbm, tran_prob_dbm, cooc_prob_dbm):
     word = word_entry["word"]
     norm_word = tkrzw_dict.NormalizeWord(word)
@@ -839,14 +933,32 @@ class BuildUnionDBBatch:
       values = scores.get(rel_word) or []
       values.append((weight, label))
       scores[rel_word] = values
-    if derivatives:
-      for deri in derivatives:
-        Vote(deri, "", 1.0)
+    upper_deri_weight = 0.2
+    lower_deri_weight = 0.1
     for label, entry in entries:
       stems = entry.get("stem")
       if stems:
         for stem in stems:
-          Vote(stem, "", 1.0)
+          Vote(stem, "", upper_deri_weight)
+      stem_children = entry.get("stem_child")
+      if stem_children:
+        for child in stem_children:
+          Vote(child, "", lower_deri_weight)
+      core = entry.get("core")
+      if core:
+        Vote(core, "", upper_deri_weight)
+      core_children = entry.get("core_child")
+      if core_children:
+        for child in core_children:
+          Vote(child, "", lower_deri_weight)
+      bases = entry.get("base")
+      if bases:
+        for base in bases:
+          Vote(base, "", upper_deri_weight)
+      base_children = entry.get("base_child")
+      if base_children:
+        for child in base_children:
+          Vote(child, "", lower_deri_weight)
       for rel_name, rel_weight in rel_weights.items():
         ent_rel_words = []
         expr = entry.get(rel_name)
