@@ -1,7 +1,7 @@
 #! /usr/bin/python3
 # -*- coding: utf-8 -*-
 #--------------------------------------------------------------------------------------------------
-# Script to make an index of translations of a union dictionary
+# Script to make a list of keys of a union dictionary
 #
 # Usage:
 #   extract_union_keys.py [--input str] [--output str] [--quiet]
