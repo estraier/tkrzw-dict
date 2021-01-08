@@ -98,12 +98,20 @@ def GetCoocCountPath(data_prefix):
     return "{}-cooc-count.tks".format(data_prefix)
 
 
+def GetPhraseCountPath(data_prefix):
+    return "{}-phrase-count.tks".format(data_prefix)
+
+
 def GetWordProbPath(data_prefix):
     return "{}-word-prob.tkh".format(data_prefix)
 
 
 def GetCoocProbPath(data_prefix):
     return "{}-cooc-prob.tkh".format(data_prefix)
+
+
+def GetPhraseProbPath(data_prefix):
+    return "{}-phrase-prob.tkh".format(data_prefix)
 
 
 def GetCoocScorePath(data_prefix):
