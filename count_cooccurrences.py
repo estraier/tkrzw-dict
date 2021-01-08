@@ -73,6 +73,7 @@ class WordCountBatch:
       num_sentences += len(sentences)
       document = []
       for sentence in sentences:
+        sentence = sentence.lower()
         words = sentence.split(" ")
         num_words += len(words)
         document.append(words)
