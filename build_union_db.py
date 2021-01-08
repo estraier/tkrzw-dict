@@ -538,6 +538,8 @@ class BuildUnionDBBatch:
           value = entry.get(infl_name)
           if value:
             surfaces.add(value.lower())
+      if merged_entry and not effective_labels:
+        continue
       for label, entry in entries:
         texts = entry.get("text")
         if not texts: continue
@@ -572,12 +574,10 @@ class BuildUnionDBBatch:
           word_entry["item"] = items
       if "item" not in word_entry:
         continue
-      self.SetAOA(word_entry, entries, aoa_words, word_prob_dbm, cooc_prob_dbm)
-      if share < 1:
-        word_entry["share"] = "{:.3f}".format(share / share_sum).replace("0.", ".")
+      prob = None
       if word_prob_dbm:
         prob = self.GetPhraseProb(word_prob_dbm, cooc_prob_dbm, "en", word)
-        word_entry["probability"] = "{:.6f}".format(prob).replace("0.", ".")
+        word_entry["probability"] = "{:.7f}".format(prob).replace("0.", ".")
         if self.min_prob_map and not is_keyword:
           has_good_label = False
           for item in word_entry["item"]:
@@ -594,8 +594,9 @@ class BuildUnionDBBatch:
             word_entry["item"] = new_items
       if not word_entry.get("item"):
         continue
-      if merged_entry and not effective_labels:
-        continue
+      self.SetAOA(word_entry, entries, prob, aoa_words, word_prob_dbm, cooc_prob_dbm)
+      if share < 1:
+        word_entry["share"] = "{:.3f}".format(share / share_sum).replace("0.", ".")
       self.SetTranslations(word_entry, aux_trans, tran_prob_dbm, rev_prob_dbm)
       self.SetRelations(word_entry, entries, word_dicts,
                         word_prob_dbm, tran_prob_dbm, cooc_prob_dbm)
@@ -641,43 +642,48 @@ class BuildUnionDBBatch:
     min_prob = max(min_prob, 0.0000001)
     return min_prob
 
-  def SetAOA(self, word_entry, entries, aoa_words, word_prob_dbm, cooc_prob_dbm):
+  def SetAOA(self, word_entry, entries, word_prob, aoa_words, word_prob_dbm, cooc_prob_dbm):
     word = word_entry["word"]
     aoa = aoa_words.get(word.lower())
-    if not aoa:
-      word_prob = 0
-      if word_prob_dbm and cooc_prob_dbm:
-        word_prob = self.GetPhraseProb(word_prob_dbm, cooc_prob_dbm, "en", word)
-      concepts = set()
-      for label, entry in entries:
-        stems = entry.get("stem")
-        if stems:
-          for stem in stems:
-            concepts.add(stem)
-        core = entry.get("core")
-        if core:
-          concepts.add(core)
-      for concept in concepts:
-        concept_aoa = aoa_words.get(concept.lower())
-        if concept_aoa:
-          if word_prob:
-            concept_prob = self.GetPhraseProb(word_prob_dbm, cooc_prob_dbm, "en", concept)
-            diff = max(math.log(concept_prob) - math.log(word_prob), 0.0)
-            concept_aoa += diff * 1.0 + 0.5
-          else:
-            concept_aoa += 1.0
-          aoa = min(aoa, concept_aoa) if aoa else concept_aoa
-    if not aoa:
-      for label, entry in entries:
-        bases = entry.get("base")
-        if bases:
-          for base in bases:
-            base_aoa = aoa_words.get(base.lower())
-            if base_aoa:
-              base_aoa += 1.0
-              aoa = min(aoa, base_aoa) if aoa else base_aoa
     if aoa:
+      print("AOA-ORIG", word, aoa, file=sys.stderr)
       word_entry["aoa"] = "{:.3f}".format(aoa)
+    concepts = set()
+    for label, entry in entries:
+      stems = entry.get("stem")
+      if stems:
+        for stem in stems:
+          concepts.add(stem)
+      core = entry.get("core")
+      if core:
+        concepts.add(core)
+    min_aoa = sys.maxsize
+    for concept in concepts:
+      aoa = aoa_words.get(concept.lower())
+      if aoa:
+        if word_prob and word_prob_dbm and cooc_prob_dbm:
+          concept_prob = self.GetPhraseProb(word_prob_dbm, cooc_prob_dbm, "en", concept)
+          diff = max(math.log(concept_prob) - math.log(word_prob), 0.0)
+          aoa += min(diff * 1.0, 1.0)
+        else:
+          aoa += 1.0
+        min_aoa = min(min_aoa, aoa)
+    if min_aoa < sys.maxsize:
+      print("AOA-CONCEPT", word, min_aoa, file=sys.stderr)
+      word_entry["aoa_concept"] = "{:.3f}".format(min_aoa)
+    min_aoa = sys.maxsize
+    for label, entry in entries:
+      bases = entry.get("base")
+      if bases:
+        for base in bases:
+          aoa = aoa_words.get(base.lower())
+          if aoa:
+            aoa += 1.0
+            min_aoa = min(min_aoa, aoa)
+    if min_aoa < sys.maxsize:
+      print("AOA-BASE", word, min_aoa, file=sys.stderr)
+      word_entry["aoa_base"] = "{:.3f}".format(min_aoa)
+
 
   def ExtractTextLabelTrans(self, text):
     trans = []
@@ -933,8 +939,8 @@ class BuildUnionDBBatch:
       values = scores.get(rel_word) or []
       values.append((weight, label))
       scores[rel_word] = values
-    upper_deri_weight = 0.2
-    lower_deri_weight = 0.1
+    upper_deri_weight = 0.6
+    lower_deri_weight = 0.4
     for label, entry in entries:
       stems = entry.get("stem")
       if stems:
