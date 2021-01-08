@@ -646,7 +646,6 @@ class BuildUnionDBBatch:
     word = word_entry["word"]
     aoa = aoa_words.get(word.lower())
     if aoa:
-      print("AOA-ORIG", word, aoa, file=sys.stderr)
       word_entry["aoa"] = "{:.3f}".format(aoa)
     concepts = set()
     for label, entry in entries:
@@ -669,7 +668,6 @@ class BuildUnionDBBatch:
           aoa += 1.0
         min_aoa = min(min_aoa, aoa)
     if min_aoa < sys.maxsize:
-      print("AOA-CONCEPT", word, min_aoa, file=sys.stderr)
       word_entry["aoa_concept"] = "{:.3f}".format(min_aoa)
     min_aoa = sys.maxsize
     for label, entry in entries:
@@ -681,7 +679,6 @@ class BuildUnionDBBatch:
             aoa += 1.0
             min_aoa = min(min_aoa, aoa)
     if min_aoa < sys.maxsize:
-      print("AOA-BASE", word, min_aoa, file=sys.stderr)
       word_entry["aoa_base"] = "{:.3f}".format(min_aoa)
 
 
