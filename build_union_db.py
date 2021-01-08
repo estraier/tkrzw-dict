@@ -80,7 +80,7 @@ class BuildUnionDBBatch:
   def __init__(self, input_confs, output_path, stem_labels, gross_labels,
                surfeit_labels, top_labels, slim_labels, tran_list_labels,
                word_prob_path, tran_prob_path, tran_aux_paths, rev_prob_path,
-               cooc_prob_path, aoa_path, keyword_path, min_prob_map):
+               cooc_prob_path, aoa_paths, keyword_path, min_prob_map):
     self.input_confs = input_confs
     self.output_path = output_path
     self.stem_labels = stem_labels
@@ -94,7 +94,7 @@ class BuildUnionDBBatch:
     self.tran_aux_paths = tran_aux_paths
     self.rev_prob_path = rev_prob_path
     self.cooc_prob_path = cooc_prob_path
-    self.aoa_path = aoa_path
+    self.aoa_paths = aoa_paths
     self.keyword_path = keyword_path
     self.min_prob_map = min_prob_map
     self.tokenizer = tkrzw_tokenizer.Tokenizer()
@@ -113,8 +113,9 @@ class BuildUnionDBBatch:
       if not tran_aux_path: continue
       self.ReadTranAuxTSV(tran_aux_path, aux_trans)
     aoa_words = {}
-    if self.aoa_path:
-      self.ReadAOAWords(self.aoa_path, aoa_words)
+    for aoa_path in self.aoa_paths:
+      if not aoa_path: continue
+      self.ReadAOAWords(aoa_path, aoa_words)
     keywords = set()
     if self.keyword_path:
       self.ReadKeywords(self.keyword_path, keywords)
@@ -234,7 +235,8 @@ class BuildUnionDBBatch:
           mean += float(stddev)
         else:
           mean += 3.0
-        aoa_words[word] = mean
+        if word not in aoa_words:
+          aoa_words[word] = mean
         num_entries += 1
         if num_entries % 10000 == 0:
           logger.info("Reading a AOA file: num_entries={}".format(num_entries))
@@ -1123,7 +1125,7 @@ def main():
   tran_aux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or "").split(",")
   rev_prob_path = tkrzw_dict.GetCommandFlag(args, "--rev_prob", 1) or ""
   cooc_prob_path = tkrzw_dict.GetCommandFlag(args, "--cooc_prob", 1) or ""
-  aoa_path = tkrzw_dict.GetCommandFlag(args, "--aoa", 1) or ""
+  aoa_paths = (tkrzw_dict.GetCommandFlag(args, "--aoa", 1) or "").split(",")
   keyword_path = tkrzw_dict.GetCommandFlag(args, "--keyword", 1) or ""
   min_prob_exprs = tkrzw_dict.GetCommandFlag(args, "--min_prob", 1) or ""
   min_prob_map = {}
@@ -1148,7 +1150,7 @@ def main():
   BuildUnionDBBatch(input_confs, output_path, stem_labels, gross_labels,
                     surfeit_labels, top_labels, slim_labels, tran_list_labels,
                     word_prob_path, tran_prob_path, tran_aux_paths,
-                    rev_prob_path, cooc_prob_path, aoa_path, keyword_path,
+                    rev_prob_path, cooc_prob_path, aoa_paths, keyword_path,
                     min_prob_map).Run()
 
 
