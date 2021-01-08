@@ -34,16 +34,29 @@ import tkrzw_tokenizer
 logger = tkrzw_dict.GetLogger()
 
 
-def ProcessTSV(tokenizer, language, lowering, stemming, max_sentences, tsv):
+def ProcessTSV(tokenizer, language, lowering, stemming, max_sentences,
+               with_middle, with_readable, tsv):
   num_sentences, num_words = 0, 0
   sentences = []
   for section in tsv.split("\t"):
-    sentences.extend(tkrzw_tokenizer.SplitSentences(section))
-  sentences = sentences[:max_sentences]
+    tmp_sentences = tkrzw_tokenizer.SplitSentences(section)
+    for sentence in tmp_sentences:
+      if not sentence: continue
+      if with_readable:
+        if sentence[-1] not in (".", "?", "!", "。", "？", "！"):
+          continue
+      sentences.append(sentence)
+  begin_index = 0
+  if with_middle:
+    begin_index = int(max(0, len(sentences) - max_sentences) / 2.5)
+  end_index = begin_index + max_sentences
+  sentences = sentences[begin_index:end_index]
   output_fields = []
   for sentence in sentences:
     words = tokenizer.Tokenize(language, sentence, lowering, stemming)
     if words:
+      if with_middle and len(words) < 6:
+        continue
       output_fields.append(" ".join(words))
       num_sentences += 1
       num_words += len(words)
@@ -59,12 +72,15 @@ def main():
   lowering = tkrzw_dict.GetCommandFlag(args, "--lower", 0)
   stemming = tkrzw_dict.GetCommandFlag(args, "--stem", 0)
   max_sentences = int(tkrzw_dict.GetCommandFlag(args, "--max_sentences", 1) or "1000000")
+  with_middle = tkrzw_dict.GetCommandFlag(args, "--middle", 0)
+  with_readable = tkrzw_dict.GetCommandFlag(args, "--readable", 0)
   if tkrzw_dict.GetCommandFlag(args, "--quiet", 0):
     logger.setLevel(logging.ERROR)
   if args:
     raise RuntimeError("unknown arguments: {}".format(str(args)))
-  logger.info("Process started: language={}, lower={}, stem={}, max_sentences_per_doc={}".format(
-    language, lowering, stemming, max_sentences))
+  logger.info(("Process started: language={}, lower={}, stem={}, max_sentences={}"
+               ", middle={}, readable={}").format(
+                 language, lowering, stemming, max_sentences, with_middle, with_readable))
   tokenizer = tkrzw_tokenizer.Tokenizer()
   count = 0
   num_records, num_sentences, num_words = 0, 0, 0
@@ -72,7 +88,8 @@ def main():
     line = line.strip()
     if not line: continue
     count += 1
-    stats = ProcessTSV(tokenizer, language, lowering, stemming, max_sentences, line)
+    stats = ProcessTSV(tokenizer, language, lowering, stemming, max_sentences,
+                       with_middle, with_readable, line)
     if stats:
       num_records += 1
       num_sentences += stats[0]
