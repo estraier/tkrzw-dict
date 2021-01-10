@@ -5,13 +5,13 @@
 #
 # Usage:
 #   build_union_db.py [--output str] [--top str] [--slim str]
-#     [--word_prob str] [--tran_prob str] [--tran_aux str] [--rev_prob str] [--cooc_prob str]
+#     [--phrase_prob str] [--tran_prob str] [--tran_aux str] [--rev_prob str] [--cooc_prob str]
 #     [--aoa str] [--keyword str] [--min_prob str] [--quiet] inputs...
 #   (An input specified as "label:tsv_file".
 #
 # Example:
 #   ./build_union_db.py --output union-body.tkh \
-#     --word_prob enwiki-word-prob.tkh --tran_prob tran-prob.tkh \
+#     --phrase_prob enwiki-phrase-prob.tkh --tran_prob tran-prob.tkh \
 #     --tran_aux dict1.tsv,dict2.tsv --rev_prob jawiki-word-prob.tkh \
 #     --cooc_prob enwiki-cooc-prob.tkh --min_prob we:0.00001 \
 #     wj:wiktionary-ja.tsv wn:wordnet.tsv we:wiktionary-en.tsv
@@ -79,7 +79,7 @@ adverb_suffixes = [
 class BuildUnionDBBatch:
   def __init__(self, input_confs, output_path, stem_labels, gross_labels,
                surfeit_labels, top_labels, slim_labels, tran_list_labels,
-               word_prob_path, tran_prob_path, tran_aux_paths, rev_prob_path,
+               phrase_prob_path, tran_prob_path, tran_aux_paths, rev_prob_path,
                cooc_prob_path, aoa_paths, keyword_path, min_prob_map):
     self.input_confs = input_confs
     self.output_path = output_path
@@ -89,7 +89,7 @@ class BuildUnionDBBatch:
     self.top_labels = top_labels
     self.slim_labels = slim_labels
     self.tran_list_labels = tran_list_labels
-    self.word_prob_path = word_prob_path
+    self.phrase_prob_path = phrase_prob_path
     self.tran_prob_path = tran_prob_path
     self.tran_aux_paths = tran_aux_paths
     self.rev_prob_path = rev_prob_path
@@ -267,9 +267,6 @@ class BuildUnionDBBatch:
         keys.add(key)
     logger.info("Extracting keys done: num_keys={}, elapsed_time={:.2f}s".format(
       len(keys), time.time() - start_time))
-
-    #keys = set(["large", "largely"])
-    
     start_time = time.time()
     logger.info("Indexing stems")
     stem_index = collections.defaultdict(list)
@@ -359,10 +356,10 @@ class BuildUnionDBBatch:
     logger.info("Saving words: output_path={}".format(self.output_path))
     word_dbm = tkrzw.DBM()
     word_dbm.Open(self.output_path, True, truncate=True)
-    word_prob_dbm = None
-    if self.word_prob_path:
-      word_prob_dbm = tkrzw.DBM()
-      word_prob_dbm.Open(self.word_prob_path, False, dbm="HashDBM").OrDie()
+    phrase_prob_dbm = None
+    if self.phrase_prob_path:
+      phrase_prob_dbm = tkrzw.DBM()
+      phrase_prob_dbm.Open(self.phrase_prob_path, False, dbm="HashDBM").OrDie()
     tran_prob_dbm = None
     if self.tran_prob_path:
       tran_prob_dbm = tkrzw.DBM()
@@ -379,7 +376,7 @@ class BuildUnionDBBatch:
     for key in keys:
       record = self.MakeRecord(
         key, word_dicts, aux_trans, aoa_words, keywords,
-        word_prob_dbm, tran_prob_dbm, rev_prob_dbm, cooc_prob_dbm)
+        phrase_prob_dbm, tran_prob_dbm, rev_prob_dbm, cooc_prob_dbm)
       if not record: continue
       serialized = json.dumps(record, separators=(",", ":"), ensure_ascii=False)
       word_dbm.Set(key, serialized)
@@ -392,8 +389,8 @@ class BuildUnionDBBatch:
       rev_prob_dbm.Close().OrDie()
     if tran_prob_dbm:
       tran_prob_dbm.Close().OrDie()
-    if word_prob_dbm:
-      word_prob_dbm.Close().OrDie()
+    if phrase_prob_dbm:
+      phrase_prob_dbm.Close().OrDie()
     logger.info("Optiizing: num_records={}".format(word_dbm.Count()))
     word_dbm.Rebuild().OrDie()
     word_dbm.Close().OrDie()
@@ -446,7 +443,7 @@ class BuildUnionDBBatch:
     return list(valid_stems)
 
   def MakeRecord(self, key, word_dicts, aux_trans, aoa_words, keywords,
-                 word_prob_dbm, tran_prob_dbm,
+                 phrase_prob_dbm, tran_prob_dbm,
                  rev_prob_dbm, cooc_prob_dbm):
     word_entries = {}
     word_shares = collections.defaultdict(float)
@@ -485,6 +482,15 @@ class BuildUnionDBBatch:
               word_trans[word].update(trans)
     sorted_word_shares = sorted(word_shares.items(), key=lambda x: x[1], reverse=True)
     if len(sorted_word_shares) > 1 and aux_trans and tran_prob_dbm:
+      spell_ratios = {}
+      if phrase_prob_dbm:
+        word_probs = {}
+        for word, share in sorted_word_shares:
+          if word in word_probs: continue
+          word_probs[word] = self.GetPhraseProb(phrase_prob_dbm, "en", word)
+        sum_prob = sum([x[1] for x in word_probs.items()])
+        for word, prob in word_probs.items():
+          spell_ratios[word] = prob / sum_prob
       word_scores = []
       for word, share in sorted_word_shares:
         score = 0.0
@@ -515,7 +521,8 @@ class BuildUnionDBBatch:
                 max_prob = max(max_prob, prob)
                 sum_prob += prob
             tran_score += (sum_prob * max_prob) ** 0.5
-        score += ((tran_score + 0.01) * (share + 0.01)) ** 0.5
+        spell_score = (spell_ratios.get(word) or 0.0) * 0.5
+        score += ((tran_score + 0.05) * (share + 0.05) * (spell_score + 0.05)) ** (1 / 3)
         word_scores.append((word, score))
       sorted_word_shares = sorted(word_scores, key=lambda x: x[1], reverse=True)
     share_sum = sum([x[1] for x in sorted_word_shares])
@@ -577,8 +584,8 @@ class BuildUnionDBBatch:
       if "item" not in word_entry:
         continue
       prob = None
-      if word_prob_dbm:
-        prob = self.GetPhraseProb(word_prob_dbm, cooc_prob_dbm, "en", word)
+      if phrase_prob_dbm:
+        prob = self.GetPhraseProb(phrase_prob_dbm, "en", word)
         word_entry["probability"] = "{:.7f}".format(prob).replace("0.", ".")
         if self.min_prob_map and not is_keyword:
           has_good_label = False
@@ -596,55 +603,55 @@ class BuildUnionDBBatch:
             word_entry["item"] = new_items
       if not word_entry.get("item"):
         continue
-      self.SetAOA(word_entry, entries, prob, aoa_words, word_prob_dbm, cooc_prob_dbm)
-      if share < 1:
-        word_entry["share"] = "{:.3f}".format(share / share_sum).replace("0.", ".")
+      share_ratio = share / share_sum
+      self.SetAOA(word_entry, entries, prob, aoa_words, phrase_prob_dbm, cooc_prob_dbm)
+      if share_ratio < 1:
+        word_entry["share"] = "{:.3f}".format(share_ratio).replace("0.", ".")
       self.SetTranslations(word_entry, aux_trans, tran_prob_dbm, rev_prob_dbm)
       self.SetRelations(word_entry, entries, word_dicts,
-                        word_prob_dbm, tran_prob_dbm, cooc_prob_dbm)
-      if word_prob_dbm and cooc_prob_dbm:
-        self.SetCoocurrences(word_entry, entries, word_dicts, word_prob_dbm, cooc_prob_dbm)
+                        phrase_prob_dbm, tran_prob_dbm, cooc_prob_dbm)
+      if phrase_prob_dbm and cooc_prob_dbm:
+        self.SetCoocurrences(word_entry, entries, word_dicts, phrase_prob_dbm, cooc_prob_dbm)
       merged_entry.append(word_entry)
     return merged_entry
 
-  def GetPhraseProb(self, word_prob_dbm, cooc_prob_dbm, language, word):
-    tokens = self.tokenizer.Tokenize(language, word, True, True)
-    probs = []
-    for token in tokens:
-      token = tkrzw_dict.NormalizeWord(token)
-      prob = float(word_prob_dbm.GetStr(token) or 0.0)
-      probs.append((token, prob))
-    probs = sorted(probs, key=lambda x: x[1])
-    min_prob = 0.0
-    if probs:
-      min_prob = probs[0][1]
-    power = 0.65 if len(tokens) <= 2 else 0.5
-    for token, prob in probs[1:]:
-      min_prob *= min(prob ** power, 0.2)
-    if cooc_prob_dbm and len(probs) == 2:
-      def GetCoocProb(first_word, second_word):
-        prob = 0.0
-        tsv = cooc_prob_dbm.GetStr(first_word)
-        if tsv:
-          for field in tsv.split("\t"):
-            cand_word, cand_prob = field.split(" ", 1)
-            if cand_word == second_word:
-              prob = float(cand_prob)
-        return prob
-      first_prob = probs[0][1]
-      first_word = probs[0][0]
-      second_word = probs[1][0]
-      second_prob = GetCoocProb(first_word, second_word)
-      min_prob = max(min_prob, first_prob * second_prob)
-      first_prob = probs[1][1]
-      first_word = probs[1][0]
-      second_word = probs[0][0]
-      second_prob = GetCoocProb(first_word, second_word)
-      min_prob = max(min_prob, first_prob * second_prob)
-    min_prob = max(min_prob, 0.0000001)
-    return min_prob
+  def GetPhraseProb(self, prob_dbm, language, word):
+    base_prob = 0.000000001
+    tokens = self.tokenizer.Tokenize(language, word, False, True)
+    if not tokens: return base_prob
+    max_ngram = min(3, len(tokens))
+    fallback_penalty = 1.0
+    for ngram in range(max_ngram, 0, -1):
+      if len(tokens) <= ngram:
+        cur_phrase = " ".join(tokens)
+        prob = float(prob_dbm.GetStr(cur_phrase) or 0.0)
+        if prob:
+          return max(prob, base_prob)
+        fallback_penalty *= 0.1
+      else:
+        probs = []
+        index = 0
+        miss = False
+        while index <= len(tokens) - ngram:
+          cur_phrase = " ".join(tokens[index:index + ngram])
+          cur_prob = float(prob_dbm.GetStr(cur_phrase) or 0.0)
+          if not cur_prob:
+            miss = True
+            break
+          probs.append(cur_prob)
+          index += 1
+        if not miss:
+          inv_sum = 0
+          for cur_prob in probs:
+            inv_sum += 1 / cur_prob
+          prob = len(probs) / inv_sum
+          prob *= 0.3 ** (len(tokens) - ngram)
+          prob *= fallback_penalty
+          return max(prob, base_prob)
+        fallback_penalty *= 0.1
+    return base_prob
 
-  def SetAOA(self, word_entry, entries, word_prob, aoa_words, word_prob_dbm, cooc_prob_dbm):
+  def SetAOA(self, word_entry, entries, phrase_prob, aoa_words, phrase_prob_dbm, cooc_prob_dbm):
     word = word_entry["word"]
     aoa = aoa_words.get(word.lower())
     if aoa:
@@ -662,9 +669,9 @@ class BuildUnionDBBatch:
     for concept in concepts:
       aoa = aoa_words.get(concept.lower())
       if aoa:
-        if word_prob and word_prob_dbm and cooc_prob_dbm:
-          concept_prob = self.GetPhraseProb(word_prob_dbm, cooc_prob_dbm, "en", concept)
-          diff = max(math.log(concept_prob) - math.log(word_prob), 0.0)
+        if phrase_prob and phrase_prob_dbm and cooc_prob_dbm:
+          concept_prob = self.GetPhraseProb(phrase_prob_dbm, "en", concept)
+          diff = max(math.log(concept_prob) - math.log(phrase_prob), 0.0)
           aoa += min(diff * 1.0, 1.0)
         else:
           aoa += 1.0
@@ -770,7 +777,7 @@ class BuildUnionDBBatch:
       norm_tran = tkrzw_dict.NormalizeWord(tran)
       score = 0.00001
       if rev_prob_dbm:
-        prob = self.GetPhraseProb(rev_prob_dbm, None, "ja", tran)
+        prob = self.GetPhraseProb(rev_prob_dbm, "ja", tran)
         prob = max(prob, 0.0000001)
         prob = math.exp(-abs(math.log(0.001) - math.log(prob))) * 0.1
         if tkrzw_dict.IsStopWord("ja", tran) or tran in ("又は"):
@@ -930,7 +937,7 @@ class BuildUnionDBBatch:
       entry["translation"] = final_translations
 
   def SetRelations(self, word_entry, entries, word_dicts,
-                   word_prob_dbm, tran_prob_dbm, cooc_prob_dbm):
+                   phrase_prob_dbm, tran_prob_dbm, cooc_prob_dbm):
     word = word_entry["word"]
     norm_word = tkrzw_dict.NormalizeWord(word)
     scores = {}
@@ -1036,8 +1043,8 @@ class BuildUnionDBBatch:
                 bonus = max(bonus, 0.3)
           total_weight += bonus
       score = 1.0
-      if word_prob_dbm:
-        prob = self.GetPhraseProb(word_prob_dbm, cooc_prob_dbm, "en", rel_word)
+      if phrase_prob_dbm:
+        prob = self.GetPhraseProb(phrase_prob_dbm, "en", rel_word)
         prob = max(prob, 0.0000001)
         score += math.exp(-abs(math.log(0.001) - math.log(prob))) * 0.1
       score *= total_weight
@@ -1067,14 +1074,14 @@ class BuildUnionDBBatch:
       max_elems = int(min(max(math.log2(len(word_entry["item"])), 2), 6) * 6)
       word_entry["related"] = final_rel_words[:max_elems]
 
-  def SetCoocurrences(self, word_entry, entries, word_dicts, word_prob_dbm, cooc_prob_dbm):
+  def SetCoocurrences(self, word_entry, entries, word_dicts, phrase_prob_dbm, cooc_prob_dbm):
     word = word_entry["word"]
     norm_word = tkrzw_dict.NormalizeWord(word)
     tokens = self.tokenizer.Tokenize("en", word, True, True)
     cooc_words = {}
     for token in tokens:
-      word_prob = self.GetPhraseProb(word_prob_dbm, cooc_prob_dbm, "en", token)
-      word_idf = math.log(word_prob) * -1
+      phrase_prob = self.GetPhraseProb(phrase_prob_dbm, "en", token)
+      word_idf = math.log(phrase_prob) * -1
       word_weight = word_idf ** 2
       tsv = cooc_prob_dbm.GetStr(token)
       if tsv:
@@ -1086,7 +1093,7 @@ class BuildUnionDBBatch:
     merged_cooc_words = sorted(cooc_words.items(), key=lambda x: x[1], reverse=True)
     weighed_cooc_words = []
     for cooc_word, cooc_score in merged_cooc_words:
-      cooc_prob = self.GetPhraseProb(word_prob_dbm, cooc_prob_dbm, "en", cooc_word)
+      cooc_prob = self.GetPhraseProb(phrase_prob_dbm, "en", cooc_word)
       cooc_idf = math.log(cooc_prob) * -1
       cooc_score *= cooc_idf ** 2
       if tkrzw_dict.IsStopWord("en", cooc_word):
@@ -1120,7 +1127,7 @@ def main():
   slim_labels = set((tkrzw_dict.GetCommandFlag(args, "--slim", 1) or "we").split(","))
   surfeit_labels = set((tkrzw_dict.GetCommandFlag(args, "--surfeit", 1) or "we").split(","))
   tran_list_labels = set((tkrzw_dict.GetCommandFlag(args, "--tran_list", 1) or "wn,we").split(","))
-  word_prob_path = tkrzw_dict.GetCommandFlag(args, "--word_prob", 1) or ""
+  phrase_prob_path = tkrzw_dict.GetCommandFlag(args, "--phrase_prob", 1) or ""
   tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
   tran_aux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or "").split(",")
   rev_prob_path = tkrzw_dict.GetCommandFlag(args, "--rev_prob", 1) or ""
@@ -1149,7 +1156,7 @@ def main():
     input_confs.append(input_conf)
   BuildUnionDBBatch(input_confs, output_path, stem_labels, gross_labels,
                     surfeit_labels, top_labels, slim_labels, tran_list_labels,
-                    word_prob_path, tran_prob_path, tran_aux_paths,
+                    phrase_prob_path, tran_prob_path, tran_aux_paths,
                     rev_prob_path, cooc_prob_path, aoa_paths, keyword_path,
                     min_prob_map).Run()
 

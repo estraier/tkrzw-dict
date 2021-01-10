@@ -33,7 +33,6 @@ import tkrzw_dict
 
 
 IGNORED_POINTERS = set(("holonym", "meronym", "topic", "region", "usage"))
-MIN_PROB = 0.000001
 
 
 logger = tkrzw_dict.GetLogger()
@@ -197,12 +196,19 @@ class BuildWordNetDBBatch:
       entry = {}
       if prob_dbm:
         prob = self.GetPhraseProb(prob_dbm, key)
-        if prob > MIN_PROB:
-          entry["score"] = "{:.6f}".format(prob).replace("0.", ".")
         for item in items:
           for attr_name, attr_value in item.items():
             if isinstance(attr_value, list) and len(attr_value) > 1:
               item[attr_name] = self.SortWordsByProb(prob_dbm, attr_value)
+          prob = self.GetPhraseProb(prob_dbm, item["word"])
+          item["prob"] = "{:.8f}".format(prob).replace("0.", ".")
+      if len(items) > 1:
+        score_items = []
+        for item in items:
+          score = self.GetPhraseProb(prob_dbm, item["word"])
+          score_items.append((item, score))
+        score_items = sorted(score_items, key=lambda x: x[1], reverse=True)
+        items = [x[0] for x in score_items]
       entry["item"] = items
       serialized = json.dumps(entry, separators=(",", ":"), ensure_ascii=False)
       word_dbm.Set(key, serialized).OrDie()
@@ -216,15 +222,41 @@ class BuildWordNetDBBatch:
       "Saving words done: words={}, elapsed_time={:.2f}s".format(
         num_words, time.time() - start_time))
 
-  def GetPhraseProb(self, prob_dbm, word):
-    min_prob = 1.0
-    tokens = word.lower().split(" ")
-    for token in tokens:
-      prob = float(prob_dbm.GetStr(token) or 0.0)
-      min_prob = min(min_prob, prob)
-    min_prob = max(min_prob, MIN_PROB)
-    min_prob *= 0.3 ** (len(tokens) - 1)
-    return min_prob
+  def GetPhraseProb(self, prob_dbm, phrase):
+    base_prob = 0.000000001
+    tokens = phrase.split(" ")
+    if not tokens: return base_prob
+    max_ngram = min(3, len(tokens))
+    fallback_penalty = 1.0
+    for ngram in range(max_ngram, 0, -1):
+      if len(tokens) <= ngram:
+        cur_phrase = " ".join(tokens)
+        prob = float(prob_dbm.GetStr(cur_phrase) or 0.0)
+        if prob:
+          return max(prob, base_prob)
+        fallback_penalty *= 0.1
+      else:
+        probs = []
+        index = 0
+        miss = False
+        while index <= len(tokens) - ngram:
+          cur_phrase = " ".join(tokens[index:index + ngram])
+          cur_prob = float(prob_dbm.GetStr(cur_phrase) or 0.0)
+          if not cur_prob:
+            miss = True
+            break
+          probs.append(cur_prob)
+          index += 1
+        if not miss:
+          inv_sum = 0
+          for cur_prob in probs:
+            inv_sum += 1 / cur_prob
+          prob = len(probs) / inv_sum
+          prob *= 0.3 ** (len(tokens) - ngram)
+          prob *= fallback_penalty
+          return max(prob, base_prob)
+        fallback_penalty *= 0.1
+    return base_prob
 
   def SortWordsByProb(self, prob_dbm, words):
     prob_words = []

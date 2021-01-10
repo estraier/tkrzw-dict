@@ -5,7 +5,7 @@
 #
 # Usage:
 #   append_wordnet_jpn.py [--input str] [--output str] [--wnjpn str]
-#     [--word_prob str] [--rev_prob str] [--tran_prob str]
+#     [--phrase_prob str] [--rev_prob str] [--tran_prob str]
 #     [--tran_aux str] [--tran_subaux str] [--quiet]
 #
 # Example:
@@ -38,7 +38,6 @@ import unicodedata
 
 
 MAX_TRANSLATIONS_PER_WORD = 10
-MIN_PROB = 0.000001
 
 
 logger = tkrzw_dict.GetLogger()
@@ -46,12 +45,12 @@ logger = tkrzw_dict.GetLogger()
 
 class AppendWordnetJPNBatch:
   def __init__(self, input_path, output_path, wnjpn_path,
-               word_prob_path, rev_prob_path, tran_prob_path,
+               phrase_prob_path, rev_prob_path, tran_prob_path,
                tran_aux_paths, tran_subaux_paths):
     self.input_path = input_path
     self.output_path = output_path
     self.wnjpn_path = wnjpn_path
-    self.word_prob_path = word_prob_path
+    self.phrase_prob_path = phrase_prob_path
     self.rev_prob_path = rev_prob_path
     self.tran_prob_path = tran_prob_path
     self.tran_aux_paths = tran_aux_paths
@@ -155,10 +154,10 @@ class AppendWordnetJPNBatch:
       self.input_path, self.output_path))
     input_dbm = tkrzw.DBM()
     input_dbm.Open(self.input_path, False, dbm="HashDBM").OrDie()
-    word_prob_dbm = None
-    if self.word_prob_path:
-      word_prob_dbm = tkrzw.DBM()
-      word_prob_dbm.Open(self.word_prob_path, False, dbm="HashDBM").OrDie()
+    phrase_prob_dbm = None
+    if self.phrase_prob_path:
+      phrase_prob_dbm = tkrzw.DBM()
+      phrase_prob_dbm.Open(self.phrase_prob_path, False, dbm="HashDBM").OrDie()
     rev_prob_dbm = None
     if self.rev_prob_path:
       rev_prob_dbm = tkrzw.DBM()
@@ -193,14 +192,23 @@ class AppendWordnetJPNBatch:
         if item["synset"] in wnjpn_trans:
           has_trans = True
           break
+      spell_ratios = {}
+      for item in items:
+        word = item["word"]
+        phrase_prob = float(item.get("prob") or 0.0)
+        spell_ratios[word] = phrase_prob + 0.00000001
+      sum_prob = 0.0
+      for word, prob in spell_ratios.items():
+        sum_prob += prob
+      for word, prob in list(spell_ratios.items()):
+        spell_ratios[word] = prob / sum_prob
       for item in items:
         word = item["word"]
         pos = item["pos"]
         synset = item["synset"]
         links = item.get("link") or {}
-        word_prob = 0.0
-        if word_prob_dbm:
-          word_prob = self.GetPhraseProb(word_prob_dbm, tokenizer, "en", word)
+        phrase_prob = float(item.get("prob") or 0.0)
+        spell_ratio = spell_ratios[word]
         synonyms = item.get("synonym") or []
         hypernyms = item.get("hypernym") or []
         hyponyms = item.get("hyponym") or []
@@ -239,10 +247,10 @@ class AppendWordnetJPNBatch:
             (derivatives, derivative_ids, derivative_tran_counts)):
           for rel_word in rel_words:
             is_similar = self.AreSimilarWords(rel_word, word)
-            rel_word_prob = 0.0
-            if word_prob_dbm:
-              rel_word_prob = self.GetPhraseProb(word_prob_dbm, tokenizer, "en", rel_word)
-            mean_prob = (word_prob * rel_word_prob) ** 0.5
+            rel_phrase_prob = 0.0
+            if phrase_prob_dbm:
+              rel_phrase_prob = self.GetPhraseProb(phrase_prob_dbm, tokenizer, "en", rel_word)
+            mean_prob = (phrase_prob * rel_phrase_prob) ** 0.5
             rel_aux_trans = []
             if rel_word not in checked_words:
               checked_words.add(rel_word)
@@ -258,7 +266,7 @@ class AppendWordnetJPNBatch:
                   rel_aux_trans.extend(tmp_aux_trans)
             if rel_aux_trans:
               self.NormalizeTranslationList(tokenizer, pos, rel_aux_trans)
-              if not (is_similar and len(items) > 1) and mean_prob < 0.0005:
+              if not is_similar and mean_prob < 0.0005:
                 for item_aux_tran in item_aux_trans:
                   if regex.fullmatch(r"[\p{Hiragana}]{,3}", item_aux_tran): continue
                   if item_aux_tran in rel_aux_trans:
@@ -295,10 +303,10 @@ class AppendWordnetJPNBatch:
             if valid_pos and syno_tran not in item_trans:
               item_trans.append(syno_tran)
               num_voted_trans += 1
+        item_score = 0.0
         if item_trans:
           if bare:
             num_items_rescued += 1
-          item_score = 0.0
           if rev_prob_dbm or tran_prob_dbm:
             item_trans, item_score, tran_scores = (self.SortWordsByScore(
               word, item_trans, rev_prob_dbm, tokenizer, tran_prob_dbm))
@@ -308,8 +316,8 @@ class AppendWordnetJPNBatch:
             for tran, tran_score in tran_scores[:MAX_TRANSLATIONS_PER_WORD]:
               tran_score_map[tran] = "{:.6f}".format(tran_score).replace("0.", ".")
             item["translation_score"] = tran_score_map
-          if item_score > 0.0:
-            item["score"] = "{:.6f}".format(item_score).replace("0.", ".")
+        item_score += spell_ratio * 0.5
+        item["score"] = "{:.8f}".format(item_score).replace("0.", ".")
         if "link" in item:
           del item["link"]
       if rev_prob_dbm:
@@ -326,8 +334,8 @@ class AppendWordnetJPNBatch:
       tran_prob_dbm.Close().OrDie()
     if rev_prob_dbm:
       rev_prob_dbm.Close().OrDie()
-    if word_prob_dbm:
-      word_prob_dbm.Close().OrDie()
+    if phrase_prob_dbm:
+      phrase_prob_dbm.Close().OrDie()
     input_dbm.Close().OrDie()
     logger.info(
       "Aappending translations done: words={}, elapsed_time={:.2f}s".format(
@@ -339,13 +347,18 @@ class AppendWordnetJPNBatch:
   def AreSimilarWords(self, word_a, word_b):
     word_a = word_a.lower()
     word_b = word_b.lower()
+    if word_a.startswith(word_b) or word_b.startswith(word_a):
+      return True
     mono_a = regex.sub(r"[-_ ]", "", word_a)
     mono_b = regex.sub(r"[-_ ]", "", word_b)
     dist = tkrzw.Utility.EditDistanceLev(mono_a, mono_b)
     dist_ratio = dist / max(len(mono_a), len(mono_b))
     if dist_ratio <= 0.3:
       return True
-    if word_a.startswith(word_b) or word_b.startswith(word_a):
+    prefix_a = mono_a[:8]
+    prefix_b = mono_b[:8]
+    dist = tkrzw.Utility.EditDistanceLev(prefix_a, prefix_b)
+    if dist <= 1:
       return True
     return False
 
@@ -394,14 +407,40 @@ class AppendWordnetJPNBatch:
         item_trans[i] = restored
 
   def GetPhraseProb(self, prob_dbm, tokenizer, language, word):
-    min_prob = 1.0
-    tokens = tokenizer.Tokenize(language, word, True, True)
-    for token in tokens:
-      prob = float(prob_dbm.GetStr(token) or 0.0)
-      min_prob = min(min_prob, prob)
-    min_prob = max(min_prob, MIN_PROB)
-    min_prob *= 0.3 ** (len(tokens) - 1)
-    return min_prob
+    base_prob = 0.000000001
+    tokens = tokenizer.Tokenize(language, word, False, True)
+    if not tokens: return base_prob
+    max_ngram = min(3, len(tokens))
+    fallback_penalty = 1.0
+    for ngram in range(max_ngram, 0, -1):
+      if len(tokens) <= ngram:
+        cur_phrase = " ".join(tokens)
+        prob = float(prob_dbm.GetStr(cur_phrase) or 0.0)
+        if prob:
+          return max(prob, base_prob)
+        fallback_penalty *= 0.1
+      else:
+        probs = []
+        index = 0
+        miss = False
+        while index <= len(tokens) - ngram:
+          cur_phrase = " ".join(tokens[index:index + ngram])
+          cur_prob = float(prob_dbm.GetStr(cur_phrase) or 0.0)
+          if not cur_prob:
+            miss = True
+            break
+          probs.append(cur_prob)
+          index += 1
+        if not miss:
+          inv_sum = 0
+          for cur_prob in probs:
+            inv_sum += 1 / cur_prob
+          prob = len(probs) / inv_sum
+          prob *= 0.3 ** (len(tokens) - ngram)
+          prob *= fallback_penalty
+          return max(prob, base_prob)
+        fallback_penalty *= 0.1
+    return base_prob
 
   _regex_stop_word_katakana = regex.compile(r"^[\p{Katakana}ー]+$")
   def GetTranProb(self, tran_prob_dbm, word, tran):
@@ -494,7 +533,7 @@ def main():
   input_path = tkrzw_dict.GetCommandFlag(args, "--input", 1) or "wordnet.thk"
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "wordnet-body.tkh"
   wnjpn_path = tkrzw_dict.GetCommandFlag(args, "--wnjpn", 1) or "wnjpn-ok.tab"
-  word_prob_path = tkrzw_dict.GetCommandFlag(args, "--word_prob", 1) or ""
+  phrase_prob_path = tkrzw_dict.GetCommandFlag(args, "--phrase_prob", 1) or ""
   rev_prob_path = tkrzw_dict.GetCommandFlag(args, "--rev_prob", 1) or ""
   tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
   tran_aux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or "").split(",")
@@ -505,7 +544,7 @@ def main():
     raise RuntimeError("unknown arguments: {}".format(str(args)))
   AppendWordnetJPNBatch(
     input_path, output_path, wnjpn_path,
-    word_prob_path, rev_prob_path, tran_prob_path, tran_aux_paths, tran_subaux_paths).Run()
+    phrase_prob_path, rev_prob_path, tran_prob_path, tran_aux_paths, tran_subaux_paths).Run()
 
 
 if __name__=="__main__":

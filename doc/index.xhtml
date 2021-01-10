@@ -181,12 +181,12 @@ h2:hover a.headanc, h3:hover a.headanc {
 
 <p>辞書データを自分で作るのは面倒なので、上述の辞書データのアーカイブファイルをダウンロードするのが推奨される。しかし、自分なりにカスタマイズしたい場合には、これ以降の記述を読む価値がある。辞書データの構築を行うプログラム群は、PythonのMeCabモジュールとnltkモジュールに依存するので、それらを予めインストールしておくこと。</p>
 
-<p>英和辞書を作るにあたっては、英語や日本語の各語の頻度をデータベースにしておいて、それを用いて語の並び替えを行うことが望ましい。よって、Wikipedia英語版および日本版のデータをコーパスとして、語と共起語の頻度を集計したデータベースを用意した。以下をダウンロードされたい。これらもパッケージに属するスクリプトで生成できるが、時間がかかるので推奨しない。</p>
+<p>英和辞書を作るにあたっては、英語や日本語の各語の頻度をデータベースにしておいて、それを用いて語の並び替えを行うことが望ましい。よって、Wikipedia英語版および日本版のデータをコーパスとして、フレーズと共起語の頻度を集計したデータベースを用意した。以下をダウンロードされたい。これらもパッケージに属するスクリプトで生成できるが、時間がかかるので推奨しない。</p>
 
 <ul>
-<li><a href="https://dbmx.net/dict/enwiki-word-prob.tkh">enwiki-word-prob.tkh</a> : 英語の単語の出現確率データベース</li>
+<li><a href="https://dbmx.net/dict/enwiki-phrase-prob.tkh">enwiki-phrase-prob.tkh</a> : 英語のフレーズの出現確率データベース</li>
 <li><a href="https://dbmx.net/dict/enwiki-cooc-prob.tkh">enwiki-cooc-prob.tkh</a> : 英語の単語毎の共起語の出現確率データベース</li>
-<li><a href="https://dbmx.net/dict/jawiki-word-prob.tkh">jawiki-word-prob.tkh</a> : 英語の単語の出現確率データベース</li>
+<li><a href="https://dbmx.net/dict/jawiki-phrase-prob.tkh">jawiki-phrase-prob.tkh</a> : 英語のフレーズの出現確率データベース</li>
 <li><a href="https://dbmx.net/dict/jawiki-cooc-prob.tkh">jawiki-cooc-prob.tkh</a> : 日本語の単語毎の共起語の出現確率データベース</li>
 </ul>
 
@@ -234,10 +234,10 @@ $ ./dump_wiktionry_trans.py wiktionary-en.tsv wiktionary-ja.tsv > wiktionary-tra
 <p>WordNetと日本語WordNetを統合した語義TSVファイルを生成するには、各々のアーカイブファイルを展開しておいてから、以下のコマンドを実行すればよい。</p>
 
 <pre><![CDATA[$ ./build_wordnet_db.py --dict WordNet-3.0/dict --output wordnet.tkh \
-  --prob result-enwiki-word-prob.tkh
+  --prob result-enwiki-phrase-prob.tkh
 $ ./append_wordnet_jpn.py --input wordnet.tkh --output wordnet-body.tkh \
   --wnjpn wnjpn-ok.tab \
-  --word_prob result-enwiki-word-prob.tkh --rev_prob result-jawiki-word-prob.tkh \
+  --phrase_prob result-enwiki-phrase-prob.tkh --rev_prob result-jawiki-phrase-prob.tkh \
   --tran_aux wiktionary-tran.tsv
 $ ./extract_wordnet_tsv.py --input wordnet-body.tkh > wordnet.tsv
 ]]></pre>
@@ -253,7 +253,7 @@ $ ./extract_wordnet_tsv.py --input wordnet-body.tkh > wordnet.tsv
 <p>語の頻度データベースと語義TSVファイルが揃ったら、以下のコマンドを実行すると、英和辞書データの本体であるDBMファイルが構築できる。</p>
 
 <pre><![CDATA[$ ./build_union_db.py --output union-body.tkh \
-  --word_prob enwiki-word-prob.tkh --rev_prob jawiki-word-prob.tkh \
+  --phrase_prob enwiki-phrase-prob.tkh --rev_prob jawiki-phrase-prob.tkh \
   --cooc_prob enwiki-cooc-prob.tkh --min_prob we:0.00001 \
   wn:wordnet.tsv we:wiktionary-en.tsv wj:wiktionary-ja.tsv
 ]]></pre>
