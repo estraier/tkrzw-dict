@@ -105,6 +105,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
 
   def getSentences(self, text):
     text = regex.sub(r'<!--(.*?)-->', '', text)
+    text = regex.sub(r'<ref.*?</ref>', '', text)
     text = regex.sub(r'</?[a-z]+[^>]*>', '', text)
     text = regex.sub(r'\[\[Image:(.*?)\]\]', '', text)
     text = regex.sub(r'\[\[File:(.*?)\]\]', '', text)
