@@ -43,6 +43,8 @@ def ProcessTSV(tokenizer, language, lowering, stemming, max_sentences,
     for sentence in tmp_sentences:
       if not sentence: continue
       if with_readable:
+        if sentence[0] in (".", "?", "!", "。", "？", "！", ",", ";", "、"):
+          continue
         if sentence[-1] not in (".", "?", "!", "。", "？", "！"):
           continue
       sentences.append(sentence)
