@@ -91,15 +91,40 @@ class ExtractKeysBatch:
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
   def GetRevProb(self, rev_prob_dbm, phrase):
-    tokens = self.tokenizer.Tokenize("ja", phrase, True, True)
-    if not tokens:
-      return 0.000001
-    min_prob = 1.0
-    for token in tokens:
-      prob = float(rev_prob_dbm.GetStr(token) or 0.000001)
-      min_prob = min(prob, min_prob)
-    min_prob *= 0.5 ** (len(tokens) - 1)
-    return min_prob
+    base_prob = 0.000000001
+    tokens = self.tokenizer.Tokenize("ja", phrase, False, True)
+    if not tokens: return base_prob
+    max_ngram = min(3, len(tokens))
+    fallback_penalty = 1.0
+    for ngram in range(max_ngram, 0, -1):
+      if len(tokens) <= ngram:
+        cur_phrase = " ".join(tokens)
+        prob = float(rev_prob_dbm.GetStr(cur_phrase) or 0.0)
+        if prob:
+          return max(prob, base_prob)
+        fallback_penalty *= 0.1
+      else:
+        probs = []
+        index = 0
+        miss = False
+        while index <= len(tokens) - ngram:
+          cur_phrase = " ".join(tokens[index:index + ngram])
+          cur_prob = float(rev_prob_dbm.GetStr(cur_phrase) or 0.0)
+          if not cur_prob:
+            miss = True
+            break
+          probs.append(cur_prob)
+          index += 1
+        if not miss:
+          inv_sum = 0
+          for cur_prob in probs:
+            inv_sum += 1 / cur_prob
+          prob = len(probs) / inv_sum
+          prob *= 0.3 ** (len(tokens) - ngram)
+          prob *= fallback_penalty
+          return max(prob, base_prob)
+        fallback_penalty *= 0.1
+    return base_prob
 
 
 def main():
