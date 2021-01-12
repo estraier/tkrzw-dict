@@ -33,9 +33,9 @@ import tkrzw
 import tkrzw_dict
 
 
-MIN_PROB = 0.0000001
-SEQ_MIN_RATIO = 0.001
-NUMERIC_PENALTY = 0.1
+MIN_PROB_SINGLE = 0.0000001
+MIN_PROB_MULTI = 0.000001
+STOP_WORD_PENALTY = 10.0
 
 logger = tkrzw_dict.GetLogger()
 
@@ -66,41 +66,8 @@ class DivideCountBatch:
     num_sentences = int(record[1])
     it.Next()
     num_records = 0
-    num_good_records = 0
-    prefixes = {}
-    while True:
-      record = it.GetStr()
-      if not record:
-        break
-      phrase = record[0]
-      count = int(record[1])
-      prob = count / num_sentences
-      is_numeric = regex.search(r"\d", phrase)
-      min_prob = MIN_PROB
-      if is_numeric:
-        min_prob *= NUMERIC_PENALTY
-      is_good = False
-      if prob >= min_prob:
-        num_tokens = phrase.count(" ") + 1
-        if num_tokens == 1:
-          is_good = True
-          prefixes[1] = (phrase + " ", count)
-        else:
-          prefix = prefixes.get(num_tokens - 1)
-          if prefix and phrase.startswith(prefix[0]):
-            ratio = count / prefix[1]
-            if ratio >= SEQ_MIN_RATIO:
-              prefixes[num_tokens] = (phrase + " ", count)
-              is_good = True
-      if is_good:
-        num_good_records += 1
-      num_records += 1
-      if num_records % 10000 == 0:
-        logger.info("Counting good records: {} good records of {}".format(
-          num_good_records, num_records))
-      it.Next()
     phrase_prob_dbm = tkrzw.DBM()
-    num_buckets = num_good_records * 2
+    num_buckets = phrase_count_dbm.Count() / 2
     phrase_prob_dbm.Open(
       phrase_prob_path, True, dbm="HashDBM", truncate=True, num_buckets=num_buckets).OrDie()
     it.First()
@@ -113,24 +80,14 @@ class DivideCountBatch:
       phrase = record[0]
       count = int(record[1])
       prob = count / num_sentences
-      is_numeric = regex.search(r"\d", phrase)
-      min_prob = MIN_PROB
-      if is_numeric:
-        min_prob *= NUMERIC_PENALTY
-      is_good = False
+      has_numeric = regex.search(r"\d", phrase)
+      has_hyphen = regex.search(r"(^|\W)-", phrase) or regex.search(r"-($|\W)", phrase)
+      min_prob = MIN_PROB_SINGLE
+      if phrase.find(" ") >= 0:
+        min_prob = MIN_PROB_MULTI
+      if has_numeric or has_hyphen:
+        min_prob *= STOP_WORD_PENALTY
       if prob >= min_prob:
-        num_tokens = phrase.count(" ") + 1
-        if num_tokens == 1:
-          is_good = True
-          prefixes[1] = (phrase + " ", count)
-        else:
-          prefix = prefixes.get(num_tokens - 1)
-          if prefix and phrase.startswith(prefix[0]):
-            ratio = count / prefix[1]
-            if ratio >= SEQ_MIN_RATIO:
-              prefixes[num_tokens] = (phrase + " ", count)
-              is_good = True
-      if is_good:
         value = "{:.7f}".format(prob)
         value = regex.sub(r"^0\.", ".", value)
         phrase_prob_dbm.Set(phrase, value).OrDie()
@@ -138,6 +95,8 @@ class DivideCountBatch:
       if num_records % 10000 == 0:
         logger.info("Dividing phrase counts: {} records".format(num_records))
       it.Next()
+    logger.info("Optimizing the database")
+    phrase_prob_dbm.Rebuild().OrDie()
     phrase_prob_dbm.Close().OrDie()
     phrase_count_dbm.Close().OrDie()
     logger.info("Writing the phrase probability database done: elapsed_time={:.2f}s".format(
