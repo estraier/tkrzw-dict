@@ -272,8 +272,8 @@ class BuildUnionDBBatch:
     stem_index = collections.defaultdict(list)
     for label, word_dict in word_dicts:
       if label not in self.stem_labels: continue
-      for key, entries in word_dict.items():
-        for entry in entries:
+      for key in keys:
+        for entry in word_dict[key]:
           word = entry["word"]
           if not regex.fullmatch("[a-z]+", word): continue
           stems = self.GetDerivativeStems(entry)
@@ -287,15 +287,12 @@ class BuildUnionDBBatch:
               entry["stem"] = list(valid_stems)
     for label, word_dict in word_dicts:
       if label not in self.stem_labels: continue
-      for key, entries in word_dict.items():
-        for entry in entries:
+      for key in keys:
+        for entry in word_dict[key]:
           word = entry["word"]
           children = stem_index.get(word)
           if children:
             entry["stem_child"] = list(set(children))
-
-
-              
     logger.info("Indexing stems done: num_stems={}, elapsed_time={:.2f}s".format(
       len(stem_index), time.time() - start_time))
     start_time = time.time()
@@ -306,8 +303,8 @@ class BuildUnionDBBatch:
     adv_words = set()
     for label, word_dict in word_dicts:
       if label not in self.stem_labels: continue
-      for key, entries in word_dict.items():
-        for entry in entries:
+      for key in keys:
+        for entry in word_dict[key]:
           word = entry["word"]
           if not regex.fullmatch("[a-z]+", word): continue
           for pos, text in entry["text"]:
@@ -326,6 +323,15 @@ class BuildUnionDBBatch:
           if word in verb_words:
             children = set()
             for part_name in ("verb_present_participle", "verb_past_participle"):
+              part = entry.get(part_name)
+              if part and (part in noun_words or part in adj_words):
+                base_index[part].append(word)
+                children.add(part)
+            if children:
+              entry["base_child"] = list(children)
+          if word in adj_words:
+            children = set()
+            for part_name in ("adjective_comparative", "adjective_superative"):
               part = entry.get(part_name)
               if part and (part in noun_words or part in adj_words):
                 base_index[part].append(word)
@@ -587,7 +593,7 @@ class BuildUnionDBBatch:
       if phrase_prob_dbm:
         prob = self.GetPhraseProb(phrase_prob_dbm, "en", word)
         word_entry["probability"] = "{:.7f}".format(prob).replace("0.", ".")
-        if self.min_prob_map and not is_keyword:
+        if self.min_prob_map:
           has_good_label = False
           for item in word_entry["item"]:
             if item["label"] not in self.min_prob_map:
@@ -596,17 +602,22 @@ class BuildUnionDBBatch:
           if not has_good_label:
             new_items = []
             for item in word_entry["item"]:
+              is_good_item = True
               for label, min_prob in self.min_prob_map.items():
-                if prob < min_prob and item["label"] == label:
-                  continue
+                if item["label"] == label:
+                  if is_keyword:
+                    min_prob *= 0.1
+                  if prob < min_prob:
+                    is_good_item = False
+              if is_good_item:
                 new_items.append(item)
             word_entry["item"] = new_items
       if not word_entry.get("item"):
         continue
       share_ratio = share / share_sum
-      self.SetAOA(word_entry, entries, prob, aoa_words, phrase_prob_dbm, cooc_prob_dbm)
       if share_ratio < 1:
         word_entry["share"] = "{:.3f}".format(share_ratio).replace("0.", ".")
+      self.SetAOA(word_entry, entries, prob, share_ratio, aoa_words, phrase_prob_dbm, cooc_prob_dbm)
       self.SetTranslations(word_entry, aux_trans, tran_prob_dbm, rev_prob_dbm)
       self.SetRelations(word_entry, entries, word_dicts,
                         phrase_prob_dbm, tran_prob_dbm, cooc_prob_dbm)
@@ -651,10 +662,15 @@ class BuildUnionDBBatch:
         fallback_penalty *= 0.1
     return base_prob
 
-  def SetAOA(self, word_entry, entries, phrase_prob, aoa_words, phrase_prob_dbm, cooc_prob_dbm):
+  def SetAOA(self, word_entry, entries, phrase_prob, share_ratio,
+             aoa_words, phrase_prob_dbm, cooc_prob_dbm):
     word = word_entry["word"]
+    share_bias = 0.0
+    if share_ratio < 0.5:
+      share_bias = (0.5 - share_ratio) * 4
     aoa = aoa_words.get(word.lower())
     if aoa:
+      aoa += share_bias
       word_entry["aoa"] = "{:.3f}".format(aoa)
     concepts = set()
     for label, entry in entries:
@@ -677,6 +693,7 @@ class BuildUnionDBBatch:
           aoa += 1.0
         min_aoa = min(min_aoa, aoa)
     if min_aoa < sys.maxsize:
+      min_aoa += share_bias
       word_entry["aoa_concept"] = "{:.3f}".format(min_aoa)
     min_aoa = sys.maxsize
     for label, entry in entries:
@@ -688,8 +705,8 @@ class BuildUnionDBBatch:
             aoa += 1.0
             min_aoa = min(min_aoa, aoa)
     if min_aoa < sys.maxsize:
+      min_aoa += share_bias
       word_entry["aoa_base"] = "{:.3f}".format(min_aoa)
-
 
   def ExtractTextLabelTrans(self, text):
     trans = []
@@ -947,30 +964,38 @@ class BuildUnionDBBatch:
       scores[rel_word] = values
     upper_deri_weight = 0.6
     lower_deri_weight = 0.4
+    parents = set()
+    children = set()
     for label, entry in entries:
       stems = entry.get("stem")
       if stems:
         for stem in stems:
           Vote(stem, "", upper_deri_weight)
+          parents.add(stem)
       stem_children = entry.get("stem_child")
       if stem_children:
         for child in stem_children:
           Vote(child, "", lower_deri_weight)
+          children.add(child)
       core = entry.get("core")
       if core:
         Vote(core, "", upper_deri_weight)
+        parents.add(core)
       core_children = entry.get("core_child")
       if core_children:
         for child in core_children:
           Vote(child, "", lower_deri_weight)
+          children.add(child)
       bases = entry.get("base")
       if bases:
         for base in bases:
           Vote(base, "", upper_deri_weight)
+          parents.add(base)
       base_children = entry.get("base_child")
       if base_children:
         for child in base_children:
           Vote(child, "", lower_deri_weight)
+          children.add(child)
       for rel_name, rel_weight in rel_weights.items():
         ent_rel_words = []
         expr = entry.get(rel_name)
@@ -1073,6 +1098,20 @@ class BuildUnionDBBatch:
     if final_rel_words:
       max_elems = int(min(max(math.log2(len(word_entry["item"])), 2), 6) * 6)
       word_entry["related"] = final_rel_words[:max_elems]
+    scored_parents = []
+    for parent in parents:
+      prob = self.GetPhraseProb(phrase_prob_dbm, "en", parent)
+      scored_parents.append((parent, prob))
+    scored_parents = sorted(scored_parents, key=lambda x: x[1], reverse=True)
+    if scored_parents:
+      word_entry["parent"] = [x[0] for x in scored_parents]
+    scored_children = []
+    for child in children:
+      prob = self.GetPhraseProb(phrase_prob_dbm, "en", child)
+      scored_children.append((child, prob))
+    scored_children = sorted(scored_children, key=lambda x: x[1], reverse=True)
+    if scored_children:
+      word_entry["child"] = [x[0] for x in scored_children]
 
   def SetCoocurrences(self, word_entry, entries, word_dicts, phrase_prob_dbm, cooc_prob_dbm):
     word = word_entry["word"]
