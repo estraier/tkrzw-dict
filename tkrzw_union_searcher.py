@@ -157,8 +157,15 @@ class UnionSearcher:
       max_trans = 8 / math.log2(len(result) + 1) * score
       max_rel_words = max(int(max_rel_words), 4)
       max_trans = max(int(max_trans), 2)
-      rel_words = entry.get("related")
+      rel_words = []
+      for i, rel_name in enumerate(("related", "parent", "child")):
+        tmp_rel_words = entry.get(rel_name)
+        if tmp_rel_words:
+          for j, rel_word in enumerate(tmp_rel_words):
+            rel_words.append((rel_word, i + j))
       if rel_words:
+        rel_words = sorted(rel_words, key=lambda x: x[1])
+        rel_words = [x[0] for x in rel_words]
         for rel_word in rel_words[:max_rel_words]:
           if len(checked_words) >= capacity: break
           if rel_word in checked_words: continue

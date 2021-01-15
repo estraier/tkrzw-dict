@@ -219,6 +219,14 @@ def PrintResult(entries, mode, query):
                 PrintWrappedText(subsubsubsection, 10)
         num_items += 1
       if mode == "full":
+        parents = entry.get("parent")
+        if parents:
+          text = "[語幹] {}".format(", ".join(parents[:8]))
+          PrintWrappedText(text, 4)
+        children = entry.get("child")
+        if children:
+          text = "[派生] {}".format(", ".join(children[:8]))
+          PrintWrappedText(text, 4)
         related = entry.get("related")
         if related:
           text = "[関連] {}".format(", ".join(related[:8]))
@@ -490,33 +498,23 @@ def PrintResultCGI(entries, query, details):
               P('</div>')
       P('</div>')
     if details:
-      related = entry.get("related")
-      if related:
-        P('<div class="attr attr_related">')
-        P('<span class="attr_label">関連</span>')
-        P('<span class="text">')
-        fields = []
-        for subword in related[:8]:
-          subword_url = "?q={}".format(urllib.parse.quote(subword))
-          fields.append('<a href="{}" class="subword">{}</a>'.format(
-            esc(subword_url), esc(subword)))
-        print(", ".join(fields), end="")
-        P('</span>')
-        P('</div>')
 
-      coocs = entry.get("cooccurrence")
-      if coocs:
-        P('<div class="attr attr_cooc">')
-        P('<span class="attr_label">共起</span>')
-        P('<span class="text">')
-        fields = []
-        for subword in coocs[:8]:
-          subword_url = "?q={}".format(urllib.parse.quote(subword))
-          fields.append('<a href="{}" class="subword">{}</a>'.format(
-            esc(subword_url), esc(subword)))
-        print(", ".join(fields), end="")
-        P('</span>')
-        P('</div>')
+      for rel_name, rel_label in (
+          ("parent", "語幹"), ("child", "派生"),
+          ("related", "関連"), ("cooccurrence", "共起")):
+        related = entry.get(rel_name)
+        if related:
+          P('<div class="attr attr_{}">', rel_name)
+          P('<span class="attr_label">{}</span>', rel_label)
+          P('<span class="text">')
+          fields = []
+          for subword in related[:8]:
+            subword_url = "?q={}".format(urllib.parse.quote(subword))
+            fields.append('<a href="{}" class="subword">{}</a>'.format(
+              esc(subword_url), esc(subword)))
+          print(", ".join(fields), end="")
+          P('</span>')
+          P('</div>')
       etym_fields = []
       etym_prefix = entry.get("etymology_prefix")
       if etym_prefix:

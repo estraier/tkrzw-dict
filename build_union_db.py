@@ -4,7 +4,7 @@
 # Script to build a union database by merging TSV dictionaries
 #
 # Usage:
-#   build_union_db.py [--output str] [--top str] [--slim str]
+#   build_union_db.py [--output str] [--core str] [--gross str] [--top str] [--slim str]
 #     [--phrase_prob str] [--tran_prob str] [--tran_aux str] [--rev_prob str] [--cooc_prob str]
 #     [--aoa str] [--keyword str] [--min_prob str] [--quiet] inputs...
 #   (An input specified as "label:tsv_file".
@@ -77,13 +77,13 @@ adverb_suffixes = [
 
 
 class BuildUnionDBBatch:
-  def __init__(self, input_confs, output_path, stem_labels, gross_labels,
+  def __init__(self, input_confs, output_path, core_labels, gross_labels,
                surfeit_labels, top_labels, slim_labels, tran_list_labels,
                phrase_prob_path, tran_prob_path, tran_aux_paths, rev_prob_path,
                cooc_prob_path, aoa_paths, keyword_path, min_prob_map):
     self.input_confs = input_confs
     self.output_path = output_path
-    self.stem_labels = stem_labels
+    self.core_labels = core_labels
     self.gross_labels = gross_labels
     self.surfeit_labels = surfeit_labels
     self.top_labels = top_labels
@@ -271,7 +271,7 @@ class BuildUnionDBBatch:
     logger.info("Indexing stems")
     stem_index = collections.defaultdict(list)
     for label, word_dict in word_dicts:
-      if label not in self.stem_labels: continue
+      if label not in self.core_labels: continue
       for key in keys:
         for entry in word_dict[key]:
           word = entry["word"]
@@ -286,7 +286,7 @@ class BuildUnionDBBatch:
             if valid_stems:
               entry["stem"] = list(valid_stems)
     for label, word_dict in word_dicts:
-      if label not in self.stem_labels: continue
+      if label not in self.core_labels: continue
       for key in keys:
         for entry in word_dict[key]:
           word = entry["word"]
@@ -296,14 +296,14 @@ class BuildUnionDBBatch:
     logger.info("Indexing stems done: num_stems={}, elapsed_time={:.2f}s".format(
       len(stem_index), time.time() - start_time))
     start_time = time.time()
-    logger.info("Checking good words")
+    logger.info("Checking POS of words")
     noun_words = set()
     verb_words = set()
     adj_words = set()
     adv_words = set()
-    good_words = set()
+    core_words = set()
     for label, word_dict in word_dicts:
-      if label in self.stem_labels:
+      if label in self.core_labels:
         for key in keys:
           for entry in word_dict[key]:
             word = entry["word"]
@@ -312,21 +312,9 @@ class BuildUnionDBBatch:
               if pos == "verb": verb_words.add(word)
               if pos == "adjective": adj_words.add(word)
               if pos == "adverb": adv_words.add(word)
-            good_words.add(word)
-      elif self.phrase_prob_path:
-        phrase_prob_dbm = tkrzw.DBM()
-        phrase_prob_dbm.Open(self.phrase_prob_path, False, dbm="HashDBM").OrDie()
-        min_prob = min(self.min_prob_map.get(label) or 0, 0.000001)
-        for key in keys:
-          for entry in word_dict[key]:
-            word = entry["word"]
-            if not regex.fullmatch("[a-z]+", word): continue
-            prob = self.GetPhraseProb(phrase_prob_dbm, "en", word)
-            if prob >= min_prob:
-              good_words.add(word)
-        phrase_prob_dbm.Close().OrDie()
-    logger.info("Checking good done: num_good_words={}, elapsed_time={:.2f}s".format(
-      len(good_words), time.time() - start_time))
+              core_words.add(word)
+    logger.info("Checking POS of words done: num_core_words={}, elapsed_time={:.2f}s".format(
+      len(core_words), time.time() - start_time))
     start_time = time.time()
     logger.info("Indexing base forms")
     base_index = collections.defaultdict(list)
@@ -337,7 +325,6 @@ class BuildUnionDBBatch:
         for entry in entries:
           word = entry["word"]
           if not regex.fullmatch("[a-z]+", word): continue
-          if word not in good_words: continue
           if word in verb_words:
             children = set()
             for part_name in ("verb_present_participle", "verb_past_participle"):
@@ -359,7 +346,7 @@ class BuildUnionDBBatch:
           core = entry.get("etymology_core")
           prefix = entry.get("etymology_prefix")
           suffix = entry.get("etymology_suffix")
-          if core and len(core) >= 4 and not prefix and suffix and core in good_words:
+          if core and len(core) >= 4 and not prefix and suffix:
             entry["core"] = core
             core_index[core].append(word)
       for key, entries in word_dict.items():
@@ -374,10 +361,7 @@ class BuildUnionDBBatch:
             entry["core_child"] = list(children)
     logger.info("Indexing base forms done: num_participles={}, elapsed_time={:.2f}s".format(
       len(base_index), time.time() - start_time))
-    start_time = time.time()
-    logger.info("Saving words: output_path={}".format(self.output_path))
-    word_dbm = tkrzw.DBM()
-    word_dbm.Open(self.output_path, True, truncate=True)
+    logger.info("Preparing DBMs")
     phrase_prob_dbm = None
     if self.phrase_prob_path:
       phrase_prob_dbm = tkrzw.DBM()
@@ -394,17 +378,46 @@ class BuildUnionDBBatch:
     if self.cooc_prob_path:
       cooc_prob_dbm = tkrzw.DBM()
       cooc_prob_dbm.Open(self.cooc_prob_path, False, dbm="HashDBM").OrDie()
-    num_records = 0
+    start_time = time.time()
+    logger.info("Merging entries: num_keys={}".format(len(keys)))
+    merged_entries = []
     for key in keys:
-      record = self.MakeRecord(
-        key, word_dicts, aux_trans, aoa_words, keywords, good_words,
+      merged_entry = self.MergeRecord(
+        key, word_dicts, aux_trans, aoa_words, keywords, core_words,
         phrase_prob_dbm, tran_prob_dbm, rev_prob_dbm, cooc_prob_dbm)
-      if not record: continue
-      serialized = json.dumps(record, separators=(",", ":"), ensure_ascii=False)
-      word_dbm.Set(key, serialized)
-      num_records += 1
-      if num_records % 1000 == 0:
-        logger.info("Saving words: num_records={}".format(num_records))
+      if not merged_entry: continue
+      merged_entries.append((key, merged_entry))
+      if len(merged_entries) % 1000 == 0:
+        logger.info("Merging entries:: num_entries={}".format(len(merged_entries)))
+    logger.info("Making records done: num_records={}, elapsed_time={:.2f}s".format(
+      len(merged_entries), time.time() - start_time))
+    start_time = time.time()
+    logger.info("Modifying entries")
+    live_words = set()
+    for key, merged_entry in merged_entries:
+      for word_entry in merged_entry:
+        live_words.add(word_entry["word"])
+    num_entries = 0
+    for key, merged_entry in merged_entries:
+      for word_entry in merged_entry:
+        word = word_entry["word"]
+        entries = []
+        for label, word_dict in word_dicts:
+          dict_entries = word_dict.get(key)
+          if not dict_entries: continue
+          for entry in dict_entries:
+            if entry["word"] == word:
+              entries.append((label, entry))
+        self.SetAOA(word_entry, entries, aoa_words, live_words, phrase_prob_dbm)
+        self.SetTranslations(word_entry, aux_trans, tran_prob_dbm, rev_prob_dbm)
+        self.SetRelations(word_entry, entries, word_dicts, live_words,
+                          phrase_prob_dbm, tran_prob_dbm, cooc_prob_dbm)
+        if phrase_prob_dbm and cooc_prob_dbm:
+          self.SetCoocurrences(word_entry, entries, word_dicts, phrase_prob_dbm, cooc_prob_dbm)
+      num_entries += 1
+      if num_entries % 1000 == 0:
+        logger.info("Modifying entries: num_records={}".format(num_entries))
+    logger.info("Modifying entries done: elapsed_time={:.2f}s".format(time.time() - start_time))
     if cooc_prob_dbm:
       cooc_prob_dbm.Close().OrDie()
     if rev_prob_dbm:
@@ -413,10 +426,22 @@ class BuildUnionDBBatch:
       tran_prob_dbm.Close().OrDie()
     if phrase_prob_dbm:
       phrase_prob_dbm.Close().OrDie()
+    start_time = time.time()
+    logger.info("Saving records: output_path={}".format(self.output_path))
+    word_dbm = tkrzw.DBM()
+    word_dbm.Open(self.output_path, True, truncate=True)
+    num_records = 0
+    for key, merged_entry in merged_entries:
+      serialized = json.dumps(merged_entry, separators=(",", ":"), ensure_ascii=False)
+      word_dbm.Set(key, serialized)
+      num_records += 1
+      if num_records % 1000 == 0:
+        logger.info("Saving records: num_records={}".format(num_records))
     logger.info("Optiizing: num_records={}".format(word_dbm.Count()))
     word_dbm.Rebuild().OrDie()
     word_dbm.Close().OrDie()
-    logger.info("Saving words done: elapsed_time={:.2f}s".format(time.time() - start_time))   
+    logger.info("Saving records done: num_records={}, elapsed_time={:.2f}s".format(
+      len(merged_entries), time.time() - start_time))
 
   def GetDerivativeStems(self, entry):
     word = entry["word"]
@@ -464,9 +489,8 @@ class BuildUnionDBBatch:
           valid_stems.add(deri)
     return list(valid_stems)
 
-  def MakeRecord(self, key, word_dicts, aux_trans, aoa_words, keywords, good_words,
-                 phrase_prob_dbm, tran_prob_dbm,
-                 rev_prob_dbm, cooc_prob_dbm):
+  def MergeRecord(self, key, word_dicts, aux_trans, aoa_words, keywords, core_words,
+                  phrase_prob_dbm, tran_prob_dbm, rev_prob_dbm, cooc_prob_dbm):
     word_entries = {}
     word_shares = collections.defaultdict(float)
     word_trans = collections.defaultdict(set)
@@ -639,15 +663,11 @@ class BuildUnionDBBatch:
             word_entry["item"] = new_items
       if not word_entry.get("item"):
         continue
+      if stem != word and stem in core_words and word not in core_words:
+        continue
       share_ratio = share / share_sum
       if share_ratio < 1:
         word_entry["share"] = "{:.3f}".format(share_ratio).replace("0.", ".")
-      self.SetAOA(word_entry, entries, prob, share_ratio, aoa_words, phrase_prob_dbm)
-      self.SetTranslations(word_entry, aux_trans, tran_prob_dbm, rev_prob_dbm)
-      self.SetRelations(word_entry, entries, word_dicts, good_words,
-                        phrase_prob_dbm, tran_prob_dbm, cooc_prob_dbm)
-      if phrase_prob_dbm and cooc_prob_dbm:
-        self.SetCoocurrences(word_entry, entries, word_dicts, phrase_prob_dbm, cooc_prob_dbm)
       merged_entry.append(word_entry)
     return merged_entry
 
@@ -687,12 +707,13 @@ class BuildUnionDBBatch:
         fallback_penalty *= 0.1
     return base_prob
 
-  def SetAOA(self, word_entry, entries, phrase_prob, share_ratio,
-             aoa_words, phrase_prob_dbm):
+  def SetAOA(self, word_entry, entries, aoa_words, live_words, phrase_prob_dbm):
     word = word_entry["word"]
+    phrase_prob = min(float(word_entry.get("probability") or 0), 0.0000001)
+    share = float(word_entry.get("share") or 1)
     share_bias = 0.0
-    if share_ratio < 0.5:
-      share_bias = (0.5 - share_ratio) * 4
+    if share < 0.5:
+      share_bias = (0.5 - share) * 4
     aoa = aoa_words.get(word.lower())
     if aoa:
       aoa += share_bias
@@ -708,6 +729,7 @@ class BuildUnionDBBatch:
         concepts.add(core)
     min_aoa = sys.maxsize
     for concept in concepts:
+      if concept not in live_words: continue
       aoa = aoa_words.get(concept.lower())
       if aoa:
         if phrase_prob and phrase_prob_dbm:
@@ -720,18 +742,19 @@ class BuildUnionDBBatch:
     if min_aoa < sys.maxsize:
       min_aoa += share_bias
       word_entry["aoa_concept"] = "{:.3f}".format(min_aoa)
-    min_aoa = sys.maxsize
+    bases = set()
     for label, entry in entries:
-      bases = entry.get("base")
-      if bases:
-        for base in bases:
-          aoa = aoa_words.get(base.lower())
-          if aoa:
-            aoa += 1.0
-            min_aoa = min(min_aoa, aoa)
+      tmp_bases = entry.get("base")
+      if tmp_bases:
+        for base in tmp_bases:
+          bases.add(base)
     stem = " ".join(self.tokenizer.Tokenize("en", word, False, True))
     if stem != word:
-      aoa = aoa_words.get(stem.lower())
+      bases.add(stem)
+    min_aoa = sys.maxsize
+    for base in bases:
+      if base not in live_words: continue
+      aoa = aoa_words.get(base.lower())
       if aoa:
         aoa += 1.0
         min_aoa = min(min_aoa, aoa)
@@ -984,7 +1007,7 @@ class BuildUnionDBBatch:
     if final_translations:
       entry["translation"] = final_translations
 
-  def SetRelations(self, word_entry, entries, word_dicts, good_words,
+  def SetRelations(self, word_entry, entries, word_dicts, live_words,
                    phrase_prob_dbm, tran_prob_dbm, cooc_prob_dbm):
     word = word_entry["word"]
     norm_word = tkrzw_dict.NormalizeWord(word)
@@ -1108,7 +1131,7 @@ class BuildUnionDBBatch:
     for rel_word, score in rel_words:
       if rel_word in parents or rel_word in children:
         continue
-      if rel_word not in good_words:
+      if rel_word not in live_words:
         continue
       norm_rel_word = tkrzw_dict.NormalizeWord(rel_word)
       if not norm_rel_word: continue
@@ -1187,7 +1210,7 @@ class BuildUnionDBBatch:
 def main():
   args = sys.argv[1:]
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-body.tkh"
-  stem_labels = set((tkrzw_dict.GetCommandFlag(args, "--stem", 1) or "wn").split(","))
+  core_labels = set((tkrzw_dict.GetCommandFlag(args, "--core", 1) or "wn").split(","))
   gross_labels = set((tkrzw_dict.GetCommandFlag(args, "--gross", 1) or "wj").split(","))
   top_labels = set((tkrzw_dict.GetCommandFlag(args, "--top", 1) or "we").split(","))
   slim_labels = set((tkrzw_dict.GetCommandFlag(args, "--slim", 1) or "we").split(","))
@@ -1220,7 +1243,7 @@ def main():
     if len(input_conf) != 2:
       raise RuntimeError("invalid input: " + input)
     input_confs.append(input_conf)
-  BuildUnionDBBatch(input_confs, output_path, stem_labels, gross_labels,
+  BuildUnionDBBatch(input_confs, output_path, core_labels, gross_labels,
                     surfeit_labels, top_labels, slim_labels, tran_list_labels,
                     phrase_prob_path, tran_prob_path, tran_aux_paths,
                     rev_prob_path, cooc_prob_path, aoa_paths, keyword_path,
