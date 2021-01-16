@@ -82,8 +82,8 @@ class ExtractKeysBatch:
     logger.info("Reading done: entries={}".format(num_entries))
     output_dbm = tkrzw.DBM()
     num_buckets = len(index) * 2
-    output_dbm.Open(self.output_path, True, dbm="HashDBM",
-                    truncate=True, num_buckets=num_buckets).OrDie()
+    output_dbm.Open(self.output_path, True, dbm="HashDBM", truncate=True,
+                    align_pow=0, num_buckets=num_buckets).OrDie()
     num_entries = 0
     for inflection, scores in index.items():
       scores = sorted(scores, key=lambda x: x[1], reverse=True)

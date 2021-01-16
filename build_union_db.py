@@ -224,7 +224,7 @@ class BuildUnionDBBatch:
           continue
         fields = line.strip().split(",")
         if len(fields) != 7: continue
-        word = fields[0].lower().strip()
+        word = fields[0].strip()
         occur = fields[3]
         mean = fields[4]
         stddev = fields[5]
@@ -429,7 +429,9 @@ class BuildUnionDBBatch:
     start_time = time.time()
     logger.info("Saving records: output_path={}".format(self.output_path))
     word_dbm = tkrzw.DBM()
-    word_dbm.Open(self.output_path, True, truncate=True)
+    num_buckets = len(merged_entries) * 2
+    word_dbm.Open(self.output_path, True, truncate=True,
+                  align_pow=0, num_buckets=num_buckets)
     num_records = 0
     for key, merged_entry in merged_entries:
       serialized = json.dumps(merged_entry, separators=(",", ":"), ensure_ascii=False)
@@ -437,8 +439,6 @@ class BuildUnionDBBatch:
       num_records += 1
       if num_records % 1000 == 0:
         logger.info("Saving records: num_records={}".format(num_records))
-    logger.info("Optiizing: num_records={}".format(word_dbm.Count()))
-    word_dbm.Rebuild().OrDie()
     word_dbm.Close().OrDie()
     logger.info("Saving records done: num_records={}, elapsed_time={:.2f}s".format(
       len(merged_entries), time.time() - start_time))
@@ -714,7 +714,7 @@ class BuildUnionDBBatch:
     share_bias = 0.0
     if share < 0.5:
       share_bias = (0.5 - share) * 4
-    aoa = aoa_words.get(word.lower())
+    aoa = aoa_words.get(word)
     if aoa:
       aoa += share_bias
       word_entry["aoa"] = "{:.3f}".format(aoa)
@@ -730,7 +730,7 @@ class BuildUnionDBBatch:
     min_aoa = sys.maxsize
     for concept in concepts:
       if concept not in live_words: continue
-      aoa = aoa_words.get(concept.lower())
+      aoa = aoa_words.get(concept)
       if aoa:
         if phrase_prob and phrase_prob_dbm:
           concept_prob = self.GetPhraseProb(phrase_prob_dbm, "en", concept)
@@ -754,7 +754,7 @@ class BuildUnionDBBatch:
     min_aoa = sys.maxsize
     for base in bases:
       if base not in live_words: continue
-      aoa = aoa_words.get(base.lower())
+      aoa = aoa_words.get(base)
       if aoa:
         aoa += 1.0
         min_aoa = min(min_aoa, aoa)
@@ -1210,12 +1210,12 @@ class BuildUnionDBBatch:
 def main():
   args = sys.argv[1:]
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-body.tkh"
-  core_labels = set((tkrzw_dict.GetCommandFlag(args, "--core", 1) or "wn").split(","))
+  core_labels = set((tkrzw_dict.GetCommandFlag(args, "--core", 1) or "mh,wn").split(","))
   gross_labels = set((tkrzw_dict.GetCommandFlag(args, "--gross", 1) or "wj").split(","))
   top_labels = set((tkrzw_dict.GetCommandFlag(args, "--top", 1) or "we").split(","))
   slim_labels = set((tkrzw_dict.GetCommandFlag(args, "--slim", 1) or "we").split(","))
   surfeit_labels = set((tkrzw_dict.GetCommandFlag(args, "--surfeit", 1) or "we").split(","))
-  tran_list_labels = set((tkrzw_dict.GetCommandFlag(args, "--tran_list", 1) or "wn,we").split(","))
+  tran_list_labels = set((tkrzw_dict.GetCommandFlag(args, "--tran_list", 1) or "xx,wn,we").split(","))
   phrase_prob_path = tkrzw_dict.GetCommandFlag(args, "--phrase_prob", 1) or ""
   tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
   tran_aux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or "").split(",")

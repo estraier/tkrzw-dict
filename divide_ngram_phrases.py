@@ -69,7 +69,8 @@ class DivideCountBatch:
     phrase_prob_dbm = tkrzw.DBM()
     num_buckets = phrase_count_dbm.Count() / 2
     phrase_prob_dbm.Open(
-      phrase_prob_path, True, dbm="HashDBM", truncate=True, num_buckets=num_buckets).OrDie()
+      phrase_prob_path, True, dbm="HashDBM", truncate=True,
+      align_pow=0, num_buckets=num_buckets).OrDie()
     it.First()
     it.Next()
     num_records = 0
