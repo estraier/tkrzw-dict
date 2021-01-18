@@ -325,3 +325,17 @@ class UnionSearcher:
         uniq_words.add(word)
         result.append(entry)
     return result
+
+  def SearchByGrade(self, capacity, page, first_only):
+    keys = self.keys_file.Search("begin", "", capacity * page, False)
+    if page > 1:
+      skip = capacity * (page - 1)
+      keys = keys[skip:]
+    result = []
+    for key in keys:
+      if len(result) >= capacity: break
+      for entry in self.SearchExact(key, capacity - len(result)):
+        result.append(entry)
+        if first_only:
+          break
+    return result

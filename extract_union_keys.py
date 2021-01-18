@@ -28,7 +28,6 @@ import sys
 import time
 import tkrzw
 import tkrzw_dict
-import tkrzw_tokenizer
 
 
 logger = tkrzw_dict.GetLogger()
@@ -56,12 +55,29 @@ class ExtractKeysBatch:
       entry = json.loads(serialized)
       max_score = 0
       for word_entry in entry:
-        prob = max(float(word_entry.get("probability") or "0"), 0.0000001)
-        aoa = min(float(word_entry.get("aoa") or "20"), 20.0)
-        score = prob * ((30 - aoa) / 10)
-        score *= math.log2(len(word_entry["item"]) + 2)
-        if "translation" in word_entry:
-          score *= 2
+        word = word_entry["word"]
+        prob = float(word_entry.get("probability") or "0")
+        prob_score = max(prob ** 0.5, 0.00001)
+        aoa = float(word_entry.get("aoa") or word_entry.get("aoa_concept") or
+                    word_entry.get("aoa_base") or sys.maxsize)
+        aoa_score = (25 - min(aoa, 20.0)) / 10.0
+        tran_score = 1.0 if "translation" in word_entry else 0.7
+        item_score = math.log2(len(word_entry["item"]) + 2)
+        labels = set()
+        for item in word_entry["item"]:
+          labels.add(item["label"])
+        label_score = len(labels) + 1.5
+        children = word_entry.get("child")
+        child_score = math.log2((len(children) if children else 0) + 4)
+        score = prob_score * aoa_score * tran_score * item_score * child_score
+        if regex.fullmatch(r"\d+", word):
+          score *= 0.1
+        elif regex.match(r"\d", word):
+          score *= 0.3
+        elif regex.search(r"^[^\p{Latin}]", word) or regex.search(r"[^\p{Latin}]$", word):
+          score *= 0.5
+        elif regex.search(r".[\p{Lu}]", word):
+          score *= 0.5
         max_score = max(max_score, score)
       scores.append((key, max_score))
       num_entries += 1

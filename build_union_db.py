@@ -74,6 +74,14 @@ adjective_suffixes = [
 adverb_suffixes = [
   "ly",
 ]
+particles = [
+  "about", "above", "across", "after", "against", "along", "amid", "among", "around", "as", "at",
+  "before", "behind", "below", "beneath", "between", "beside", "beyond", "by", "despite", "during",
+  "down", "except", "for", "from", "in", "inside", "into", "near",
+  "of", "off", "on", "onto", "out", "outside", "over",
+  "per", "re", "since", "through", "throughout", "till", "to", "toward",
+  "under", "until", "up", "upon", "with", "within", "without", "via",
+]
 
 
 class BuildUnionDBBatch:
@@ -393,10 +401,19 @@ class BuildUnionDBBatch:
       len(merged_entries), time.time() - start_time))
     start_time = time.time()
     logger.info("Modifying entries")
-    live_words = set()
+    merged_entries = sorted(merged_entries)
+    live_words = tkrzw.DBM()
+    live_words.Open("", True, dbm="BabyDBM").OrDie()
+    rev_live_words = tkrzw.DBM()
+    rev_live_words.Open("", True, dbm="BabyDBM").OrDie()
     for key, merged_entry in merged_entries:
       for word_entry in merged_entry:
-        live_words.add(word_entry["word"])
+        word = word_entry["word"]
+        prob = float(word_entry.get("probability") or 0)
+        value = "{:.8f}".format(prob)
+        live_words.Set(word, value).OrDie()
+        rev_word = " ".join(reversed(word.split(" ")))
+        rev_live_words.Set(rev_word, value).OrDie()
     num_entries = 0
     for key, merged_entry in merged_entries:
       for word_entry in merged_entry:
@@ -410,7 +427,7 @@ class BuildUnionDBBatch:
               entries.append((label, entry))
         self.SetAOA(word_entry, entries, aoa_words, live_words, phrase_prob_dbm)
         self.SetTranslations(word_entry, aux_trans, tran_prob_dbm, rev_prob_dbm)
-        self.SetRelations(word_entry, entries, word_dicts, live_words,
+        self.SetRelations(word_entry, entries, word_dicts, live_words, rev_live_words,
                           phrase_prob_dbm, tran_prob_dbm, cooc_prob_dbm)
         if phrase_prob_dbm and cooc_prob_dbm:
           self.SetCoocurrences(word_entry, entries, word_dicts, phrase_prob_dbm, cooc_prob_dbm)
@@ -418,6 +435,8 @@ class BuildUnionDBBatch:
       if num_entries % 1000 == 0:
         logger.info("Modifying entries: num_records={}".format(num_entries))
     logger.info("Modifying entries done: elapsed_time={:.2f}s".format(time.time() - start_time))
+    rev_live_words.Close().OrDie()
+    live_words.Close().OrDie()
     if cooc_prob_dbm:
       cooc_prob_dbm.Close().OrDie()
     if rev_prob_dbm:
@@ -430,7 +449,7 @@ class BuildUnionDBBatch:
     logger.info("Saving records: output_path={}".format(self.output_path))
     word_dbm = tkrzw.DBM()
     num_buckets = len(merged_entries) * 2
-    word_dbm.Open(self.output_path, True, truncate=True,
+    word_dbm.Open(self.output_path, True, dbm="HashDBM", truncate=True,
                   align_pow=0, num_buckets=num_buckets)
     num_records = 0
     for key, merged_entry in merged_entries:
@@ -641,6 +660,11 @@ class BuildUnionDBBatch:
       prob = None
       if phrase_prob_dbm:
         prob = self.GetPhraseProb(phrase_prob_dbm, "en", word)
+        if stem.lower() != word.lower():
+          if word.count(" "):
+            prob *= 0.5
+          else:
+            prob *= 0.1
         word_entry["probability"] = "{:.7f}".format(prob).replace("0.", ".")
         if self.min_prob_map:
           has_good_label = False
@@ -729,7 +753,8 @@ class BuildUnionDBBatch:
         concepts.add(core)
     min_aoa = sys.maxsize
     for concept in concepts:
-      if concept not in live_words: continue
+      if not live_words.Get(concept):
+        continue
       aoa = aoa_words.get(concept)
       if aoa:
         if phrase_prob and phrase_prob_dbm:
@@ -753,7 +778,8 @@ class BuildUnionDBBatch:
       bases.add(stem)
     min_aoa = sys.maxsize
     for base in bases:
-      if base not in live_words: continue
+      if not live_words.Get(base):
+        continue
       aoa = aoa_words.get(base)
       if aoa:
         aoa += 1.0
@@ -1007,7 +1033,7 @@ class BuildUnionDBBatch:
     if final_translations:
       entry["translation"] = final_translations
 
-  def SetRelations(self, word_entry, entries, word_dicts, live_words,
+  def SetRelations(self, word_entry, entries, word_dicts, live_words, rev_live_words,
                    phrase_prob_dbm, tran_prob_dbm, cooc_prob_dbm):
     word = word_entry["word"]
     norm_word = tkrzw_dict.NormalizeWord(word)
@@ -1131,7 +1157,7 @@ class BuildUnionDBBatch:
     for rel_word, score in rel_words:
       if rel_word in parents or rel_word in children:
         continue
-      if rel_word not in live_words:
+      if not live_words.Get(rel_word) or rel_word == word:
         continue
       norm_rel_word = tkrzw_dict.NormalizeWord(rel_word)
       if not norm_rel_word: continue
@@ -1150,6 +1176,8 @@ class BuildUnionDBBatch:
       word_entry["related"] = final_rel_words[:max_elems]
     scored_parents = []
     for parent in parents:
+      if not live_words.Get(parent) or parent == word:
+        continue
       prob = self.GetPhraseProb(phrase_prob_dbm, "en", parent)
       scored_parents.append((parent, prob))
     scored_parents = sorted(scored_parents, key=lambda x: x[1], reverse=True)
@@ -1157,11 +1185,67 @@ class BuildUnionDBBatch:
       word_entry["parent"] = [x[0] for x in scored_parents]
     scored_children = []
     for child in children:
+      if not live_words.Get(child) or child == word:
+        continue
       prob = self.GetPhraseProb(phrase_prob_dbm, "en", child)
       scored_children.append((child, prob))
     scored_children = sorted(scored_children, key=lambda x: x[1], reverse=True)
     if scored_children:
       word_entry["child"] = [x[0] for x in scored_children]
+    prob = float(live_words.GetStr(word) or 0.0)
+    if prob >= 0.000001 and regex.fullmatch(r"[-\p{Latin}]+", word):
+      prefix = word + " "
+      idioms = []
+      it = live_words.MakeIterator()
+      it.Jump(prefix)
+      while True:
+        rec = it.GetStr()
+        if not rec: break
+        cmp_word, cmp_prob = rec
+        if not cmp_word.startswith(prefix): break
+        cmp_prob = float(cmp_prob)
+        cmp_score = cmp_prob / prob
+        if cmp_score >= 0.001:
+          has_particle = False
+          for cmp_token in cmp_word.split(" ")[1:]:
+            if cmp_token in particles:
+              has_particle = True
+              break
+          if has_particle:
+            cmp_score *= 3.0
+          idioms.append((cmp_word, cmp_score))
+        it.Next()
+      it = rev_live_words.MakeIterator()
+      it.Jump(prefix)
+      while True:
+        rec = it.GetStr()
+        if not rec: break
+        cmp_word, cmp_prob = rec
+        if not cmp_word.startswith(prefix): break
+        cmp_word = " ".join(reversed(cmp_word.split(" ")))
+        cmp_prob = float(cmp_prob)
+        cmp_score = cmp_prob / prob
+        if cmp_score >= 0.001:
+          has_particle = False
+          for cmp_token in cmp_word.split(" ")[:-1]:
+            if cmp_token in particles:
+              has_particle = True
+              break
+          if has_particle:
+            cmp_score *= 3.0
+          cmp_score * 0.9
+          idioms.append((cmp_word, cmp_score))
+        it.Next()
+      idioms = sorted(idioms, key=lambda x: x[1], reverse=True)
+      uniq_idioms = set()
+      final_idioms = []
+      for idiom, prob in idioms:
+        if idiom in uniq_idioms: continue
+        uniq_idioms.add(idiom)
+        final_idioms.append(idiom)
+      if final_idioms:
+        max_elems = int(min(max(math.log2(len(word_entry["item"])), 2), 6) * 4)
+        word_entry["idiom"] = final_idioms[:max_elems]
 
   def SetCoocurrences(self, word_entry, entries, word_dicts, phrase_prob_dbm, cooc_prob_dbm):
     word = word_entry["word"]
@@ -1210,12 +1294,12 @@ class BuildUnionDBBatch:
 def main():
   args = sys.argv[1:]
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-body.tkh"
-  core_labels = set((tkrzw_dict.GetCommandFlag(args, "--core", 1) or "mh,wn").split(","))
+  core_labels = set((tkrzw_dict.GetCommandFlag(args, "--core", 1) or "xa,wn").split(","))
   gross_labels = set((tkrzw_dict.GetCommandFlag(args, "--gross", 1) or "wj").split(","))
   top_labels = set((tkrzw_dict.GetCommandFlag(args, "--top", 1) or "we").split(","))
   slim_labels = set((tkrzw_dict.GetCommandFlag(args, "--slim", 1) or "we").split(","))
   surfeit_labels = set((tkrzw_dict.GetCommandFlag(args, "--surfeit", 1) or "we").split(","))
-  tran_list_labels = set((tkrzw_dict.GetCommandFlag(args, "--tran_list", 1) or "xx,wn,we").split(","))
+  tran_list_labels = set((tkrzw_dict.GetCommandFlag(args, "--tran_list", 1) or "xa,wn,we").split(","))
   phrase_prob_path = tkrzw_dict.GetCommandFlag(args, "--phrase_prob", 1) or ""
   tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
   tran_aux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or "").split(",")

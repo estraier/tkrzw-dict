@@ -23,6 +23,7 @@
 import cgi
 import html
 import os
+import math
 import regex
 import sys
 import tkrzw_dict
@@ -93,6 +94,13 @@ TEXT_ATTRS = {
 }
 
 
+def Atoi(text):
+  try:
+    return int(text)
+  except ValueError:
+    return 0
+
+  
 def CutTextByWidth(text, width):
   result = ""
   for c in text:
@@ -227,6 +235,10 @@ def PrintResult(entries, mode, query):
         if children:
           text = "[派生] {}".format(", ".join(children[:8]))
           PrintWrappedText(text, 4)
+        idioms = entry.get("idiom")
+        if idioms:
+          text = "[熟語] {}".format(", ".join(idioms[:8]))
+          PrintWrappedText(text, 4)
         related = entry.get("related")
         if related:
           text = "[関連] {}".format(", ".join(related[:8]))
@@ -234,7 +246,7 @@ def PrintResult(entries, mode, query):
         coocs = entry.get("cooccurrence")
         if coocs:
           text = "[共起] {}".format(", ".join(coocs[:8]))
-          PrintWrappedText(text, 4)
+          PrintWrappedText(text, 4)          
         etym_parts = []
         etym_prefix = entry.get("etymology_prefix")
         if etym_prefix: etym_parts.append(etym_prefix + "-")
@@ -247,8 +259,12 @@ def PrintResult(entries, mode, query):
           PrintWrappedText(text, 4)
         prob = entry.get("probability")
         if prob:
-          text = "[確率] {:.5f}%".format(float(prob) * 100)
-          PrintWrappedText(text, 4)
+          prob = float(prob)
+          if prob > 0:
+            fmt = "{{:.{}f}}".format(min(max(int(math.log10(prob) * -1 + 1), 3), 6))
+            prob_expr = regex.sub(r"\.(\d{3})(\d*?)0+$", r".\1\2", fmt.format(prob * 100))
+            text = "[確率] {}%".format(prob_expr)
+            PrintWrappedText(text, 4)
         aoa = entry.get("aoa") or entry.get("aoa_concept") or entry.get("aoa_base")
         if aoa:
           text = "[年齢] {:.2f}".format(float(aoa))
@@ -267,7 +283,7 @@ def main():
   query = " ".join(args)
   if not query:
     raise RuntimeError("words are not specified")
-  searcher = tkrzw_union_searcher.UnionSearcher(CGI_DATA_PREFIX)
+  searcher = tkrzw_union_searcher.UnionSearcher(data_prefix)
   is_reverse = False
   if index_mode == "auto":
     if tkrzw_dict.PredictLanguage(query) != "en":
@@ -288,45 +304,46 @@ def main():
     raise RuntimeError("unknown index mode: " + index_mode)
   if search_mode in ("auto", "exact"):
     if is_reverse:
-      result = searcher.SearchExactReverse(query, CGI_CAPACITY)
+      result = searcher.SearchExactReverse(query, capacity)
     else:
-      result = searcher.SearchExact(query, CGI_CAPACITY)
+      result = searcher.SearchExact(query, capacity)
   elif search_mode == "prefix":
     if is_reverse:
-      result = searcher.SearchPatternMatchReverse("begin", query, CGI_CAPACITY)
+      result = searcher.SearchPatternMatchReverse("begin", query, capacity)
     else:
-      result = searcher.SearchPatternMatch("begin", query, CGI_CAPACITY)
+      result = searcher.SearchPatternMatch("begin", query, capacity)
   elif search_mode == "suffix":
     if is_reverse:
-      result = searcher.SearchPatternMatchReverse("end", query, CGI_CAPACITY)
+      result = searcher.SearchPatternMatchReverse("end", query, capacity)
     else:
-      result = searcher.SearchPatternMatch("end", query, CGI_CAPACITY)
+      result = searcher.SearchPatternMatch("end", query, capacity)
   elif search_mode == "contain":
     if is_reverse:
-      result = searcher.SearchPatternMatchReverse("contain", query, CGI_CAPACITY)
+      result = searcher.SearchPatternMatchReverse("contain", query, capacity)
     else:
-      result = searcher.SearchPatternMatch("contain", query, CGI_CAPACITY)
+      result = searcher.SearchPatternMatch("contain", query, capacity)
   elif search_mode == "word":
     pattern = r"(^| ){}( |$)".format(regex.escape(query))
     if is_reverse:
-      result = searcher.SearchPatternMatchReverse("regex", pattern, CGI_CAPACITY)
+      result = searcher.SearchPatternMatchReverse("regex", pattern, capacity)
     else:
-      result = searcher.SearchPatternMatch("regex", pattern, CGI_CAPACITY)
+      result = searcher.SearchPatternMatch("regex", pattern, capacity)
   elif search_mode == "edit":
     if is_reverse:
-      result = searcher.SearchPatternMatchReverse("edit", query, CGI_CAPACITY)
+      result = searcher.SearchPatternMatchReverse("edit", query, capacity)
     else:
-      result = searcher.SearchPatternMatch("edit", query, CGI_CAPACITY)
+      result = searcher.SearchPatternMatch("edit", query, capacity)
   elif search_mode == "related":
     if is_reverse:
-      result = searcher.SearchRelatedReverse(query, CGI_CAPACITY)
+      result = searcher.SearchRelatedReverse(query, capacity)
     else:
-      result = searcher.SearchRelated(query, CGI_CAPACITY)
+      result = searcher.SearchRelated(query, capacity)
+  elif search_mode == "grade":
+    page = max(Atoi(query), 1)
+    result = searcher.SearchByGrade(capacity, page, True)
   else:
     raise RuntimeError("unknown search mode: " + search_mode)
   if result:
-    if len(result) > capacity:
-      result = result[:capacity]
     if view_mode == "auto":
       keys = searcher.GetResultKeys(result)
       if len(keys) < 2:
@@ -498,9 +515,8 @@ def PrintResultCGI(entries, query, details):
               P('</div>')
       P('</div>')
     if details:
-
       for rel_name, rel_label in (
-          ("parent", "語幹"), ("child", "派生"),
+          ("parent", "語幹"), ("child", "派生"), ("idiom", "熟語"),
           ("related", "関連"), ("cooccurrence", "共起")):
         related = entry.get(rel_name)
         if related:
@@ -541,11 +557,16 @@ def PrintResultCGI(entries, query, details):
       if aoa or prob:
         P('<div class="attr attr_prob">')
         if prob:
-          P('<span class="attr_label">頻度</span>' +
-            ' <span class="attr_value">{:.4f}%</span>', float(prob) * 100)
+          prob = float(prob)
+          if prob > 0:
+            fmt = "{{:.{}f}}".format(min(max(int(math.log10(prob) * -1 + 1), 3), 6))
+            prob_expr = regex.sub(r"\.(\d{3})(\d*?)0+$", r".\1\2", fmt.format(prob * 100))
+            P('<span class="attr_label">頻度</span>' +
+              ' <span class="attr_value">{}%</span>', prob_expr)
         if aoa:
+          aoa = float(aoa)
           P('<span class="attr_label">年齢</span>' +
-            ' <span class="attr_value">{:.2f}</span>', float(aoa))
+            ' <span class="attr_value">{:.2f}</span>', aoa)
         P('</div>')
     P('</div>')
 
@@ -611,6 +632,8 @@ def main_cgi():
   index_mode = params.get("i") or "auto"
   search_mode = params.get("s") or "auto"
   view_mode = params.get("v") or "auto"
+  if index_mode == "grade" and not query:
+    query = "1"
   page_title = "統合英和辞書検索"
   if query:
     page_title += ": " + query
@@ -638,7 +661,9 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
 .license {{ opacity: 0.7; font-size: 90%; padding: 2ex 3ex; }}
 .license a {{ color: #001166; }}
 .license ul {{ font-size: 90%; }}
-.message {{ opacity: 0.9; font-size: 90%; padding: 1ex 2ex; }}
+.message {{ position: relative; opacity: 0.9; font-size: 90%; padding: 1ex 2ex; }}
+.pagenavi {{ position: absolute; top: 1ex; right: 1ex; opacity: 0.8; }}
+.pagenavi a {{ min-width: 3ex; color: #002244; }}
 .attr,.item {{ color: #999999; }}
 .attr a,.item a {{ color: #111111; }}
 .attr a:hover,.item a:hover {{ color: #0011ee; }}
@@ -654,7 +679,8 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
   display: inline-block; border: solid 1px #999999; border-radius: 0.5ex;
   font-size: 65%; min-width: 3.5ex; text-align: center; margin-right: -0.5ex;
   color: #111111; background: #eeeeee; opacity: 0.85; }}
-.item_mh .label {{ background: #ffffee; opacity: 0.7; }}
+.item_xa .label {{ background: #eeeeee; opacity: 0.7; }}
+.item_xz .label {{ background: #eeeeee; opacity: 0.7; }}
 .item_wn .label {{ background: #eeffdd; opacity: 0.7; }}
 .item_we .label {{ background: #ffddee; opacity: 0.7; }}
 .item_wj .label {{ background: #ddeeff; opacity: 0.7; }}
@@ -716,7 +742,8 @@ function startup() {{
   P('</div>')
   P('<select name="i" id="index_mode_box">')
   for value, label in (("auto", "索引"), ("normal", "英和"),
-                       ("reverse", "和英"), ("inflection", "英和屈折")):
+                       ("reverse", "和英"), ("inflection", "英和屈折"),
+                       ("grade", "等級")):
     P('<option value="{}"', esc(value), end="")
     if value == index_mode:
       P(' selected="selected"', end="")
@@ -761,6 +788,8 @@ function startup() {{
           query = ",".join(lemmas)
         else:
           query = lemmas[0]
+    elif index_mode == "grade":
+      search_mode = "grade"
     else:
       raise RuntimeError("unknown index mode: " + index_mode)
     if search_mode in ("auto", "exact"):
@@ -799,6 +828,19 @@ function startup() {{
         result = searcher.SearchRelatedReverse(query, CGI_CAPACITY)
       else:
         result = searcher.SearchRelated(query, CGI_CAPACITY)
+    elif search_mode == "grade":
+      page = max(Atoi(query), 1)
+      result = searcher.SearchByGrade(CGI_CAPACITY, page, True)
+      P('<div class="message">')
+      P('等級順: <strong>{}</strong>', page)
+      P('<div class="pagenavi">')
+      if page > 1:
+        prev_url = "?i=grade&q={}".format(page - 1)
+        P('<a href="{}">&#x2B05;</a>', prev_url)
+      next_url = "?i=grade&q={}".format(page + 1)
+      P('<a href="{}">&#x2B95;</a>', next_url)
+      P('</div>')
+      P('</div>')
     else:
       raise RuntimeError("unknown search mode: " + search_mode)
     if result:
@@ -860,7 +902,7 @@ function startup() {{
         PrintResultCGIList(edit_result, "")
   else:
     print("""<div class="license">
-<p>デフォルトでは、英語の検索語が入力されると英和の索引が検索され、日本語の検索語が入力されると和英の索引が検索されます。オプションで索引を明示的に指定できます。</p>
+<p>デフォルトでは、英語の検索語が入力されると英和の索引が検索され、日本語の検索語が入力されると和英の索引が検索されます。オプションで索引を明示的に指定できます。英和屈折は、単語の過去形などの屈折形を吸収した検索を行います。等級は、検索語を無視して全ての見出し語を重要度順に表示します。</p>
 <p>検索条件のデフォルトは、完全一致です。つまり、入力語そのものを見出しに含む語が表示されます。ただし、該当がない場合には自動的に曖昧検索が行われて、綴りが似た語が表示されます。オプションで検索条件を以下のものから明示的に選択できます。</p>
 <ul>
 <li>完全一致 : 見出し語が検索語と完全一致するものが該当する。</li>
