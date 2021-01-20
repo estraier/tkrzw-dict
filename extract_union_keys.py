@@ -45,6 +45,26 @@ class ExtractKeysBatch:
     input_dbm = tkrzw.DBM()
     input_dbm.Open(self.input_path, False, dbm="HashDBM").OrDie()
     it = input_dbm.MakeIterator()
+    logger.info("Getting AOA records")
+    it.First()
+    num_entries = 0
+    aoa_records = {}
+    while True:
+      record = it.GetStr()
+      if not record: break
+      key, serialized = record
+      entry = json.loads(serialized)
+      max_score = 0
+      for word_entry in entry:
+        word = word_entry["word"]
+        aoa = (word_entry.get("aoa") or word_entry.get("aoa_concept") or
+               word_entry.get("aoa_base"))
+        if aoa:
+          aoa_records[word] = float(aoa)
+      num_entries += 1
+      if num_entries % 10000 == 0:
+        logger.info("Getting AOA records: entries={}".format(num_entries))
+      it.Next()
     it.First()
     num_entries = 0
     scores = []
@@ -58,15 +78,30 @@ class ExtractKeysBatch:
         word = word_entry["word"]
         prob = float(word_entry.get("probability") or "0")
         prob_score = max(prob ** 0.5, 0.00001)
-        aoa = float(word_entry.get("aoa") or word_entry.get("aoa_concept") or
-                    word_entry.get("aoa_base") or sys.maxsize)
+        aoa = (word_entry.get("aoa") or word_entry.get("aoa_concept") or
+               word_entry.get("aoa_base"))
+        if aoa:
+          aoa = float(aoa)
+        else:
+          aoa = sys.maxsize
+          tokens = word.split(" ")
+          if len(tokens) > 1:
+            max_aoa = 0
+            for token in tokens:
+              token_aoa = aoa_records.get(token)
+              if token_aoa:
+                max_aoa = max(max_aoa, float(token_aoa))
+              else:
+                max_aoa = sys.maxsize
+            if max_aoa < sys.maxsize:
+              aoa = max_aoa + len(tokens) - 1
         aoa_score = (25 - min(aoa, 20.0)) / 10.0
-        tran_score = 1.0 if "translation" in word_entry else 0.7
-        item_score = math.log2(len(word_entry["item"]) + 2)
+        tran_score = 1.0 if "translation" in word_entry else 0.6
+        item_score = math.log2(len(word_entry["item"]) + 1)
         labels = set()
         for item in word_entry["item"]:
           labels.add(item["label"])
-        label_score = len(labels) + 1.5
+        label_score = len(labels) + 1
         children = word_entry.get("child")
         child_score = math.log2((len(children) if children else 0) + 4)
         score = prob_score * aoa_score * tran_score * item_score * child_score
