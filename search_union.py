@@ -662,8 +662,9 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
 .license a {{ color: #001166; }}
 .license ul {{ font-size: 90%; }}
 .message {{ position: relative; opacity: 0.9; font-size: 90%; padding: 1ex 2ex; }}
-.pagenavi {{ position: absolute; top: 1ex; right: 1ex; opacity: 0.8; }}
-.pagenavi a {{ min-width: 3ex; color: #002244; }}
+.message p {{ margin: 0; padding: 0; }}
+.pagenavi {{ float: right; }}
+.pagenavi a {{ min-width: 3ex; color: #002244; padding-left: 0.5ex; }}
 .attr,.item {{ color: #999999; }}
 .attr a,.item a {{ color: #111111; }}
 .attr a:hover,.item a:hover {{ color: #0011ee; }}
@@ -832,7 +833,6 @@ function startup() {{
       page = max(Atoi(query), 1)
       result = searcher.SearchByGrade(CGI_CAPACITY, page, True)
       P('<div class="message">')
-      P('等級順: <strong>{}</strong>', page)
       P('<div class="pagenavi">')
       if page > 1:
         prev_url = "?i=grade&q={}".format(page - 1)
@@ -840,6 +840,7 @@ function startup() {{
       next_url = "?i=grade&q={}".format(page + 1)
       P('<a href="{}">&#x2B95;</a>', next_url)
       P('</div>')
+      P('<p>等級順: <strong>{}</strong></p>', page)
       P('</div>')
     else:
       raise RuntimeError("unknown search mode: " + search_mode)
@@ -895,7 +896,9 @@ function startup() {{
       submessage = ""
       if subactions:
         submessage = "{}に移行。".format("、".join(subactions))
-      P('<div class="message">該当なし。{}</div>', submessage)
+      P('<div class="message">')
+      P('<p>該当なし。{}</p>', submessage)
+      P('</div>')
       if infl_result:
         PrintResultCGIList(infl_result, "")
       if edit_result:
