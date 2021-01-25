@@ -39,7 +39,8 @@ import unicodedata
 BATCH_MAX_RECORDS = 230000000 # for 12GB RAM usage
 MIN_PHRASE_COUNT_IN_BATCH = 2
 MERGE_DB_UNIT = 16
-MAX_TOKENS = 64
+MAX_SRC_TOKENS = 64
+MAX_TRG_TOKENS = 96
 MAX_SENTENCES_IN_DOMAIN = 1000
 MAX_TARGETS_IN_BATCH = 64
 
@@ -153,41 +154,32 @@ class WordCountBatch:
       records = sorted(records, key=lambda x: x[0], reverse=True)[:MAX_SENTENCES_IN_DOMAIN]
     self.num_domains += 1
     self.num_sentences += len(records)
-    re_split = regex.compile(r"\s+")
-    re_latin = regex.compile(r"\p{Latin}[-\p{Latin}]*")
     uniq_src_phrases = set()
     uniq_trg_phrases = set()
     uniq_phrase_pairs = set()
     for score, source, target in records:
-      src_tokens = re_split.split(source)[:MAX_TOKENS]
+      src_phrases = self.ExtractSourcePhrases(source, MAX_SRC_TOKENS)
       dup_nonstem = bool(self.dict_words)
-      trg_phrases = self.ExtractTargetPhrases(target, MAX_TOKENS, dup_nonstem)
-      for start_index in range(0, len(src_tokens)):
-        end_index = min(len(src_tokens), start_index + self.source_ngram)
-        src_phrase = ""
-        for i in range(start_index, end_index):
-          src_token = src_tokens[i]
-          if not re_latin.fullmatch(src_token): break
-          if src_phrase:
-            src_phrase += " "
-          src_phrase += src_token
-          if self.keywords:
-            if not src_phrase.lower() in self.keywords:
-              continue
-          if self.dict_words:
-            dict_targets = self.dict_words.get(src_phrase)
-            if not dict_targets: continue
-            new_trg_phrases = []
-            for trg_phrase in trg_phrases:
-              norm_trg_phrase = regex.sub(
-                r" *([\p{Han}\p{Hiragana}\p{Katakana}ー]) *", r"\1", trg_phrase)
-              if norm_trg_phrase in dict_targets:
-                new_trg_phrases.append(trg_phrase)
-            trg_phrases = new_trg_phrases
+      trg_phrases = self.ExtractTargetPhrases(target, MAX_TRG_TOKENS, dup_nonstem)
+      for src_phrase in src_phrases:
+        if self.keywords:
+          if not src_phrase.lower() in self.keywords:
+            continue
+        if self.dict_words:
+          dict_targets = self.dict_words.get(src_phrase)
+          if not dict_targets: continue
+          cmp_trg_phrases = []
           for trg_phrase in trg_phrases:
-            uniq_src_phrases.add(src_phrase)
-            uniq_trg_phrases.add(trg_phrase)
-            uniq_phrase_pairs.add(src_phrase + "\t" + trg_phrase)
+            norm_trg_phrase = regex.sub(
+              r" *([\p{Han}\p{Hiragana}\p{Katakana}ー]) *", r"\1", trg_phrase)
+            if norm_trg_phrase in dict_targets:
+              cmp_trg_phrases.append(trg_phrase)
+        else:
+          cmp_trg_phrases = trg_phrases
+        for trg_phrase in cmp_trg_phrases:
+          uniq_src_phrases.add(src_phrase)
+          uniq_trg_phrases.add(trg_phrase)
+          uniq_phrase_pairs.add(src_phrase + "\t" + trg_phrase)
     for src_phrase in uniq_src_phrases:
       self.mem_phrase_count.Increment(src_phrase + "\t", 1)
       self.num_records += 1
@@ -336,6 +328,43 @@ class WordCountBatch:
     for src_path in src_paths:
       os.remove(src_path)
 
+  re_latin_word = regex.compile(r"[\p{Latin}\d][-_'’\p{Latin}]*")
+  re_latin_word_head = regex.compile(r"[\p{Latin}\d]")
+  re_poss_suffix = regex.compile(r"['’]s?$")
+  def ExtractSourcePhrases(self, sentence, max_tokens):
+    spans = []
+    cursor = 0
+    for match in self.re_latin_word.finditer(sentence):
+      start, end = match.span()
+      if start > cursor:
+        region = sentence[cursor:start]
+        spans.append(region)
+      region = sentence[start:end]
+      spans.append(region)
+      cursor = end
+    phrases = set()
+    num_tokens = 0
+    for start_index in range(0, len(spans)):
+      if not self.re_latin_word_head.match(spans[start_index]):
+        continue
+      tokens = []
+      for index in range(start_index, len(spans)):
+        token = spans[index]
+        if self.re_latin_word_head.match(token):
+          token = self.re_poss_suffix.sub( "", token)
+          tokens.append(token)
+          phrase = " ".join(tokens)
+          phrases.add(phrase)
+          hit = True
+          if len(tokens) >= self.source_ngram:
+            break
+        elif regex.search(r"[^\s]", token):
+          break
+      num_tokens += 1
+      if num_tokens >= max_tokens:
+        break
+    return list(phrases)
+
   def ExtractTargetPhrases(self, sentence, max_tokens, dup_nonstem):
     tokens = []
     for token in self.tagger.parse(sentence).split("\n"):
@@ -343,7 +372,7 @@ class WordCountBatch:
       if len(fields) != 4: continue
       tokens.append((fields[0], fields[3] or fields[0]))
     result = []
-    for start_index in range(0, len(tokens)):
+    for start_index in range(0, min(max_tokens, len(tokens))):
       end_index = min(len(tokens), start_index + self.target_ngram)
       phrase_tokens = []
       for i in range(start_index, end_index):
