@@ -21,10 +21,10 @@
 # and limitations under the License.
 #--------------------------------------------------------------------------------------------------
 
+import collections
 import logging
 import math
 import MeCab
-import operator
 import os
 import regex
 import struct
@@ -32,10 +32,11 @@ import sys
 import time
 import tkrzw
 import tkrzw_dict
+import unicodedata
 
 
-#BATCH_MAX_SENTENCES = 1000  # for testing
-BATCH_MAX_SENTENCES = 300000 # for 12GB RAM usage
+#BATCH_MAX_RECORDS = 10000  # for testing
+BATCH_MAX_RECORDS = 230000000 # for 12GB RAM usage
 MIN_PHRASE_COUNT_IN_BATCH = 2
 MERGE_DB_UNIT = 16
 MAX_TOKENS = 64
@@ -47,15 +48,20 @@ logger = tkrzw_dict.GetLogger()
 
 
 class WordCountBatch:
-  def __init__(self, data_prefix, keyword_path):
+  def __init__(self, data_prefix, keyword_path, dict_path, thes_path, source_ngram, target_ngram):
     self.data_prefix = data_prefix
     self.keyword_path = keyword_path
     self.keywords = set()
+    self.dict_path = dict_path
+    self.dict_words = collections.defaultdict(list)
+    self.thes_path = thes_path
+    self.source_ngram = source_ngram
+    self.target_ngram = target_ngram
     self.num_batches = 0
     self.tagger = MeCab.Tagger(r"--node-format=%m\t%f[0]\t%f[1]\t%f[6]\n")
 
   def ReadKeywords(self):
-    logger.info("Reading keyword: paths={}".format(self.keyword_path))
+    logger.info("Reading keyword: path={}".format(self.keyword_path))
     with open(self.keyword_path) as input_file:
       for line in input_file:
         line = line.strip()
@@ -63,17 +69,52 @@ class WordCountBatch:
           self.keywords.add(line)
     logger.info("Reading keyword done: num_keywords={}".format(len(self.keywords)))
 
+  def ReadDict(self):
+    thes_words = collections.defaultdict(list)
+    if self.thes_path:
+      logger.info("Reading thesaurus: path={}".format(self.thes_path))
+      with open(self.thes_path) as input_file:
+        for line in input_file:
+          fields = line.strip().split("\t")
+          if len(fields) < 1: continue
+          source = fields[0]
+          if not source: continue
+          for target in fields[1:]:
+            thes_words[source].append(target)
+      logger.info("Reading thesaurus done: num_thes_words={}".format(len(thes_words)))
+    logger.info("Reading dictionary: path={}".format(self.dict_path))
+    with open(self.dict_path) as input_file:
+      for line in input_file:
+        fields = line.strip().split("\t")
+        if len(fields) < 1: continue
+        source = fields[0]
+        if not source: continue
+        for target in fields[1:]:
+          self.dict_words[source].append(target)
+      for key in list(self.dict_words.keys()):
+        all_targets = set()
+        for target in self.dict_words[key]:
+          all_targets.add(target)
+          thes_targets = thes_words.get(target)
+          if thes_targets:
+            for thes_target in thes_targets:
+              all_targets.add(thes_target)
+        self.dict_words[key] = list(all_targets)
+    logger.info("Reading dictionary done: num_dict_words={}".format(len(self.dict_words)))
+
   def Run(self):
     start_time = time.time()
     logger.info("Process started: data_prefix={}".format(self.data_prefix))
     if self.keyword_path:
       self.ReadKeywords()
+    if self.dict_path:
+      self.ReadDict()
     self.Start()
     num_domains, num_sentences = 0, 0
     last_domain = ""
     domain_records = []
     for line in sys.stdin:
-      line = line.strip()
+      line = unicodedata.normalize('NFKC', line).strip()
       fields = line.split("\t")
       if len(fields) != 4: continue
       domain, score, source, target = fields
@@ -83,9 +124,9 @@ class WordCountBatch:
           num_domains += 1
           num_sentences += len(domain_records)
           logger.info(
-            "Processing: domains={}, sentences={}, RSS={:.2f}MB".format(
-              num_domains, num_sentences,
-              tkrzw.Utility.GetMemoryUsage() / 1024.0 / 1024))
+            "Processing: domains={}, sentences={}, records={}, uniq_records={}, RSS={:.2f}MB"
+            .format(num_domains, num_sentences, self.num_records, self.mem_phrase_count.Count(),
+                    tkrzw.Utility.GetMemoryUsage() / 1024.0 / 1024))
         domain_records = []
         last_domain = domain
       domain_records.append((score, source, target))
@@ -104,6 +145,7 @@ class WordCountBatch:
     self.mem_phrase_count.Open("", True, dbm="BabyDBM").OrDie()
     self.num_domains = 0
     self.num_sentences = 0
+    self.num_records = 0
     self.start_time = time.time()
 
   def FeedDomain(self, domain, records):
@@ -118,34 +160,49 @@ class WordCountBatch:
     uniq_phrase_pairs = set()
     for score, source, target in records:
       src_tokens = re_split.split(source)[:MAX_TOKENS]
-      trg_phrases = self.ExtractTargetPhrases(target, MAX_TOKENS)
-      for i, src_token in enumerate(src_tokens):
-        if re_latin.fullmatch(src_token):
-          if not self.keywords or src_token.lower() in self.keywords:
+      dup_nonstem = bool(self.dict_words)
+      trg_phrases = self.ExtractTargetPhrases(target, MAX_TOKENS, dup_nonstem)
+      for start_index in range(0, len(src_tokens)):
+        end_index = min(len(src_tokens), start_index + self.source_ngram)
+        src_phrase = ""
+        for i in range(start_index, end_index):
+          src_token = src_tokens[i]
+          if not re_latin.fullmatch(src_token): break
+          if src_phrase:
+            src_phrase += " "
+          src_phrase += src_token
+          if self.keywords:
+            if not src_phrase.lower() in self.keywords:
+              continue
+          if self.dict_words:
+            dict_targets = self.dict_words.get(src_phrase)
+            if not dict_targets: continue
+            new_trg_phrases = []
             for trg_phrase in trg_phrases:
-              uniq_src_phrases.add(src_token)
-              uniq_trg_phrases.add(trg_phrase)
-              uniq_phrase_pairs.add(src_token + "\t" + trg_phrase)
-          if i < len(src_tokens) - 1:
-            second = src_tokens[i + 1]
-            if re_latin.fullmatch(second):
-              concat = src_token + " " + second
-              if not self.keywords or concat.lower() in self.keywords:
-                for trg_phrase in trg_phrases:
-                  uniq_src_phrases.add(concat)
-                  uniq_phrase_pairs.add(concat + "\t" + trg_phrase)
+              norm_trg_phrase = regex.sub(
+                r" *([\p{Han}\p{Hiragana}\p{Katakana}ー]) *", r"\1", trg_phrase)
+              if norm_trg_phrase in dict_targets:
+                new_trg_phrases.append(trg_phrase)
+            trg_phrases = new_trg_phrases
+          for trg_phrase in trg_phrases:
+            uniq_src_phrases.add(src_phrase)
+            uniq_trg_phrases.add(trg_phrase)
+            uniq_phrase_pairs.add(src_phrase + "\t" + trg_phrase)
     for src_phrase in uniq_src_phrases:
       self.mem_phrase_count.Increment(src_phrase + "\t", 1)
+      self.num_records += 1
     for trg_phrase in uniq_trg_phrases:
       self.mem_phrase_count.Increment("\t" + trg_phrase, 1)
+      self.num_records += 1
     for phrase_pair in uniq_phrase_pairs:
       self.mem_phrase_count.Increment(phrase_pair, 1)
-    if self.num_sentences >= BATCH_MAX_SENTENCES:
+      self.num_records += 1
+    if self.num_records >= BATCH_MAX_RECORDS:
       self.Dump()
       self.Start()
 
   def Finish(self, total_num_sentences):
-    if self.num_sentences:
+    if self.num_records:
       self.Dump()
     self.mem_phrase_count = None
     phrase_count_paths = []
@@ -171,11 +228,11 @@ class WordCountBatch:
       self.num_batches + 1, time.time() - self.start_time,
       tkrzw.Utility.GetMemoryUsage() / 1024.0 / 1024))
     logger.info(
-      "Batch {} dumping: sentences={}, unique_phrases={}".format(
-        self.num_batches + 1, self.num_sentences,
+      "Batch {} dumping: sentences={}, records={}, unique_phrases={}".format(
+        self.num_batches + 1, self.num_sentences, self.num_records,
         self.mem_phrase_count.Count()))
     start_time = time.time()
-    fill_ratio = min(self.num_sentences / BATCH_MAX_SENTENCES, 1.0)
+    fill_ratio = min(self.num_records / BATCH_MAX_RECORDS, 1.0)
     dbm_phrase_count_path = "{}-count-{:08d}.tks".format(self.data_prefix, self.num_batches)
     dbm_phrase_count = tkrzw.DBM()
     dbm_phrase_count.Open(
@@ -279,35 +336,47 @@ class WordCountBatch:
     for src_path in src_paths:
       os.remove(src_path)
 
-  def ExtractTargetPhrases(self, sentence, max_tokens):
+  def ExtractTargetPhrases(self, sentence, max_tokens, dup_nonstem):
     tokens = []
     for token in self.tagger.parse(sentence).split("\n"):
       fields = token.split("\t")
       if len(fields) != 4: continue
       tokens.append((fields[0], fields[3] or fields[0]))
     result = []
-    for i, token in enumerate(tokens):
-      if i > max_tokens:
-        break
-      result.append(token[1])
-      if i < len(tokens) - 1:
-        second_token = tokens[i+1]
-        result.append(token[0] + " " + second_token[1])
-        if i < len(tokens) - 2:
-          third_token = tokens[i+2]
-          result.append(token[0] + " " + second_token[0] + " " + third_token[1])
-    return result
+    for start_index in range(0, len(tokens)):
+      end_index = min(len(tokens), start_index + self.target_ngram)
+      phrase_tokens = []
+      for i in range(start_index, end_index):
+        token = tokens[i]
+        if i < end_index - 1:
+          phrase_tokens.append(token[0])
+        else:
+          phrase_tokens.append(token[1])
+        phrase = " ".join(phrase_tokens)
+        result.append(phrase)
+      if dup_nonstem:
+        phrase_tokens = []
+        for i in range(start_index, end_index):
+          token = tokens[i]
+          phrase_tokens.append(token[0])
+          phrase = " ".join(phrase_tokens)
+          result.append(phrase)
+    return list(set(result))
 
 
 def main():
   args = sys.argv[1:]
   data_prefix = tkrzw_dict.GetCommandFlag(args, "--data_prefix", 1) or "result-para"
   keyword_path = tkrzw_dict.GetCommandFlag(args, "--keyword", 1) or ""
+  dict_path = tkrzw_dict.GetCommandFlag(args, "--dict", 1) or ""
+  thes_path = tkrzw_dict.GetCommandFlag(args, "--thes", 1) or ""
+  source_ngram = int(tkrzw_dict.GetCommandFlag(args, "--source_ngram", 1) or "3")
+  target_ngram = int(tkrzw_dict.GetCommandFlag(args, "--target_ngram", 1) or "3")
   if tkrzw_dict.GetCommandFlag(args, "--quiet", 0):
     logger.setLevel(logging.ERROR)
   if args:
     raise RuntimeError("unknown arguments: {}".format(str(args)))
-  WordCountBatch(data_prefix, keyword_path).Run()
+  WordCountBatch(data_prefix, keyword_path, dict_path, thes_path, source_ngram, target_ngram).Run()
 
 
 if __name__=="__main__":

@@ -29,9 +29,9 @@ import tkrzw
 import tkrzw_dict
 import tkrzw_tokenizer
 
-MIN_COUNT = 20
 MIN_EF = 0.1
 MIN_FE = 0.1
+FE_WEIGHT = 1.2
 MIN_SCORE = 0.3
 MIN_SCORE_LARGE = 0.4
 MAX_TARGETS = 3
@@ -42,15 +42,13 @@ MIN_PROB = 0.000001
 logger = tkrzw_dict.GetLogger()
 
 
-def Run(rev_prob_path):
+def Run(rev_prob_path, min_count):
   start_time = time.time()
   logger.info("Process started")
   rev_prob_dbm = None
   if rev_prob_path:
     rev_prob_dbm = tkrzw.DBM()
     rev_prob_dbm.Open(rev_prob_path, False, dbm="HashDBM").OrDie()
-
-  
   records = {}
   for line in sys.stdin:
     fields = line.strip().split("\t")
@@ -64,7 +62,7 @@ def Run(rev_prob_path):
       targets.append((columns[0], float(columns[1]), float(columns[2])))
     records[source] = (count, targets)
   for source, (count, targets) in records.items():
-    if count < MIN_COUNT: continue
+    if count < min_count: continue
     large = bool(regex.search(r"^\p{Lu}", source))
     if large:
       cap_source = source.lower()
@@ -77,10 +75,7 @@ def Run(rev_prob_path):
         cap_count, cap_targets = cap_record
     if large:
       cap_count *= 5.0
-
-
     if count < cap_count: continue
-
     good_targets = []
     for target, ef_prob, fe_prob in targets:
       if ef_prob < MIN_EF: continue
@@ -89,7 +84,7 @@ def Run(rev_prob_path):
           fe_prob += cap_fe_prob
       ef_prob = min(1.0, ef_prob)
       fe_prob = min(1.0, fe_prob)
-      score = (ef_prob * fe_prob) ** 0.5
+      score = (ef_prob * (fe_prob ** FE_WEIGHT)) ** (1 / (1 + FE_WEIGHT))
       #score = 2 * ef_prob * fe_prob / (ef_prob + fe_prob)
       if large:
         if score < MIN_SCORE_LARGE: continue
@@ -175,9 +170,10 @@ def GetPhraseProb(prob_dbm, language, word):
 def main():
   args = sys.argv[1:]
   rev_prob_path = tkrzw_dict.GetCommandFlag(args, "--rev_prob", 1) or ""
+  min_count = int(tkrzw_dict.GetCommandFlag(args, "--min_count", 1) or 10)
   if len(args) != 0:
     raise ValueError("two arguments are required")
-  Run(rev_prob_path)
+  Run(rev_prob_path, min_count)
 
 
 if __name__=="__main__":
