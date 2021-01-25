@@ -70,8 +70,10 @@ class ExtractKeysBatch:
         for infl_name in infl_names:
           inflection = word_entry.get(infl_name)
           if inflection:
-            inflection = tkrzw_dict.NormalizeWord(inflection)
-            inflections.add(inflection)
+            for infl_value in regex.split(r"[,|]", inflection):
+              infl_value = tkrzw_dict.NormalizeWord(infl_value.strip())
+              if not regex.search(r"\p{Latin}", infl_value): continue
+              inflections.add(infl_value)
         for inflection in inflections:
           index[inflection].append((word, score))
       num_entries += 1

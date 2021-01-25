@@ -1296,7 +1296,7 @@ def main():
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-body.tkh"
   core_labels = set((tkrzw_dict.GetCommandFlag(args, "--core", 1) or "xa,wn").split(","))
   gross_labels = set((tkrzw_dict.GetCommandFlag(args, "--gross", 1) or "wj").split(","))
-  top_labels = set((tkrzw_dict.GetCommandFlag(args, "--top", 1) or "we").split(","))
+  top_labels = set((tkrzw_dict.GetCommandFlag(args, "--top", 1) or "xa,we").split(","))
   slim_labels = set((tkrzw_dict.GetCommandFlag(args, "--slim", 1) or "we").split(","))
   surfeit_labels = set((tkrzw_dict.GetCommandFlag(args, "--surfeit", 1) or "we").split(","))
   tran_list_labels = set((tkrzw_dict.GetCommandFlag(args, "--tran_list", 1) or "xa,wn,we").split(","))
