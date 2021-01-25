@@ -4,7 +4,12 @@
 # Script to search a union dictionary
 #
 # Usage:
-#   search_union.py [--data_prefix str] [--search str] [--view str] words...
+#   search_union.py [--data_prefix str] [--index str] [--search str] [--view str]
+#     [--capacity] words...
+#
+#   Index modes: auto (default), normal, reverse, inflection, grade, annot
+#   Search modes: auto (default), expact, prefix, suffix, contain, word, edit, related
+#   View mode: auto (default), full, simple, list
 #
 # Example:
 #   ./search_union.py --data_prefix union --search full --view full  united states
@@ -34,6 +39,7 @@ import urllib
 PAGE_WIDTH = 100
 CGI_DATA_PREFIX = "union"
 CGI_CAPACITY = 100
+CGI_MAX_QUERY_LENGTH = 256 * 1024
 POSES = {
   "noun": "名",
   "verb": "動",
@@ -300,6 +306,10 @@ def main():
         query = ",".join(lemmas)
       else:
         query = lemmas[0]
+  elif index_mode == "grade":
+    search_mode = "grade"
+  elif index_mode == "annot":
+    search_mode = "annot"
   else:
     raise RuntimeError("unknown index mode: " + index_mode)
   if search_mode in ("auto", "exact"):
@@ -341,6 +351,12 @@ def main():
   elif search_mode == "grade":
     page = max(Atoi(query), 1)
     result = searcher.SearchByGrade(capacity, page, True)
+  elif search_mode == "annot":
+    result = []
+    for span, annot in searcher.AnnotateText(query):
+      if annot:
+        for entry in annot:
+          result.append(entry)
   else:
     raise RuntimeError("unknown search mode: " + search_mode)
   if result:
@@ -378,7 +394,7 @@ def P(*args, end="\n"):
 
 def PrintResultCGI(entries, query, details):
   for entry in entries:
-    P('<div class="entry">')
+    P('<div class="entry_view">')
     word = entry["word"]
     word_url = "?q={}".format(urllib.parse.quote(word))
     P('<h2 class="entry_word"><a href="{}">{}</a></h2>', word_url, word)
@@ -586,7 +602,7 @@ def PrintItemTextCGI(text):
 
 
 def PrintResultCGIList(entries, query):
-  P('<div class="list">')
+  P('<div class="list_view">')
   for entry in entries:
     word = entry["word"]
     word_url = "?q={}".format(urllib.parse.quote(word))
@@ -620,15 +636,114 @@ def PrintResultCGIList(entries, query):
   P('</div>')
 
 
+def PrintResultCGIAnnot(spans):
+  P('<div class="annot_view">')
+  num_spans = 0
+  ruby_trans = None
+  ruby_word = None
+  ruby_annots = None
+  ruby_aoa = 0
+  ruby_life = 0
+  def StartRuby():
+    word_url = "?q={}".format(urllib.parse.quote(ruby_word))
+    P('<ruby><a href="{}" class="word">', word_url, end="")
+  def EndRuby(ruby_trans):
+    word_width = 0
+    for c in ruby_word:
+      word_width += 2 if ord(c) > 256 else 1
+    tran_width = max(word_width * 2, 20)
+    ruby_text = ""
+    for tran in ruby_trans:
+      if tran_width < 6: break
+      if ruby_text:
+        ruby_text += ","
+        tran_width -= 1
+      for c in tran:
+        tran_width -= 2 if ord(c) > 256 else 1
+        if tran_width <= 0:
+          ruby_text += ".."
+          break
+        ruby_text += c
+    P('<span class="tip">')
+    max_items = 8 if len(ruby_annots) < 2 else 4
+    for entry in ruby_annots:
+      P('<div class="annot_entry">')
+      word = entry["word"]
+      word_url = "?q={}".format(urllib.parse.quote(word))
+      P('<div class="annot_title">')
+      P('<a href="{}" class="annot_title_word">{}</a>', word_url, word)
+      pron = entry.get("pronunciation")
+      if pron:
+        P('<span class="annot_title_pron">{}</span>', pron)
+      P('</div>')
+      trans = entry.get("translation")
+      if trans:
+        P('<div class="annot_tran">{}</div>', ", ".join(trans[:6]))
+      items = entry.get("item")
+      for item in items[:max_items]:
+        pos = item["pos"]
+        pos_label = POSES.get(pos) or pos
+        text = item["text"]
+        text = regex.sub(r" \[-.*", "", text).strip()
+        P('<div class="annot_item"><span class="annot_pos">{}</span> {}</div>', pos_label, text)
+      if len(items) > max_items:
+        P('<a href="{}" class="annot_item_more">... ...</a>', word_url)
+      P('</div>')
+    P('</span>', end="")
+    P('</a>', end="")
+    P('<rt class="rb_{}">{}</rt>', ruby_aoa, ruby_text, end="")
+    P('</ruby>', end="")
+    ruby_trans.clear()
+  P('<p class="text">', end="")
+  for i in range(0, len(spans)):
+    text, annots = spans[i]
+    if regex.search(r"[^\s]", text) or ruby_life == 1:
+      ruby_life -= 1
+    if ruby_trans and ruby_life == 0:
+      EndRuby(ruby_trans)
+    if annots:
+      if ruby_life <= 0:
+        for entry in annots:
+          word = entry["word"]
+          trans = entry.get("translation")
+          if not trans: continue
+          ruby_trans = trans
+          ruby_word = word
+          aoa = entry.get("aoa") or entry.get("aoa_concept") or entry.get("aoa_base")
+          if aoa:
+            aoa = float(aoa)
+          else:
+            prob = max(float(entry.get("probability") or 0), 0.0000001)
+            aoa = math.log(prob) * -1 + 3.5
+          ruby_aoa = min(max(3, int(aoa)), 20)
+          ruby_life = word.count(" ") + 1
+          break
+        if ruby_trans:
+          ruby_annots = annots
+          StartRuby()
+      else:
+        ruby_annots.extend(annots)
+    P('{}', text, end="")
+  if ruby_trans:
+    EndRuby(ruby_trans)
+  P('</p>')
+  P('</div>')
+
+
 def main_cgi():
   script_name = os.environ.get("SCRIPT_NAME", sys.argv[0])
   params = {}
   form = cgi.FieldStorage()
   for key in form.keys():
     value = form[key]
-    params[key] = value.value
+    if isinstance(value, list):
+      params[key] = value[0].value
+    else:
+      params[key] = value.value
   query = params.get("q") or ""
-  query = regex.sub(r"[\p{C}\p{S}]", " ", query).strip()
+  if len(query) > CGI_MAX_QUERY_LENGTH:
+    query = query[:CGI_MAX_QUERY_LENGTH]
+  query = "\n".join([regex.sub(r"[\p{C}]+", " ", x).strip() for x in query.split("\n")])
   index_mode = params.get("i") or "auto"
   search_mode = params.get("s") or "auto"
   view_mode = params.get("v") or "auto"
@@ -636,13 +751,13 @@ def main_cgi():
     query = "1"
   page_title = "統合英和辞書検索"
   if query:
-    page_title += ": " + query
+    page_title += ": " + regex.sub(r"\s+", " ", query).strip()[:24]
   print("""Content-Type: application/xhtml+xml
 
 <html xmlns="http://www.w3.org/1999/xhtml" lang="ja">
 <head>
 <title>{}</title>
-<style type="text/css">
+<style type="text/css">/*<![CDATA[*/
 html {{ margin: 0ex; padding: 0ex; background: #eeeeee; font-size: 12pt; }}
 body {{ margin: 0ex; padding: 0ex; text-align: center; -webkit-text-size-adjust: 100%; }}
 article {{ display: inline-block; width: 100ex; text-align: left; padding-bottom: 3ex; }}
@@ -651,18 +766,21 @@ a:hover {{ color: #0011ee; text-decoration: underline; }}
 h1 a,h2 a {{ color: #000000; text-decoration: none; }}
 h1 {{ font-size: 110%; margin: 1ex 0ex 0ex 0ex; }}
 h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
-.search_form,.entry,.list,.message,.license {{
+.search_form,.entry_view,.list_view,.annot_view,.message_view,.license {{
   border: 1px solid #dddddd; border-radius: 0.5ex;
   margin: 1ex 0ex; padding: 0.8ex 1ex 1.3ex 1ex; background: #ffffff; position: relative; }}
 #query_line {{ color: #333333; }}
 #query_input {{ zoom: 110%; color: #111111; width: 32ex; }}
+#query_input_annot {{ color: #111111; width: 80ex; height: 30ex; }}
 #index_mode_box,#search_mode_box,#view_mode_box {{ color: #111111; width: 14ex; }}
 #submit_button {{ color: #111111; width: 10ex; }}
+#submit_button_annot {{ color: #111111; width: 20ex; }}
+#clear_button_annot {{ color: #111111; width: 8ex; }}
 .license {{ opacity: 0.7; font-size: 90%; padding: 2ex 3ex; }}
 .license a {{ color: #001166; }}
 .license ul {{ font-size: 90%; }}
-.message {{ position: relative; opacity: 0.9; font-size: 90%; padding: 1ex 2ex; }}
-.message p {{ margin: 0; padding: 0; }}
+.message_view {{ position: relative; opacity: 0.9; font-size: 90%; padding: 1ex 2ex; }}
+.message_view p {{ margin: 0; padding: 0; }}
 .pagenavi {{ float: right; }}
 .pagenavi a {{ min-width: 3ex; color: #002244; padding-left: 0.5ex; }}
 .attr,.item {{ color: #999999; }}
@@ -690,7 +808,7 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
 .text {{ margin-left: 0.3ex; color: #111111; }}
 .annot {{ font-size: 80%; color: #555555; }}
 .item_text_n .text {{ color: #333333; }}
-.list {{ padding: 1.2ex 1ex 1.5ex 1.8ex; }}
+.list_view {{ padding: 1.2ex 1ex 1.5ex 1.8ex; }}
 .list_item {{ margin: 0.3ex 0.3ex; color: #999999; }}
 .list_head {{ font-weight: bold; color: #000000; }}
 .list_head:hover {{ color: #0011ee; }}
@@ -702,12 +820,43 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
 .list_tran {{ font-size: 95%; color: #333333; }}
 .list_tran:hover {{ color: #0011ee; }}
 .list_gross {{ color: #444444; font-size: 95%; }}
+.annot_view {{ padding: 1ex 2ex; }}
+.annot_view a {{ color: #000000; }}
+.annot_view .text {{ color: #000000; font-size: 120%; }}
+.annot_view ruby {{ ruby-align: start; }}
+.word {{ position: relative; display: inline-block; }}
+.word .tip {{
+  visibility: hidden;
+  position: absolute;
+  top: 3ex;
+  left: 0ex;
+  width: 50ex;
+  height: 40ex;
+  overflow: scroll;
+  background: #ffff99;
+  opacity: 0.95;
+  border-radius: 0.5ex;
+  padding: 0.5ex 1ex;
+  z-index: 1;
+  font-size: 90%;
+  box-shadow: 2px 2px 4px #aaaaaa;
+}}
+.word:hover {{ text-decoration: underline; }}
+.word:hover .tip {{ visibility: visible; }}
+.annot_entry {{ margin: 0.3ex 0.3ex; }}
+.annot_title_word {{ font-weight: bold; }}
+.annot_title_pron {{ font-size: 95%; color: #444444; margin-left: 1ex; }}
+.annot_title_pron:before,.annot_title_pron:after {{ content: "/"; font-size: 90%; color: #888888; }}
+.annot_pos {{
+  display: inline-block; border: solid 1px #999999; border-radius: 0.5ex;
+  font-size: 65%; min-width: 3.5ex; text-align: center;
+  margin-right: -0.3ex; color: #333333; }}
 @media (max-device-width:720px) {{
   html {{ background: #eeeeee; font-size: 32pt; }}
   body {{ padding: 0.8ex; }}
   article {{ width: 100%; }}
   #query_line {{ font-size: 12pt; zoom: 250%; }}
-  .search_form,.entry,.list,.message,.license {{
+  .search_form,.entry_view,.list_view,.annot_view,.message_view,.license {{
     padding: 0.5ex 0.5ex; }}
   .attr {{ margin-left: 1ex; }}
   .item_text1 {{ margin-left: 1ex; }}
@@ -715,10 +864,10 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
   .item_text3 {{ margin-left: 5ex; }}
   .item_text4 {{ margin-left: 7ex; }}
   .item_text_n {{ font-size: 90%; }}
-  .list {{ padding: 0.6ex 0.5ex 0.8ex 0.8ex; }}
+  .list_view {{ padding: 0.6ex 0.5ex 0.8ex 0.8ex; }}
 }}
-</style>
-<script>
+/*]]>*/</style>
+<script>/*<![CDATA[*/
 function startup() {{
   let search_form = document.forms['search_form']
   if (search_form) {{
@@ -727,49 +876,85 @@ function startup() {{
       query_input.focus()
     }}
   }}
+  let annot_navi_form = document.forms["annot_navi_form"]
+  if (annot_navi_form) {{
+    toggle_rubies(parseInt(parseInt(annot_navi_form.min_aoa.value)))
+  }}
 }}
-</script>
+function clear_query() {{
+  let search_form = document.forms["search_form"]
+  if (search_form) {{
+    search_form.q.value = ""
+  }}
+}}
+function toggle_rubies(min_aoa) {{
+  let elems = document.getElementsByTagName("rt")
+  for (let elem of elems) {{
+    match = elem.className.match(/^rb_(\d+)$/)
+    if (match) {{
+      aoa = parseInt(match[1])
+      if (aoa <= min_aoa) {{
+        elem.style.display = "none"
+      }} else {{
+        elem.style.display = null
+      }}
+    }}
+  }}
+}}
+/*]]>*/</script>
 </head>
 <body onload="startup()">
 <article>
 <h1><a href="{}">統合英和辞書検索</a></h1>
 """.format(esc(page_title), esc(script_name), end=""))
   P('<div class="search_form">')
-  P('<form method="get" name="search_form">')
-  P('<div id="query_line">')
-  P('<div id="query_column">')
-  P('<input type="text" name="q" value="{}" id="query_input"/>', query)
-  P('<input type="submit" value="検索" id="submit_button"/>')
-  P('</div>')
-  P('<select name="i" id="index_mode_box">')
-  for value, label in (("auto", "索引"), ("normal", "英和"),
-                       ("reverse", "和英"), ("inflection", "英和屈折"),
-                       ("grade", "等級")):
-    P('<option value="{}"', esc(value), end="")
-    if value == index_mode:
-      P(' selected="selected"', end="")
-    P('>{}</option>', label)
-  P('</select>')
-  P('<select name="s" id="search_mode_box">')
-  for value, label in (
-      ("auto", "検索条件"), ("exact", "完全一致"),
-      ("prefix", "前方一致"), ("suffix", "後方一致"), ("contain", "中間一致"),
-      ("word", "単語一致"), ("edit", "曖昧一致"), ("related", "類語展開")):
-    P('<option value="{}"', esc(value), end="")
-    if value == search_mode:
-      P(' selected="selected"', end="")
-    P('>{}</option>', label)
-  P('</select>')
-  P('<select name="v" id="view_mode_box">')
-  for value, label in (("auto", "表示形式"), ("full", "詳細表示"),
-                       ("simple", "簡易表示"), ("list", "リスト表示")):
-    P('<option value="{}"', esc(value), end="")
-    if value == view_mode:
-      P(' selected="selected"', end="")
-    P('>{}</option>', label)
-  P('</select>')
-  P('</div>')
-  P('</form>')
+  if index_mode == "annot":
+    P('<form method="post" name="search_form">')
+    P('<div id="query_line">')
+    P('<textarea name="q" id="query_input_annot" cols="80" rows="10">{}</textarea>', query)
+    P('</div>')
+    P('<div id="query_line">')
+    P('<input type="hidden" name="i" value="annot"/>')
+    P('<input type="submit" value="注釈" id="submit_button_annot"/>')
+    P('<input type="button" value="消去" id="clear_button_annot" onclick="clear_query()"/>')
+    P('</div>')
+    P('</form>')
+  else:
+    P('<form method="get" name="search_form">')
+    P('<div id="query_line">')
+    P('<input type="text" name="q" value="{}" id="query_input"/>', query)
+    P('<input type="submit" value="検索" id="submit_button"/>')
+    P('</div>')
+    P('<div id="query_line">')
+    P('<select name="i" id="index_mode_box">')
+    for value, label in (("auto", "索引"), ("normal", "英和"),
+                         ("reverse", "和英"), ("inflection", "英和屈折"),
+                         ("grade", "等級"), ("annot", "注釈")):
+      P('<option value="{}"', esc(value), end="")
+      if value == index_mode:
+        P(' selected="selected"', end="")
+      P('>{}</option>', label)
+    P('</select>')
+    P('<select name="s" id="search_mode_box">')
+    for value, label in (
+        ("auto", "検索条件"), ("exact", "完全一致"),
+        ("prefix", "前方一致"), ("suffix", "後方一致"), ("contain", "中間一致"),
+        ("word", "単語一致"), ("edit", "曖昧一致"), ("related", "類語展開")):
+      P('<option value="{}"', esc(value), end="")
+      if value == search_mode:
+        P(' selected="selected"', end="")
+      P('>{}</option>', label)
+    P('</select>')
+    P('<select name="v" id="view_mode_box">')
+    for value, label in (("auto", "表示形式"), ("full", "詳細表示"),
+                         ("simple", "簡易表示"), ("list", "リスト表示")):
+      P('<option value="{}"', esc(value), end="")
+      if value == view_mode:
+        P(' selected="selected"', end="")
+      P('>{}</option>', label)
+    P('</select>')
+    P('</div>')
+    P('</form>')
   P('</div>')
   if query:
     searcher = tkrzw_union_searcher.UnionSearcher(CGI_DATA_PREFIX)
@@ -791,6 +976,8 @@ function startup() {{
           query = lemmas[0]
     elif index_mode == "grade":
       search_mode = "grade"
+    elif index_mode == "annot":
+      search_mode = "annot"
     else:
       raise RuntimeError("unknown index mode: " + index_mode)
     if search_mode in ("auto", "exact"):
@@ -832,7 +1019,7 @@ function startup() {{
     elif search_mode == "grade":
       page = max(Atoi(query), 1)
       result = searcher.SearchByGrade(CGI_CAPACITY, page, True)
-      P('<div class="message">')
+      P('<div class="message_view">')
       P('<div class="pagenavi">')
       if page > 1:
         prev_url = "?i=grade&q={}".format(page - 1)
@@ -842,6 +1029,16 @@ function startup() {{
       P('</div>')
       P('<p>等級順: <strong>{}</strong></p>', page)
       P('</div>')
+    elif search_mode == "annot":
+      if view_mode == "auto":
+        result = True
+        view_mode = "annot"
+      else:
+        result = []
+        for span, annot in searcher.AnnotateText(query):
+          if annot:
+            for entry in annot:
+              result.append(entry)
     else:
       raise RuntimeError("unknown search mode: " + search_mode)
     if result:
@@ -873,6 +1070,24 @@ function startup() {{
         PrintResultCGI(result, query, False)
       elif view_mode == "list":
         PrintResultCGIList(result, query)
+      elif view_mode == "annot":
+        P('<div class="message_view">')
+        P('<form name="annot_navi_form">')
+        P('注釈想定年齢:')
+        P('<select name="min_aoa" onchange="toggle_rubies(parseInt(this.value))">')
+        for min_aoa in range(3, 21):
+          P('<option value="{}"', min_aoa, end="")
+          if min_aoa == 12:
+            P(' selected="selected"')
+          P('>{}歳</option>', min_aoa)
+        P('</select>')
+        P('</form>')
+        P('</div>')
+        for line in query.split("\n"):
+          line = line.strip()[:8192]
+          if line:
+            result = searcher.AnnotateText(line)
+            PrintResultCGIAnnot(result)
       else:
         raise RuntimeError("unknown view mode: " + view_mode)
     else:
@@ -896,7 +1111,7 @@ function startup() {{
       submessage = ""
       if subactions:
         submessage = "{}に移行。".format("、".join(subactions))
-      P('<div class="message">')
+      P('<div class="message_view">')
       P('<p>該当なし。{}</p>', submessage)
       P('</div>')
       if infl_result:
@@ -905,7 +1120,7 @@ function startup() {{
         PrintResultCGIList(edit_result, "")
   else:
     print("""<div class="license">
-<p>デフォルトでは、英語の検索語が入力されると英和の索引が検索され、日本語の検索語が入力されると和英の索引が検索されます。オプションで索引を明示的に指定できます。英和屈折は、単語の過去形などの屈折形を吸収した検索を行います。等級は、検索語を無視して全ての見出し語を重要度順に表示します。</p>
+<p>デフォルトでは、英語の検索語が入力されると英和の索引が検索され、日本語の検索語が入力されると和英の索引が検索されます。オプションで索引を明示的に指定できます。英和屈折は、単語の過去形などの屈折形を吸収した検索を行います。等級は、検索語を無視して全ての見出し語を重要度順に表示します。注釈は、英文を和訳の注釈付きの形式に整形します。</p>
 <p>検索条件のデフォルトは、完全一致です。つまり、入力語そのものを見出しに含む語が表示されます。ただし、該当がない場合には自動的に曖昧検索が行われて、綴りが似た語が表示されます。オプションで検索条件を以下のものから明示的に選択できます。</p>
 <ul>
 <li>完全一致 : 見出し語が検索語と完全一致するものが該当する。</li>

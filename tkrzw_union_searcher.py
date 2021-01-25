@@ -339,3 +339,98 @@ class UnionSearcher:
         if first_only:
           break
     return result
+
+  def AnnotateText(self, text):
+    infl_names = (
+      "noun_plural", "verb_singular", "verb_present_participle",
+      "verb_past", "verb_past_participle",
+      "adjective_comparative", "adjective_superative",
+      "adverb_comparative", "adverb_superative")
+    spans = []
+    cursor = 0
+    for match in regex.finditer(r"[\p{Latin}\d][-_'’\p{Latin}]*", text):
+      start, end = match.span()
+      if start > cursor:
+        region = text[cursor:start]
+        spans.append(region)
+      region = text[start:end]
+      spans.append(region)
+      cursor = end
+    if cursor < len(text):
+      region = text[cursor:]
+      spans.append(region)
+    out_spans = []
+    sent_head = True
+    for start_index in range(0, len(spans)):
+      span = spans[start_index]
+      def CheckSurfaceMatch(surface, title):
+        if surface == title:
+          return True
+        if sent_head and surface != "I":
+          norm_surface = surface[0].lower() + surface[1:]
+          if norm_surface == title:
+            return True
+        return False
+      annots = []
+      tokens = []
+      for index in range(start_index, len(spans)):
+        token = spans[index]
+        if regex.match(r"[\p{Latin}\d]", token):
+          token = regex.sub(r"['’]s?$", "", token)
+          tokens.append(token)
+          phrase = " ".join(tokens)
+          variants = [phrase]
+          variants.extend(self.SearchInflections(phrase.lower()))
+          uniq_variants = set()
+          uniq_words = set()
+          for variant in variants:
+            if variant in uniq_variants: continue
+            uniq_variants.add(variant)
+            for entry in self.SearchExact(variant, 10):
+              word = entry["word"]
+              if word in uniq_words: continue
+              uniq_words.add(word)
+              match = False
+              if CheckSurfaceMatch(phrase, word):
+                match = True
+              else:
+                for infl_name in infl_names:
+                  infl_values = entry.get(infl_name)
+                  if infl_values:
+                    for infl_value in regex.split(r"[,|]", infl_values):
+                      if CheckSurfaceMatch(phrase, infl_value):
+                        match = True
+                        break
+                  if match:
+                    break
+              prob = float(entry.get("probability") or "0")
+              prob_score = min(1.0, max(prob ** 0.5, 0.00001))
+              aoa = float(entry.get("aoa") or entry.get("aoa_concept") or
+                          entry.get("aoa_base") or 20)
+              aoa = min(max(aoa, 3), 20)
+              aoa_score = (25 - min(aoa, 20.0)) / 10.0
+              tran_score = 1.0 if "translation" in entry else 0.6
+              item_score = math.log2(len(entry["item"]) + 1)
+              labels = set()
+              for item in entry["item"]:
+                labels.add(item["label"])
+              label_score = len(labels) + 1
+              children = entry.get("child")
+              child_score = math.log2((len(children) if children else 0) + 4)
+              width_score = 100 ** word.count(" ")
+              match_score = 1.0 if match else 0.2
+              score = prob_score * aoa_score * tran_score * item_score * label_score * child_score * match_score * width_score
+              #print("{}: s={:.6f}, p={:.6f}, a={:.6f}, t={:.6f}, i={:.6f}, l={:.6f}, c={:.6f}, w={:d}".format(
+              #  word, score, prob_score, aoa_score, tran_score, item_score, label_score, child_score, width_score))
+              annots.append((entry, score))
+        elif index == start_index:
+          break
+        elif not regex.match(r"\s", token):
+          break
+        if len(tokens) > 3:
+          break
+      annots = sorted(annots, key=lambda x: x[1], reverse=True)
+      annots = [x[0] for x in annots]
+      out_spans.append((span, annots or None))
+      sent_head = span.find("\n") >= 0 or bool(regex.search(r"[.!?;:]", span))
+    return out_spans
