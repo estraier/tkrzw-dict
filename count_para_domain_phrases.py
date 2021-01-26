@@ -92,16 +92,21 @@ class WordCountBatch:
         if not source: continue
         for target in fields[1:]:
           self.dict_words[source].append(target)
+      num_pure_targets = 0
+      num_all_targets = 0
       for key in list(self.dict_words.keys()):
         all_targets = set()
-        for target in self.dict_words[key]:
+        for target in set(self.dict_words[key]):
+          num_pure_targets += 1
           all_targets.add(target)
           thes_targets = thes_words.get(target)
           if thes_targets:
             for thes_target in thes_targets:
               all_targets.add(thes_target)
+        num_all_targets += len(all_targets)
         self.dict_words[key] = list(all_targets)
-    logger.info("Reading dictionary done: num_dict_words={}".format(len(self.dict_words)))
+    logger.info("Reading dictionary done: num_dict_words={}, num_pure_targets={}, num_all_targets={}".format(
+      len(self.dict_words), num_pure_targets, num_all_targets))
 
   def Run(self):
     start_time = time.time()
@@ -149,6 +154,7 @@ class WordCountBatch:
     self.num_records = 0
     self.start_time = time.time()
 
+  re_norm_target = regex.compile(r" *([\p{Han}\p{Hiragana}\p{Katakana}ー]) *")
   def FeedDomain(self, domain, records):
     if len(records) > MAX_SENTENCES_IN_DOMAIN:
       records = sorted(records, key=lambda x: x[0], reverse=True)[:MAX_SENTENCES_IN_DOMAIN]
@@ -158,9 +164,9 @@ class WordCountBatch:
     uniq_trg_phrases = set()
     uniq_phrase_pairs = set()
     for score, source, target in records:
+      norm_target = self.re_norm_target.sub(r"\1", target)
       src_phrases = self.ExtractSourcePhrases(source, MAX_SRC_TOKENS)
-      dup_nonstem = bool(self.dict_words)
-      trg_phrases = self.ExtractTargetPhrases(target, MAX_TRG_TOKENS, dup_nonstem)
+      trg_phrases = self.ExtractTargetPhrases(norm_target, MAX_TRG_TOKENS)
       for src_phrase in src_phrases:
         if self.keywords:
           if not src_phrase.lower() in self.keywords:
@@ -169,10 +175,11 @@ class WordCountBatch:
           dict_targets = self.dict_words.get(src_phrase)
           if not dict_targets: continue
           cmp_trg_phrases = []
+          for dict_target in dict_targets:
+            if dict_target in norm_target:
+              cmp_trg_phrases.append(dict_target)
           for trg_phrase in trg_phrases:
-            norm_trg_phrase = regex.sub(
-              r" *([\p{Han}\p{Hiragana}\p{Katakana}ー]) *", r"\1", trg_phrase)
-            if norm_trg_phrase in dict_targets:
+            if trg_phrase in dict_targets:
               cmp_trg_phrases.append(trg_phrase)
         else:
           cmp_trg_phrases = trg_phrases
@@ -365,7 +372,7 @@ class WordCountBatch:
         break
     return list(phrases)
 
-  def ExtractTargetPhrases(self, sentence, max_tokens, dup_nonstem):
+  def ExtractTargetPhrases(self, sentence, max_tokens):
     tokens = []
     for token in self.tagger.parse(sentence).split("\n"):
       fields = token.split("\t")
@@ -382,14 +389,8 @@ class WordCountBatch:
         else:
           phrase_tokens.append(token[1])
         phrase = " ".join(phrase_tokens)
+        phrase = self.re_norm_target.sub(r"\1", phrase)        
         result.append(phrase)
-      if dup_nonstem:
-        phrase_tokens = []
-        for i in range(start_index, end_index):
-          token = tokens[i]
-          phrase_tokens.append(token[0])
-          phrase = " ".join(phrase_tokens)
-          result.append(phrase)
     return list(set(result))
 
 
