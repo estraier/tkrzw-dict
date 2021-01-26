@@ -34,12 +34,14 @@ import sys
 import tkrzw_dict
 import tkrzw_union_searcher
 import urllib
+import urllib.request
 
 
 PAGE_WIDTH = 100
 CGI_DATA_PREFIX = "union"
 CGI_CAPACITY = 100
 CGI_MAX_QUERY_LENGTH = 256 * 1024
+CGI_MAX_HTTP_CONTENT_LENGTH = 1024 * 1024
 POSES = {
   "noun": "名",
   "verb": "動",
@@ -730,6 +732,50 @@ def PrintResultCGIAnnot(spans):
   P('</div>')
 
 
+def ReadHTTPQuery(url):
+  try:
+    req = urllib.request.Request(url)
+    with urllib.request.urlopen(req) as response:
+      info = response.info()
+      clen = int(info.get("Content-Length") or 0)
+      if clen > CGI_MAX_HTTP_CONTENT_LENGTH:
+        return "[TOO_LARGE_CONTENT]"
+      ctype = info.get("Content-Type") or "text/plain"
+      charset = ""
+      match = regex.search("charset=([-_a-zA-Z0-9]+)", ctype)
+      if match:
+        charset = match.group(1)
+      if not charset:
+        charset = "utf-8"
+      ctype = regex.sub(r";.*", "", ctype).strip()
+      if ctype in ("text/html", "application/xhtml+xml", "application/xml"):
+        text = response.read(clen).decode(charset)
+        text = regex.sub(r"\s+", " ", text)
+        text = regex.sub(r"<!--.*?-->", "", text)
+        text = regex.sub(r".*<body[^>]*>", "", text)
+        text = regex.sub(r"</body>.*", "", text)
+        text = regex.sub(r"<script[^>]*>.*</script>", "", text, flags=regex.IGNORECASE)
+        text = regex.sub(r"<style[^>]*>.*</style>", "", text, flags=regex.IGNORECASE)
+        text = regex.sub(r"<(h\d|p|div|br)(>|\s[^>]*>)", "[_LF_]", text, flags=regex.IGNORECASE)
+        text = regex.sub(r"</(h\d|p|div|br)>", "[_LF_]", text, flags=regex.IGNORECASE)
+        text = regex.sub(r"<[^>]*>", "", text)
+        text = html.unescape(text)
+        lines = []
+        for line in text.split("[_LF_]"):
+          line = line.strip()
+          if line:
+            lines.append(line)
+        text = "\n".join(lines) + "\n"
+      elif ctype in ("text/plain", "text/tab-separated-values", "text/csv"):
+        text = response.read(clen).decode(charset)
+        print("TEXT", text)
+      else:
+        text = "[UNKNOWN_TYPE]"
+      return text
+  except urllib.error.URLError as e:
+    return "[URL_ERROR]"
+
+
 def main_cgi():
   script_name = os.environ.get("SCRIPT_NAME", sys.argv[0])
   params = {}
@@ -740,11 +786,15 @@ def main_cgi():
       params[key] = value[0].value
     else:
       params[key] = value.value
-  query = params.get("q") or ""
+  query = (params.get("q") or "").strip()
+  if CGI_MAX_HTTP_CONTENT_LENGTH > 0 and regex.search("^https?://", query):
+    query = ReadHTTPQuery(query)
   if len(query) > CGI_MAX_QUERY_LENGTH:
     query = query[:CGI_MAX_QUERY_LENGTH]
   query = "\n".join([regex.sub(r"[\p{C}]+", " ", x).strip() for x in query.split("\n")])
   index_mode = params.get("i") or "auto"
+  if index_mode == "auto" and len(query) > 128:
+    index_mode = "annot"
   search_mode = params.get("s") or "auto"
   view_mode = params.get("v") or "auto"
   if index_mode == "grade" and not query:
@@ -829,7 +879,7 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
   visibility: hidden;
   position: absolute;
   top: 3ex;
-  left: 0ex;
+  left: -0.8ex;
   width: 50ex;
   height: 40ex;
   overflow: scroll;
