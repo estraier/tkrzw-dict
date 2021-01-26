@@ -376,14 +376,27 @@ class UnionSearcher:
       for index in range(start_index, len(spans)):
         token = spans[index]
         if regex.match(r"[\p{Latin}\d]", token):
-          token = regex.sub(r"['’]s?$", "", token)
           tokens.append(token)
           phrase = " ".join(tokens)
-          variants = [phrase]
-          variants.extend(self.SearchInflections(phrase.lower()))
+          variants = []
+          variants.append((phrase, 1.0))
+          for infl_base in self.SearchInflections(phrase.lower()):
+            variants.append((infl_base, 0.7))
+          if index == start_index:
+            bare = regex.sub(r"['’]s?$", "", token)
+            if bare != token:
+              variants.append((bare, 0.7))
+              for infl_base in self.SearchInflections(bare.lower()):
+                variants.append((infl_base, 0.6))
+            if token.find("-") > 0:
+              for part in token.split("-"):
+                if not regex.search(r"\p{Latin}{3,}", part): continue
+                variants.append((part, 0.0002))
+                for infl_base in self.SearchInflections(part.lower()):
+                  variants.append((infl_base, 0.0001))
           uniq_variants = set()
           uniq_words = set()
-          for variant in variants:
+          for variant, var_score in variants:
             if variant in uniq_variants: continue
             uniq_variants.add(variant)
             for entry in self.SearchExact(variant, 10):
@@ -419,7 +432,7 @@ class UnionSearcher:
               child_score = math.log2((len(children) if children else 0) + 4)
               width_score = 100 ** word.count(" ")
               match_score = 1.0 if match else 0.2
-              score = prob_score * aoa_score * tran_score * item_score * label_score * child_score * match_score * width_score
+              score = var_score * prob_score * aoa_score * tran_score * item_score * label_score * child_score * match_score * width_score
               #print("{}: s={:.6f}, p={:.6f}, a={:.6f}, t={:.6f}, i={:.6f}, l={:.6f}, c={:.6f}, w={:d}".format(
               #  word, score, prob_score, aoa_score, tran_score, item_score, label_score, child_score, width_score))
               annots.append((entry, score))
