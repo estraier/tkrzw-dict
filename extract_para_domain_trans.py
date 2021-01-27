@@ -33,16 +33,14 @@ import tkrzw
 import tkrzw_dict
 
 
-MIN_PAIR_COUNT = 5
-MIN_SCORE = 0.02
-
-
 logger = tkrzw_dict.GetLogger()
 
 
 class ExtractTransBatch:
-  def __init__(self, data_prefix):
+  def __init__(self, data_prefix, min_count, min_score):
     self.data_prefix = data_prefix
+    self.min_count = min_count
+    self.min_score = min_score
 
   def Run(self):
     start_time = time.time()
@@ -103,13 +101,13 @@ class ExtractTransBatch:
     targets = sorted(targets, key=lambda x: x[1], reverse=True)[:32]
     outputs = []    
     for target, pair_count in targets:
-      if pair_count < MIN_PAIR_COUNT: continue
+      if pair_count < self.min_count: continue
       target_count = target_counts.get(target) or 0
       if not target_count: continue
       ef_prob = pair_count / source_count
       fe_prob = pair_count / target_count
       score = (ef_prob * fe_prob)
-      if score < MIN_SCORE: continue
+      if score < self.min_score: continue
       target_s = regex.sub(r" *([\p{Han}\p{Hiragana}\p{Katakana}ー]) *", r"\1", target)
       ef_prob_s = regex.sub(r"^0\.", ".", "{:.3f}".format(ef_prob))
       fe_prob_s = regex.sub(r"^0\.", ".", "{:.3f}".format(fe_prob))
@@ -121,11 +119,13 @@ class ExtractTransBatch:
 def main():
   args = sys.argv[1:]
   data_prefix = tkrzw_dict.GetCommandFlag(args, "--data_prefix", 1) or "result-para"
+  min_count = int(tkrzw_dict.GetCommandFlag(args, "--min_count", 1) or 2)
+  min_score = float(tkrzw_dict.GetCommandFlag(args, "--min_score", 1) or 0.02)
   if tkrzw_dict.GetCommandFlag(args, "--quiet", 0):
     logger.setLevel(logging.ERROR)
   if args:
     raise RuntimeError("unknown arguments: {}".format(str(args)))
-  ExtractTransBatch(data_prefix).Run()
+  ExtractTransBatch(data_prefix, min_count, min_score).Run()
 
 
 if __name__=="__main__":

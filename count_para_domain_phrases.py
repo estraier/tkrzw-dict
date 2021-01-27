@@ -4,7 +4,8 @@
 # Script to count parallel phrases by the domain
 #
 # Usage:
-#   count_para_domain_phrases.py [--data_prefix str]
+#   count_para_domain_phrases.py [--data_prefix str] [--keyword str] [--dict str] [--thes str]
+#     [--source_ngram num] [--target_ngram num] [--target_stem] [--quiet]
 #   (It reads the standard input and makes files in the data directory.)
 #
 # Example:
@@ -41,7 +42,7 @@ MIN_PHRASE_COUNT_IN_BATCH = 2
 MERGE_DB_UNIT = 16
 MAX_SRC_TOKENS = 64
 MAX_TRG_TOKENS = 96
-MAX_SENTENCES_IN_DOMAIN = 1000
+MAX_SENTENCES_IN_DOMAIN = 10000
 MAX_TARGETS_IN_BATCH = 64
 
 
@@ -49,15 +50,18 @@ logger = tkrzw_dict.GetLogger()
 
 
 class WordCountBatch:
-  def __init__(self, data_prefix, keyword_path, dict_path, thes_path, source_ngram, target_ngram):
+  def __init__(self, data_prefix, keyword_path, dict_path, thes_path,
+               source_ngram, target_ngram, target_stem):
     self.data_prefix = data_prefix
     self.keyword_path = keyword_path
     self.keywords = set()
     self.dict_path = dict_path
     self.dict_words = collections.defaultdict(list)
+    self.dict_targets = set()
     self.thes_path = thes_path
     self.source_ngram = source_ngram
     self.target_ngram = target_ngram
+    self.target_stem = target_stem
     self.num_batches = 0
     self.tagger = MeCab.Tagger(r"--node-format=%m\t%f[0]\t%f[1]\t%f[6]\n")
 
@@ -105,8 +109,13 @@ class WordCountBatch:
               all_targets.add(thes_target)
         num_all_targets += len(all_targets)
         self.dict_words[key] = list(all_targets)
-    logger.info("Reading dictionary done: num_dict_words={}, num_pure_targets={}, num_all_targets={}".format(
-      len(self.dict_words), num_pure_targets, num_all_targets))
+      for source, targets in self.dict_words.items():
+        for target in targets:
+          self.dict_targets.add(target)
+    logger.info(
+      ("Reading dictionary done: num_dict_words={}" +
+       ", num_pure_targets={}, num_all_targets={}, num_uniq_targets={}").format(
+         len(self.dict_words), num_pure_targets, num_all_targets, len(self.dict_targets)))
 
   def Run(self):
     start_time = time.time()
@@ -166,7 +175,15 @@ class WordCountBatch:
     for score, source, target in records:
       norm_target = self.re_norm_target.sub(r"\1", target)
       src_phrases = self.ExtractSourcePhrases(source, MAX_SRC_TOKENS)
+      if not src_phrases: continue
       trg_phrases = self.ExtractTargetPhrases(norm_target, MAX_TRG_TOKENS)
+      if self.dict_targets:
+        new_trg_phrases = []
+        for trg_phrase in trg_phrases:
+          if trg_phrase in self.dict_targets:
+            new_trg_phrases.append(trg_phrase)
+        trg_phrases = new_trg_phrases
+      if not trg_phrases: continue
       for src_phrase in src_phrases:
         if self.keywords:
           if not src_phrase.lower() in self.keywords:
@@ -183,10 +200,12 @@ class WordCountBatch:
               cmp_trg_phrases.append(trg_phrase)
         else:
           cmp_trg_phrases = trg_phrases
+        uniq_src_phrases.add(src_phrase)
         for trg_phrase in cmp_trg_phrases:
-          uniq_src_phrases.add(src_phrase)
           uniq_trg_phrases.add(trg_phrase)
           uniq_phrase_pairs.add(src_phrase + "\t" + trg_phrase)
+      for trg_phrase in trg_phrases:
+        uniq_trg_phrases.add(trg_phrase)
     for src_phrase in uniq_src_phrases:
       self.mem_phrase_count.Increment(src_phrase + "\t", 1)
       self.num_records += 1
@@ -254,37 +273,39 @@ class WordCountBatch:
       scored_targets = []
       for trg_phrase, count in trg_phrases:
         score = count
-        if re_symbol.search(trg_phrase):
-          continue
-        if re_double_particle.search(trg_phrase):
-          score *= 0.5
-        elif trg_phrase in particles:
-          score *= 0.5
-        else:
-          hit = False
-          for prefix in prefixes:
-            if trg_phrase.startswith(prefix):
-              hit = True
-              break
-          if hit:
+        if trg_phrase:
+          if re_symbol.search(trg_phrase):
+            continue
+          if re_double_particle.search(trg_phrase):
+            score *= 0.5
+          elif trg_phrase in particles:
+            score *= 0.5
+          else:
+            hit = False
+            for prefix in prefixes:
+              if trg_phrase.startswith(prefix):
+                hit = True
+                break
+            if hit:
+              score *= 0.8
+          if re_hiragana_only.fullmatch(trg_phrase):
+            score *= 0.5
+          if len(trg_phrase) <= 1:
+            score *= 0.5
+          elif len(trg_phrase) <= 2:
             score *= 0.8
-        if re_hiragana_only.fullmatch(trg_phrase):
-          score *= 0.5
-        if len(trg_phrase) <= 1:
-          score *= 0.5
-        elif len(trg_phrase) <= 2:
-          score *= 0.8
+        else:
+          score += 1
         scored_targets.append((trg_phrase, count, score))
       scored_targets = sorted(scored_targets, key=lambda x: x[2], reverse=True)
-      if src_phrase and trg_phrase:
-        scored_targets = scored_targets[:MAX_TARGETS_IN_BATCH]
+      scored_targets = scored_targets[:MAX_TARGETS_IN_BATCH]
       outputs = []
       for trg_phrase, count, score in scored_targets:
         key = src_phrase + "\t" + trg_phrase
         outputs.append((key, count))
       outputs = sorted(outputs)
       for key, value in outputs:
-        dbm_phrase_count.Set(key, value).OrDie()      
+        dbm_phrase_count.Set(key, value).OrDie()
     last_src_phrase = ""
     trg_phrases = []
     while True:
@@ -293,13 +314,17 @@ class WordCountBatch:
         break
       src_phrase, trg_phrase = record[0].decode().split("\t")
       count = struct.unpack(">q", record[1])[0]
-      if src_phrase != last_src_phrase:
-        if trg_phrases:
-          Output(last_src_phrase, trg_phrases)
-        trg_phrases = []
-      if count >= min_phrase_count:
-        trg_phrases.append((trg_phrase, count))
-      last_src_phrase = src_phrase
+      if src_phrase:
+        if src_phrase != last_src_phrase:
+          if trg_phrases:
+            Output(last_src_phrase, trg_phrases)
+          trg_phrases = []
+        if count >= min_phrase_count:
+          trg_phrases.append((trg_phrase, count))
+        last_src_phrase = src_phrase
+      else:
+        if count >= min_phrase_count:
+          dbm_phrase_count.Set("\t" + trg_phrase, count).OrDie()
       it.Remove()
     if trg_phrases:
       Output(last_src_phrase, trg_phrases)
@@ -358,7 +383,7 @@ class WordCountBatch:
       for index in range(start_index, len(spans)):
         token = spans[index]
         if self.re_latin_word_head.match(token):
-          token = self.re_poss_suffix.sub( "", token)
+          token = self.re_poss_suffix.sub("", token)
           tokens.append(token)
           phrase = " ".join(tokens)
           phrases.add(phrase)
@@ -384,12 +409,12 @@ class WordCountBatch:
       phrase_tokens = []
       for i in range(start_index, end_index):
         token = tokens[i]
-        if i < end_index - 1:
+        if i < end_index - 1 or not self.target_stem:
           phrase_tokens.append(token[0])
         else:
           phrase_tokens.append(token[1])
         phrase = " ".join(phrase_tokens)
-        phrase = self.re_norm_target.sub(r"\1", phrase)        
+        phrase = self.re_norm_target.sub(r"\1", phrase)
         result.append(phrase)
     return list(set(result))
 
@@ -402,11 +427,13 @@ def main():
   thes_path = tkrzw_dict.GetCommandFlag(args, "--thes", 1) or ""
   source_ngram = int(tkrzw_dict.GetCommandFlag(args, "--source_ngram", 1) or "3")
   target_ngram = int(tkrzw_dict.GetCommandFlag(args, "--target_ngram", 1) or "3")
+  target_stem = tkrzw_dict.GetCommandFlag(args, "--target_stem", 0)
   if tkrzw_dict.GetCommandFlag(args, "--quiet", 0):
     logger.setLevel(logging.ERROR)
   if args:
     raise RuntimeError("unknown arguments: {}".format(str(args)))
-  WordCountBatch(data_prefix, keyword_path, dict_path, thes_path, source_ngram, target_ngram).Run()
+  WordCountBatch(data_prefix, keyword_path, dict_path, thes_path,
+                 source_ngram, target_ngram, target_stem).Run()
 
 
 if __name__=="__main__":
