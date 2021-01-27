@@ -394,11 +394,11 @@ def P(*args, end="\n"):
   print(args[0].format(*esc_args), end=end)
 
 
-def PrintResultCGI(entries, query, details):
+def PrintResultCGI(script_name, entries, query, details):
   for entry in entries:
     P('<div class="entry_view">')
     word = entry["word"]
-    word_url = "?q={}".format(urllib.parse.quote(word))
+    word_url = "{}?q={}".format(script_name, urllib.parse.quote(word))
     P('<h2 class="entry_word"><a href="{}">{}</a></h2>', word_url, word)
     translations = entry.get("translation")
     if translations:
@@ -406,7 +406,7 @@ def PrintResultCGI(entries, query, details):
         translations = tkrzw_dict.TwiddleWords(translations, query)
       fields = []
       for tran in translations[:8]:
-        tran_url = "?q={}".format(urllib.parse.quote(tran))
+        tran_url = "{}?q={}".format(script_name, urllib.parse.quote(tran))
         value = '<a href="{}" class="tran">{}</a>'.format(esc(tran_url), esc(tran))
         fields.append(value)
       if fields:
@@ -461,7 +461,7 @@ def PrintResultCGI(entries, query, details):
         for subword in section.split(","):
           subword = subword.strip()
           if subword:
-            subword_url = "?q={}".format(urllib.parse.quote(subword))
+            subword_url = "{}?q={}".format(script_name, urllib.parse.quote(subword))
             fields.append('<a href="{}" class="subword">{}</a>'.format(
               esc(subword_url), esc(subword)))
         if fields:
@@ -510,7 +510,7 @@ def PrintResultCGI(entries, query, details):
             for subword in subsections[0].split(","):
               subword = subword.strip()
               if subword:
-                subword_url = "?q={}".format(urllib.parse.quote(subword))
+                subword_url = "{}?q={}".format(script_name, urllib.parse.quote(subword))
                 fields.append('<a href="{}" class="subword">{}</a>'.format(
                   esc(subword_url), esc(subword)))
             if fields:
@@ -543,7 +543,7 @@ def PrintResultCGI(entries, query, details):
           P('<span class="text">')
           fields = []
           for subword in related[:8]:
-            subword_url = "?q={}".format(urllib.parse.quote(subword))
+            subword_url = "{}?q={}".format(script_name, urllib.parse.quote(subword))
             fields.append('<a href="{}" class="subword">{}</a>'.format(
               esc(subword_url), esc(subword)))
           print(", ".join(fields), end="")
@@ -556,7 +556,7 @@ def PrintResultCGI(entries, query, details):
           esc(etym_prefix)))
       etym_core = entry.get("etymology_core")
       if etym_core:
-        etym_core_url = "?q={}".format(urllib.parse.quote(etym_core))
+        etym_core_url = "{}?q={}".format(script_name, urllib.parse.quote(etym_core))
         etym_fields.append('<a href="{}" class="subword">{}</a>'.format(
             esc(etym_core_url), esc(etym_core)))
       etym_suffix = entry.get("etymology_suffix")
@@ -603,11 +603,11 @@ def PrintItemTextCGI(text):
   P('</span>', end="")
 
 
-def PrintResultCGIList(entries, query):
+def PrintResultCGIList(script_name, entries, query):
   P('<div class="list_view">')
   for entry in entries:
     word = entry["word"]
-    word_url = "?q={}".format(urllib.parse.quote(word))
+    word_url = "{}?q={}".format(script_name, urllib.parse.quote(word))
     P('<div class="list_item">')
     P('<a href="{}" class="list_head">{}</a> :', word_url, word)
     poses = []
@@ -621,7 +621,7 @@ def PrintResultCGIList(entries, query):
         translations = tkrzw_dict.TwiddleWords(translations, query)
       fields = []
       for tran in translations[:8]:
-        tran_url = "?q={}".format(urllib.parse.quote(tran))
+        tran_url = "{}?q={}".format(script_name, urllib.parse.quote(tran))
         value = '<a href="{}" class="list_tran">{}</a>'.format(esc(tran_url), esc(tran))
         fields.append(value)
       print(", ".join(fields), end="")
@@ -638,7 +638,7 @@ def PrintResultCGIList(entries, query):
   P('</div>')
 
 
-def PrintResultCGIAnnot(spans):
+def PrintResultCGIAnnot(script_name, spans):
   P('<div class="annot_view">')
   num_spans = 0
   ruby_trans = None
@@ -647,7 +647,7 @@ def PrintResultCGIAnnot(spans):
   ruby_aoa = 0
   ruby_life = 0
   def StartRuby():
-    word_url = "?q={}".format(urllib.parse.quote(ruby_word))
+    word_url = "{}?q={}".format(script_name, urllib.parse.quote(ruby_word))
     P('<ruby><a href="{}" class="word">', word_url, end="")
   def EndRuby(ruby_trans):
     word_width = 0
@@ -671,7 +671,7 @@ def PrintResultCGIAnnot(spans):
     for entry in ruby_annots:
       P('<div class="annot_entry">')
       word = entry["word"]
-      word_url = "?q={}".format(urllib.parse.quote(word))
+      word_url = "{}?q={}".format(script_name, urllib.parse.quote(word))
       P('<div class="annot_title">')
       P('<a href="{}" class="annot_title_word">{}</a>', word_url, word)
       pron = entry.get("pronunciation")
@@ -957,19 +957,22 @@ function toggle_rubies(min_aoa) {{
 <article>
 <h1><a href="{}">統合英和辞書検索</a></h1>
 """.format(esc(page_title), esc(script_name), end=""))
-  P('<div class="search_form">')
   if index_mode == "annot":
-    P('<form method="post" name="search_form">')
-    P('<div id="query_line">')
-    P('<textarea name="q" id="query_input_annot" cols="80" rows="10">{}</textarea>', query)
-    P('</div>')
-    P('<div id="query_line">')
-    P('<input type="hidden" name="i" value="annot"/>')
-    P('<input type="submit" value="注釈" id="submit_button_annot"/>')
-    P('<input type="button" value="消去" id="clear_button_annot" onclick="clear_query()"/>')
-    P('</div>')
-    P('</form>')
+    if len(query) < 8192:
+      P('<div class="search_form">')
+      P('<form method="post" name="search_form" action="{}">', script_name)
+      P('<div id="query_line">')
+      P('<textarea name="q" id="query_input_annot" cols="80" rows="10">{}</textarea>', query)
+      P('</div>')
+      P('<div id="query_line">')
+      P('<input type="hidden" name="i" value="annot"/>')
+      P('<input type="submit" value="注釈" id="submit_button_annot"/>')
+      P('<input type="button" value="消去" id="clear_button_annot" onclick="clear_query()"/>')
+      P('</div>')
+      P('</form>')
+      P('</div>')
   else:
+    P('<div class="search_form">')
     P('<form method="get" name="search_form">')
     P('<div id="query_line">')
     P('<input type="text" name="q" value="{}" id="query_input"/>', query)
@@ -1005,7 +1008,7 @@ function toggle_rubies(min_aoa) {{
     P('</select>')
     P('</div>')
     P('</form>')
-  P('</div>')
+    P('</div>')
   if query:
     searcher = tkrzw_union_searcher.UnionSearcher(CGI_DATA_PREFIX)
     is_reverse = False
@@ -1072,9 +1075,9 @@ function toggle_rubies(min_aoa) {{
       P('<div class="message_view">')
       P('<div class="pagenavi">')
       if page > 1:
-        prev_url = "?i=grade&q={}".format(page - 1)
+        prev_url = "{}?i=grade&q={}".format(script_name, page - 1)
         P('<a href="{}">&#x2B05;</a>', prev_url)
-      next_url = "?i=grade&q={}".format(page + 1)
+      next_url = "{}?i=grade&q={}".format(script_name, page + 1)
       P('<a href="{}">&#x2B95;</a>', next_url)
       P('</div>')
       P('<p>等級順: <strong>{}</strong></p>', page)
@@ -1095,11 +1098,11 @@ function toggle_rubies(min_aoa) {{
       if view_mode == "auto":
         keys = searcher.GetResultKeys(result)
         if len(keys) < 2:
-          PrintResultCGI(result, query, True)
+          PrintResultCGI(script_name, result, query, True)
         elif len(keys) < 6:
-          PrintResultCGI(result, query, False)
+          PrintResultCGI(script_name, result, query, False)
         else:
-          PrintResultCGIList(result, query)
+          PrintResultCGIList(script_name, result, query)
         if not is_reverse and index_mode == "auto":
           lemmas =set()
           for lemma in searcher.SearchInflections(query):
@@ -1113,13 +1116,13 @@ function toggle_rubies(min_aoa) {{
                 if entry["word"] in words: continue
                 infl_result.append(entry)
             if infl_result:
-              PrintResultCGIList(infl_result, "")
+              PrintResultCGIList(script_name, infl_result, "")
       elif view_mode == "full":
-        PrintResultCGI(result, query, True)
+        PrintResultCGI(script_name, result, query, True)
       elif view_mode == "simple":
-        PrintResultCGI(result, query, False)
+        PrintResultCGI(script_name, result, query, False)
       elif view_mode == "list":
-        PrintResultCGIList(result, query)
+        PrintResultCGIList(script_name, result, query)
       elif view_mode == "annot":
         P('<div class="message_view">')
         P('<form name="annot_navi_form">')
@@ -1137,7 +1140,7 @@ function toggle_rubies(min_aoa) {{
           line = line.strip()[:8192]
           if line:
             result = searcher.AnnotateText(line)
-            PrintResultCGIAnnot(result)
+            PrintResultCGIAnnot(script_name, result)
       else:
         raise RuntimeError("unknown view mode: " + view_mode)
     else:
@@ -1165,9 +1168,9 @@ function toggle_rubies(min_aoa) {{
       P('<p>該当なし。{}</p>', submessage)
       P('</div>')
       if infl_result:
-        PrintResultCGIList(infl_result, "")
+        PrintResultCGIList(script_name, infl_result, "")
       if edit_result:
-        PrintResultCGIList(edit_result, "")
+        PrintResultCGIList(script_name, edit_result, "")
   else:
     print("""<div class="license">
 <p>デフォルトでは、英語の検索語が入力されると英和の索引が検索され、日本語の検索語が入力されると和英の索引が検索されます。オプションで索引を明示的に指定できます。英和屈折は、単語の過去形などの屈折形を吸収した検索を行います。等級は、検索語を無視して全ての見出し語を重要度順に表示します。注釈は、英文を和訳の注釈付きの形式に整形します。</p>

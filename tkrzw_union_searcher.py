@@ -340,15 +340,21 @@ class UnionSearcher:
           break
     return result
 
+  
+  infl_names = (
+    "noun_plural", "verb_singular", "verb_present_participle",
+    "verb_past", "verb_past_participle",
+    "adjective_comparative", "adjective_superative",
+    "adverb_comparative", "adverb_superative")
+  re_latin_word = regex.compile(r"[\p{Latin}\d][-_'’\p{Latin}]*")
+  re_latin_word_head = regex.compile(r"[\p{Latin}\d]")
+  re_aux_contraction = regex.compile(r"(.+)['’](s|ve|d|ll|m|re|em)$", regex.IGNORECASE)
+  re_not_contraction = regex.compile(r"([a-z]{2,})n['’]t$", regex.IGNORECASE)
+  re_multi_possessive = regex.compile(r"([a-z]{2,})(s|S)[']$")
   def AnnotateText(self, text):
-    infl_names = (
-      "noun_plural", "verb_singular", "verb_present_participle",
-      "verb_past", "verb_past_participle",
-      "adjective_comparative", "adjective_superative",
-      "adverb_comparative", "adverb_superative")
     spans = []
     cursor = 0
-    for match in regex.finditer(r"[\p{Latin}\d][-_'’\p{Latin}]*", text):
+    for match in self.re_latin_word.finditer(text):
       start, end = match.span()
       if start > cursor:
         region = text[cursor:start]
@@ -375,7 +381,7 @@ class UnionSearcher:
       tokens = []
       for index in range(start_index, len(spans)):
         token = spans[index]
-        if regex.match(r"[\p{Latin}\d]", token):
+        if self.re_latin_word_head.match(token):
           tokens.append(token)
           phrase = " ".join(tokens)
           variants = []
@@ -383,11 +389,41 @@ class UnionSearcher:
           for infl_base in self.SearchInflections(phrase.lower()):
             variants.append((infl_base, 0.7))
           if index == start_index:
-            bare = regex.sub(r"['’]s?$", "", token)
-            if bare != token:
+            match = self.re_aux_contraction.search(token)
+            if match:
+              bare = match.group(1)
               variants.append((bare, 0.7))
               for infl_base in self.SearchInflections(bare.lower()):
                 variants.append((infl_base, 0.6))
+              print(match.group(0))
+              suffix = match.group(2).lower()
+              if suffix == "s" and bare.lower() in ("it", "he", "she"):
+                variants.append(("be", 0.0001))
+              elif suffix == "ve":
+                variants.append(("would", 0.0001))
+              elif suffix == "d":
+                variants.append(("would", 0.0001))
+                variants.append(("have", 0.0001))
+              elif suffix == "ll":
+                variants.append(("will", 0.0001))
+              elif suffix == "m" or suffix == "re":
+                variants.append(("be", 0.0001))
+              elif suffix == "em":
+                variants.append(("them", 0.0001))
+            match = self.re_not_contraction.search(token)
+            if match:
+              bare = match.group(1)
+              lower_bare = bare.lower()
+              if lower_bare == "wo": bare = "will"
+              if lower_bare == "ca": bare = "can"
+              if lower_bare == "sha": bare = "shall"
+              variants.append((bare, 0.7))
+              variants.append(("not", 0.0001))
+            match = self.re_multi_possessive.search(token)
+            if match:
+              bare = match.group(1) + match.group(2)
+              for infl_base in self.SearchInflections(bare):
+                variants.append((infl_base, 0.7))
             if token.find("-") > 0:
               for part in token.split("-"):
                 if not regex.search(r"\p{Latin}{3,}", part): continue
@@ -407,7 +443,7 @@ class UnionSearcher:
               if CheckSurfaceMatch(phrase, word):
                 match = True
               else:
-                for infl_name in infl_names:
+                for infl_name in self.infl_names:
                   infl_values = entry.get(infl_name)
                   if infl_values:
                     for infl_value in regex.split(r"[,|]", infl_values):
