@@ -37,10 +37,12 @@ logger = tkrzw_dict.GetLogger()
 
 
 class ExtractTransBatch:
-  def __init__(self, data_prefix, min_count, min_score):
+  def __init__(self, data_prefix, min_count, min_score, enough_count, base_count):
     self.data_prefix = data_prefix
     self.min_count = min_count
     self.min_score = min_score
+    self.enough_count = enough_count
+    self.base_count = base_count
 
   def Run(self):
     start_time = time.time()
@@ -76,7 +78,6 @@ class ExtractTransBatch:
               last_source, last_source_count, targets, target_counts)
           targets = []
           last_source = source
-
           num_pair_records += 1
           if num_pair_records % 10000 == 0:
             logger.info("Processing phrase pair counts: {} records".format(num_pair_records))
@@ -98,19 +99,28 @@ class ExtractTransBatch:
       time.time() - start_time))
 
   def ProcessRecord(self, source, source_count, targets, target_counts):
-    targets = sorted(targets, key=lambda x: x[1], reverse=True)[:32]
-    outputs = []    
+    scored_targets = []
     for target, pair_count in targets:
-      if pair_count < self.min_count: continue
+      if pair_count < self.min_count:
+        continue
       target_count = target_counts.get(target) or 0
-      if not target_count: continue
-      ef_prob = pair_count / source_count
-      fe_prob = pair_count / target_count
+      if not target_count:
+        continue
+      ef_prob = pair_count / (source_count + self.base_count)
+      fe_prob = pair_count / (target_count + self.base_count)
       score = (ef_prob * fe_prob)
-      if score < self.min_score: continue
+      if score < self.min_score:
+        if len(target) >= 3 and target_count >= self.enough_count:
+          pass
+        else:
+          continue
+      scored_targets.append((target, score, ef_prob, fe_prob))
+    scored_targets = sorted(scored_targets, key=lambda x: x[1], reverse=True)
+    outputs = []
+    for target, score, ef_prob, fe_prob in scored_targets:
       target_s = regex.sub(r" *([\p{Han}\p{Hiragana}\p{Katakana}ー]) *", r"\1", target)
-      ef_prob_s = regex.sub(r"^0\.", ".", "{:.3f}".format(ef_prob))
-      fe_prob_s = regex.sub(r"^0\.", ".", "{:.3f}".format(fe_prob))
+      ef_prob_s = regex.sub(r"^0\.", ".", "{:.4f}".format(ef_prob))
+      fe_prob_s = regex.sub(r"^0\.", ".", "{:.4f}".format(fe_prob))
       outputs.append("{}|{}|{}".format(target_s, ef_prob_s, fe_prob_s))
     if outputs:
       print("{}\t{}\t{}".format(source, source_count, "\t".join(outputs)), flush=True)
@@ -120,12 +130,14 @@ def main():
   args = sys.argv[1:]
   data_prefix = tkrzw_dict.GetCommandFlag(args, "--data_prefix", 1) or "result-para"
   min_count = int(tkrzw_dict.GetCommandFlag(args, "--min_count", 1) or 2)
-  min_score = float(tkrzw_dict.GetCommandFlag(args, "--min_score", 1) or 0.02)
+  min_score = float(tkrzw_dict.GetCommandFlag(args, "--min_score", 1) or 0.01)
+  enough_count = int(tkrzw_dict.GetCommandFlag(args, "--enough_count", 1) or 10)
+  base_count = int(tkrzw_dict.GetCommandFlag(args, "--base_count", 1) or 2)
   if tkrzw_dict.GetCommandFlag(args, "--quiet", 0):
     logger.setLevel(logging.ERROR)
   if args:
     raise RuntimeError("unknown arguments: {}".format(str(args)))
-  ExtractTransBatch(data_prefix, min_count, min_score).Run()
+  ExtractTransBatch(data_prefix, min_count, min_score, enough_count, base_count).Run()
 
 
 if __name__=="__main__":

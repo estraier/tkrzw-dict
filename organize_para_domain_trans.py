@@ -29,12 +29,11 @@ import tkrzw
 import tkrzw_dict
 import tkrzw_tokenizer
 
-MIN_EF = 0.1
-MIN_FE = 0.1
-FE_WEIGHT = 1.2
-MIN_SCORE = 0.3
-MIN_SCORE_LARGE = 0.4
-MAX_TARGETS = 3
+EF_WEIGHT = 1.0
+FE_WEIGHT = 1.0
+MIN_SCORE = 0.25
+MIN_SCORE_LARGE = 0.35
+MAX_TARGETS = 8
 MIN_SECOND_SCORE_RATIO = 0.7
 MIN_PROB = 0.000001
 
@@ -42,7 +41,7 @@ MIN_PROB = 0.000001
 logger = tkrzw_dict.GetLogger()
 
 
-def Run(rev_prob_path, min_count):
+def Run(rev_prob_path, min_count, enough_ef, enough_fe, omit_latin):
   start_time = time.time()
   logger.info("Process started")
   rev_prob_dbm = None
@@ -63,6 +62,7 @@ def Run(rev_prob_path, min_count):
     records[source] = (count, targets)
   for source, (count, targets) in records.items():
     if count < min_count: continue
+    if len(source) <= 1: continue
     large = bool(regex.search(r"^\p{Lu}", source))
     if large:
       cap_source = source.lower()
@@ -76,25 +76,50 @@ def Run(rev_prob_path, min_count):
     if large:
       cap_count *= 5.0
     if count < cap_count: continue
-    good_targets = []
+    scored_targets = []
     for target, ef_prob, fe_prob in targets:
-      if ef_prob < MIN_EF: continue
       for cap_target, cap_ef_prob, cap_fe_prob in cap_targets:
         if cap_target == target:
           fe_prob += cap_fe_prob
       ef_prob = min(1.0, ef_prob)
       fe_prob = min(1.0, fe_prob)
-      score = (ef_prob * (fe_prob ** FE_WEIGHT)) ** (1 / (1 + FE_WEIGHT))
+      score = ((ef_prob ** EF_WEIGHT) * (fe_prob ** FE_WEIGHT)) ** (1 / (EF_WEIGHT + FE_WEIGHT))
       #score = 2 * ef_prob * fe_prob / (ef_prob + fe_prob)
+      scored_targets.append((target, score, ef_prob, fe_prob))
+    scored_targets = sorted(scored_targets, key=lambda x: x[1], reverse=True)
+    good_targets = []
+    for target, score, ef_prob, fe_prob in scored_targets:
+      is_prefix = False
+      is_single_noun = False
+      for cmp_target, cmp_score, _, _ in scored_targets:
+        if target != cmp_target and cmp_target.startswith(target) and cmp_score >= MIN_SCORE:
+          if (cmp_target == target + "の" or cmp_target == target + "する") and regex.fullmatch(r"\p{Han}+", target):
+            is_single_noun = True
+          else:
+            is_prefix = True
+      if omit_latin and regex.search(r"[\p{Latin}]{2,}", target):
+        continue
+      if len(target) <= 1 and is_prefix and not is_single_noun:
+        continue
       if large:
-        if score < MIN_SCORE_LARGE: continue
+        if score < MIN_SCORE_LARGE:
+          continue
       else:
-        if score < MIN_SCORE: continue
+        if score < MIN_SCORE:
+          if (regex.search(r"[\p{Latin}]{4,}", source) and not regex.search(r"\d", source) and
+              (regex.search(r"[\p{Han}]{2,}", target) or
+               regex.search(r"[\p{Han}][\p{Hiragana}]", target)) and
+              (ef_prob >= enough_ef or fe_prob >= enough_fe)):
+            pass
+          else:
+            continue
       norm_source = source.lower()
       norm_target = target.lower()
       if norm_source.find(norm_target) >= 0 or norm_target.find(norm_source) >= 0:
         continue
       if norm_target in ("する", "ます", "より", "から"):
+        continue
+      if norm_target.startswith("っ") or norm_target.startswith("を"):
         continue
       if regex.fullmatch(r"[\p{Hiragana}ー{Latin}]", target):
         continue
@@ -102,24 +127,26 @@ def Run(rev_prob_path, min_count):
         continue
       elif regex.search(r"[\p{Han}\{Katakana}ー\p{Latin}][は|が|を|と]", target):
         continue
+      if len(target) <= 1:
+        score *= 0.5
+      elif len(target) <= 2:
+        score *= 0.9
       if regex.fullmatch(r"[\p{Hiragana}ー]+", target):
         score *= 0.8
       elif regex.search(r"\d", target):
         score *= 0.8
       target = regex.sub(r"([\p{Han}\p{Katakana}ー\p{Latin}])だ", r"\1な", target)
-      good_targets.append((target, score))
+      good_targets.append((target, score, ef_prob, fe_prob))
     if not good_targets: continue
     good_targets = sorted(good_targets, key=lambda x: x[1], reverse=True)
     min_score = good_targets[0][1] * MIN_SECOND_SCORE_RATIO
     outputs = []
-    for target, score in good_targets[:MAX_TARGETS]:
-      if score < min_score:
-        continue
+    for target, score, ef_prob, fe_prob in good_targets[:MAX_TARGETS]:
       if rev_prob_dbm:
         prob = GetPhraseProb(rev_prob_dbm, "ja", target)
         if prob < MIN_PROB:
           continue
-      #outputs.append("{}:{:.4f}".format(target, score))
+      #outputs.append("{}:{:.3f}:{:.3f}:{:.3f}".format(target, score, ef_prob, fe_prob))
       outputs.append(target)
     if outputs:
       print("{}\t{}".format(source, "\t".join(outputs)))
@@ -171,9 +198,10 @@ def main():
   args = sys.argv[1:]
   rev_prob_path = tkrzw_dict.GetCommandFlag(args, "--rev_prob", 1) or ""
   min_count = int(tkrzw_dict.GetCommandFlag(args, "--min_count", 1) or 10)
-  if len(args) != 0:
-    raise ValueError("two arguments are required")
-  Run(rev_prob_path, min_count)
+  enough_ef = float(tkrzw_dict.GetCommandFlag(args, "--enough_ef", 1) or 2.0)
+  enough_fe = float(tkrzw_dict.GetCommandFlag(args, "--enough_fe", 1) or 2.0)
+  omit_latin = tkrzw_dict.GetCommandFlag(args, "--omit_latin", 0)
+  Run(rev_prob_path, min_count, enough_ef, enough_fe, omit_latin)
 
 
 if __name__=="__main__":

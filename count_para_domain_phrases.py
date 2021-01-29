@@ -34,6 +34,7 @@ import time
 import tkrzw
 import tkrzw_dict
 import unicodedata
+import zlib
 
 
 #BATCH_MAX_RECORDS = 10000  # for testing
@@ -158,9 +159,12 @@ class WordCountBatch:
   def Start(self):
     self.mem_phrase_count = tkrzw.DBM()
     self.mem_phrase_count.Open("", True, dbm="BabyDBM").OrDie()
+    self.prefix_hashes = set()
+    self.suffix_hashes = set()
     self.num_domains = 0
     self.num_sentences = 0
     self.num_records = 0
+    self.num_duplications = 0
     self.start_time = time.time()
 
   re_norm_target = regex.compile(r" *([\p{Han}\p{Hiragana}\p{Katakana}ー]) *")
@@ -173,6 +177,16 @@ class WordCountBatch:
     uniq_trg_phrases = set()
     uniq_phrase_pairs = set()
     for score, source, target in records:
+      prefix_hash = zlib.adler32((source[:32] + "\t" + target[:32]).encode())
+      if prefix_hash in self.prefix_hashes:
+        self.num_duplications += 1
+        continue
+      self.prefix_hashes.add(prefix_hash)
+      suffix_hash = zlib.adler32((source[-32:] + "\t" + target[-32:]).encode())
+      if suffix_hash in self.suffix_hashes:
+        self.num_duplications += 1
+        continue
+      self.suffix_hashes.add(suffix_hash)
       norm_target = self.re_norm_target.sub(r"\1", target)
       src_phrases = self.ExtractSourcePhrases(source, MAX_SRC_TOKENS)
       if not src_phrases: continue
@@ -246,8 +260,8 @@ class WordCountBatch:
       self.num_batches + 1, time.time() - self.start_time,
       tkrzw.Utility.GetMemoryUsage() / 1024.0 / 1024))
     logger.info(
-      "Batch {} dumping: sentences={}, records={}, unique_phrases={}".format(
-        self.num_batches + 1, self.num_sentences, self.num_records,
+      "Batch {} dumping: sentences={}, records={}, dup={}, unique_phrases={}".format(
+        self.num_batches + 1, self.num_sentences, self.num_records, self.num_duplications,
         self.mem_phrase_count.Count()))
     start_time = time.time()
     fill_ratio = min(self.num_records / BATCH_MAX_RECORDS, 1.0)
