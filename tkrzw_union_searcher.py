@@ -339,7 +339,6 @@ class UnionSearcher:
         if first_only:
           break
     return result
-
   
   infl_names = (
     "noun_plural", "verb_singular", "verb_present_participle",
@@ -347,10 +346,9 @@ class UnionSearcher:
     "adjective_comparative", "adjective_superative",
     "adverb_comparative", "adverb_superative")
   re_latin_word = regex.compile(r"[\p{Latin}\d][-_'’\p{Latin}]*")
-  re_latin_word_head = regex.compile(r"[\p{Latin}\d]")
   re_aux_contraction = regex.compile(r"(.+)['’](s|ve|d|ll|m|re|em)$", regex.IGNORECASE)
   re_not_contraction = regex.compile(r"([a-z]{2,})n['’]t$", regex.IGNORECASE)
-  re_multi_possessive = regex.compile(r"([a-z]{2,})(s|S)[']$")
+  re_multi_possessive = regex.compile(r"([a-z]{2,})(s|S)['’ ]$")
   def AnnotateText(self, text):
     spans = []
     cursor = 0
@@ -358,17 +356,20 @@ class UnionSearcher:
       start, end = match.span()
       if start > cursor:
         region = text[cursor:start]
-        spans.append(region)
+        spans.append((region, False))
       region = text[start:end]
-      spans.append(region)
+      spans.append((region, True))
       cursor = end
     if cursor < len(text):
       region = text[cursor:]
-      spans.append(region)
+      spans.append((region, False))
     out_spans = []
     sent_head = True
     for start_index in range(0, len(spans)):
-      span = spans[start_index]
+      span, span_is_word = spans[start_index]
+      if not span_is_word:
+        out_spans.append((span, False, None))
+        continue
       def CheckSurfaceMatch(surface, title):
         if surface == title:
           return True
@@ -380,8 +381,8 @@ class UnionSearcher:
       annots = []
       tokens = []
       for index in range(start_index, len(spans)):
-        token = spans[index]
-        if self.re_latin_word_head.match(token):
+        token, token_is_word = spans[index]
+        if token_is_word:
           tokens.append(token)
           phrase = " ".join(tokens)
           variants = []
@@ -395,7 +396,6 @@ class UnionSearcher:
               variants.append((bare, 0.7))
               for infl_base in self.SearchInflections(bare.lower()):
                 variants.append((infl_base, 0.6))
-              print(match.group(0))
               suffix = match.group(2).lower()
               if suffix == "s" and bare.lower() in ("it", "he", "she"):
                 variants.append(("be", 0.0001))
@@ -480,6 +480,6 @@ class UnionSearcher:
           break
       annots = sorted(annots, key=lambda x: x[1], reverse=True)
       annots = [x[0] for x in annots]
-      out_spans.append((span, annots or None))
+      out_spans.append((span, True, annots or None))
       sent_head = span.find("\n") >= 0 or bool(regex.search(r"[.!?;:]", span))
     return out_spans

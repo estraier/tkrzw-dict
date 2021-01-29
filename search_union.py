@@ -40,8 +40,9 @@ import urllib.request
 PAGE_WIDTH = 100
 CGI_DATA_PREFIX = "union"
 CGI_CAPACITY = 100
+CGI_MAX_HTTP_CONTENT_LENGTH = 512 * 1024
 CGI_MAX_QUERY_LENGTH = 256 * 1024
-CGI_MAX_HTTP_CONTENT_LENGTH = 1024 * 1024
+CGI_MAX_QUERY_LINE_LENGTH = 8 * 1024
 POSES = {
   "noun": "名",
   "verb": "動",
@@ -355,9 +356,9 @@ def main():
     result = searcher.SearchByGrade(capacity, page, True)
   elif search_mode == "annot":
     result = []
-    for span, annot in searcher.AnnotateText(query):
-      if annot:
-        for entry in annot:
+    for span, is_word, annots in searcher.AnnotateText(query):
+      if annots:
+        for entry in annots:
           result.append(entry)
   else:
     raise RuntimeError("unknown search mode: " + search_mode)
@@ -698,7 +699,7 @@ def PrintResultCGIAnnot(script_name, spans):
     ruby_trans.clear()
   P('<p class="text">', end="")
   for i in range(0, len(spans)):
-    text, annots = spans[i]
+    text, is_word, annots = spans[i]
     if regex.search(r"[^\s]", text) or ruby_life == 1:
       ruby_life -= 1
     if ruby_trans and ruby_life == 0:
@@ -732,14 +733,15 @@ def PrintResultCGIAnnot(script_name, spans):
   P('</div>')
 
 
-def ReadHTTPQuery(url):
+def ReadHTTPQuery(url, error_notes):
   try:
     req = urllib.request.Request(url)
     with urllib.request.urlopen(req) as response:
       info = response.info()
       clen = int(info.get("Content-Length") or 0)
       if clen > CGI_MAX_HTTP_CONTENT_LENGTH:
-        return "[TOO_LARGE_CONTENT]"
+        error_notes.append("HTTPのデータが長すぎる。")
+        return None
       ctype = info.get("Content-Type") or "text/plain"
       charset = ""
       match = regex.search("charset=([-_a-zA-Z0-9]+)", ctype)
@@ -749,7 +751,12 @@ def ReadHTTPQuery(url):
         charset = "utf-8"
       ctype = regex.sub(r";.*", "", ctype).strip()
       if ctype in ("text/html", "application/xhtml+xml", "application/xml"):
-        text = response.read(clen).decode(charset)
+        text = response.read(clen)
+        try:
+          text = text.decode(charset)
+        except UnicodeError:
+          error_notes.append("エンコーディングエラー。")
+          return None
         text = regex.sub(r"\s+", " ", text)
         text = regex.sub(r"<!--.*?-->", "", text)
         text = regex.sub(r".*<body[^>]*>", "", text)
@@ -767,17 +774,40 @@ def ReadHTTPQuery(url):
             lines.append(line)
         text = "\n".join(lines) + "\n"
       elif ctype in ("text/plain", "text/tab-separated-values", "text/csv"):
-        text = response.read(clen).decode(charset)
-        print("TEXT", text)
+        text = response.read(clen)
+        try:
+          text = text.decode(charset)
+        except UnicodeError:
+          error_notes.append("エンコーディングエラー。")
+          return None
+        lines = []
+        last_line = ""
+        for line in text.split("\n"):
+          line = line.strip()
+          if line:
+            if last_line:
+              last_line += " "
+            last_line += line
+          elif last_line:
+            lines.append(last_line)
+            last_line = ""
+        if last_line:
+          lines.append(last_line)
+        text = "\n".join(lines) + "\n"
       else:
-        text = "[UNKNOWN_TYPE]"
+        error_notes.append("未知のメディアタイプ。")
+        return None
       return text
   except urllib.error.URLError as e:
-    return "[URL_ERROR]"
+    error_notes.append("不正なURL。")
+  except urllib.error.HTTPError as e:
+    error_notes.append("HTTP通信障害。")
+  return None
 
 
 def main_cgi():
   script_name = os.environ.get("SCRIPT_NAME", sys.argv[0])
+  request_method = os.environ.get("REQUEST_METHOD", sys.argv[0])
   params = {}
   form = cgi.FieldStorage()
   for key in form.keys():
@@ -787,13 +817,21 @@ def main_cgi():
     else:
       params[key] = value.value
   query = (params.get("q") or "").strip()
-  if CGI_MAX_HTTP_CONTENT_LENGTH > 0 and regex.search("^https?://", query):
-    query = ReadHTTPQuery(query)
+  error_notes = []
+  is_http_query = False
+  if regex.search("^https?://", query):
+    is_http_query = True
+    if CGI_MAX_HTTP_CONTENT_LENGTH <= 0:
+      error_notes.append("URL query is not supported.")
+    elif request_method != "POST":
+      error_notes.append("Non-POST URL query is forbidden.")
+    else:
+      query = ReadHTTPQuery(query, error_notes) or ""
   if len(query) > CGI_MAX_QUERY_LENGTH:
     query = query[:CGI_MAX_QUERY_LENGTH]
   query = "\n".join([regex.sub(r"[\p{C}]+", " ", x).strip() for x in query.split("\n")])
   index_mode = params.get("i") or "auto"
-  if index_mode == "auto" and len(query) > 128:
+  if index_mode == "auto" and len(query) > 48:
     index_mode = "annot"
   search_mode = params.get("s") or "auto"
   view_mode = params.get("v") or "auto"
@@ -951,14 +989,24 @@ function toggle_rubies(min_aoa) {{
     }}
   }}
 }}
+function check_search_form() {{
+  let search_form = document.forms["search_form"]
+  if (search_form) {{
+    let query = search_form.q.value.trim();
+    let re_url = new RegExp("^https?://")
+    if (re_url.test(query) || query.length > 2000) {{
+      search_form.method = "post"
+    }} 
+  }}
+}}
 /*]]>*/</script>
 </head>
 <body onload="startup()">
 <article>
 <h1><a href="{}">統合英和辞書検索</a></h1>
-""".format(esc(page_title), esc(script_name), end=""))
+""".format(esc(page_title), esc(script_name)), end="")
   if index_mode == "annot":
-    if len(query) < 8192:
+    if not is_http_query:
       P('<div class="search_form">')
       P('<form method="post" name="search_form" action="{}">', script_name)
       P('<div id="query_line">')
@@ -973,7 +1021,7 @@ function toggle_rubies(min_aoa) {{
       P('</div>')
   else:
     P('<div class="search_form">')
-    P('<form method="get" name="search_form">')
+    P('<form method="get" name="search_form" onsubmit="check_search_form()">')
     P('<div id="query_line">')
     P('<input type="text" name="q" value="{}" id="query_input"/>', query)
     P('<input type="submit" value="検索" id="submit_button"/>')
@@ -1009,7 +1057,12 @@ function toggle_rubies(min_aoa) {{
     P('</div>')
     P('</form>')
     P('</div>')
-  if query:
+  if error_notes:
+    P('<div class="message_view">')
+    for note in error_notes:
+      P('<p>{}</p>', note)
+    P('</div>')
+  elif query:
     searcher = tkrzw_union_searcher.UnionSearcher(CGI_DATA_PREFIX)
     is_reverse = False
     if index_mode == "auto":
@@ -1088,7 +1141,7 @@ function toggle_rubies(min_aoa) {{
         view_mode = "annot"
       else:
         result = []
-        for span, annot in searcher.AnnotateText(query):
+        for span, is_word, annot in searcher.AnnotateText(query):
           if annot:
             for entry in annot:
               result.append(entry)
@@ -1136,11 +1189,27 @@ function toggle_rubies(min_aoa) {{
         P('</select>')
         P('</form>')
         P('</div>')
+        num_sections = 0
+        num_words = 0
+        num_words_with_annots = 0
+        num_annots = 0
         for line in query.split("\n"):
-          line = line.strip()[:8192]
+          line = line.strip()[:CGI_MAX_QUERY_LINE_LENGTH]
           if line:
             result = searcher.AnnotateText(line)
             PrintResultCGIAnnot(script_name, result)
+            num_sections += 1
+            for span, is_word, annots in result:
+              if is_word:
+                num_words += 1
+                if annots:
+                  num_words_with_annots += 1
+                  num_annots += len(annots)
+        coverage = num_words_with_annots / num_words if num_words else 0
+        P('<div class="message_view">')
+        P('<p>段落数: {} 。単語数: {} 。注釈数: {} 。カバー率: {:.1f}% 。</p>',
+          num_sections, num_words, num_annots, coverage * 100)
+        P('</div>')
       else:
         raise RuntimeError("unknown view mode: " + view_mode)
     else:
