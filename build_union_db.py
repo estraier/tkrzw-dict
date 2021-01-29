@@ -171,7 +171,9 @@ class BuildUnionDBBatch:
             mode = value
         if not ipa and sampa:
           ipa = tkrzw_pron_util.SampaToIPA(sampa)
-        if word and (ipa or texts or inflections or etymologies):
+        if not word or len(word) > 48:
+          continue
+        if ipa or texts or inflections or etymologies:
           key = tkrzw_dict.NormalizeWord(word)
           entry = {"word": word}
           if ipa:
