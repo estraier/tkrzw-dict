@@ -15,6 +15,7 @@
 
 import collections
 import heapq
+import html
 import json
 import math
 import operator
@@ -458,7 +459,7 @@ class UnionSearcher:
                           entry.get("aoa_base") or 20)
               aoa = min(max(aoa, 3), 20)
               aoa_score = (25 - min(aoa, 20.0)) / 10.0
-              tran_score = 1.0 if "translation" in entry else 0.6
+              tran_score = 1.0 if "translation" in entry else 0.5
               item_score = math.log2(len(entry["item"]) + 1)
               labels = set()
               for item in entry["item"]:
@@ -483,3 +484,90 @@ class UnionSearcher:
       out_spans.append((span, True, annots or None))
       sent_head = span.find("\n") >= 0 or bool(regex.search(r"[.!?;:]", span))
     return out_spans
+
+
+def ConvertHTMLToText(text):
+  text = regex.sub(r"\s+", " ", text)
+  text = regex.sub(r"<!--.*?-->", "", text)
+  title = ""
+  match = regex.search(r"<title[^>]*?>(.*?)</title>", text)
+  if match:
+    title = match.group(1)
+  text = regex.sub(r".*<body[^>]*?>", "", text)
+  text = regex.sub(r"</body>.*", "", text)
+  text = regex.sub(r"<script[^>]*?>.*?</script>", "", text, flags=regex.IGNORECASE)
+  text = regex.sub(r"<style[^>]*?>.*?</style>", "", text, flags=regex.IGNORECASE)
+  text = regex.sub(r"<h1(>|\s[^>]*?>)", "[_LF_][_HEAD1_]", text, flags=regex.IGNORECASE)
+  text = regex.sub(r"<h2(>|\s[^>]*?>)", "[_LF_][_HEAD2_]", text, flags=regex.IGNORECASE)
+  text = regex.sub(r"<h3(>|\s[^>]*?>)", "[_LF_][_HEAD3_]", text, flags=regex.IGNORECASE)
+  text = regex.sub(r"<(h\d|p|div|br|li|dt|dd|tr)(>|\s[^>]*?>)",
+                   "[_LF_]", text, flags=regex.IGNORECASE)
+  text = regex.sub(r"</(h\d|p|div|br|li|dt|dd|tr)>",
+                   "[_LF_]", text, flags=regex.IGNORECASE)
+
+  text = regex.sub(r"<(th|td)(>|\s[^>]*?>)",
+                   " ", text, flags=regex.IGNORECASE)
+
+
+  
+  text = regex.sub(r"<[^>]*?>", "", text)
+  text = html.unescape(text)
+  lines = []
+  if title:
+    lines.append("====[META]====")
+    lines.append("[title]: " + title)
+    lines.append("====[PAGE]====")
+  for line in text.split("[_LF_]"):
+    line = line.strip()
+    match = regex.search(r"^\[_HEAD([1-3])_\]", line)
+    if match:
+      line = "[head" + match.group(1) + "]: " + line[match.end():].strip()
+    if line:
+      lines.append(line)
+  text = "\n".join(lines)
+  return text
+
+
+def CramText(text):
+  lines = []
+  last_line = ""
+  for line in text.split("\n"):
+    line = line.strip()
+    if line:
+      if last_line:
+        last_line += " "
+      last_line += line
+    elif last_line:
+      lines.append(last_line)
+      last_line = ""
+  if last_line:
+    lines.append(last_line)
+  text = "\n".join(lines)
+  return text
+
+
+def DivideTextToPages(text):
+  meta = []
+  pages = []
+  lines = []
+  is_meta = False
+  for line in text.split("\n"):
+    line = line.strip()
+    if not line: continue
+    if line == "====[META]====":
+      is_meta = True
+      if lines:
+        pages.append(lines)
+      lines = []
+    elif line == "====[PAGE]====":
+      is_meta = False
+      if lines:
+        pages.append(lines)
+      lines = []
+    elif is_meta:
+      meta.append(line)
+    else:
+      lines.append(line)
+  if lines:
+    pages.append(lines)
+  return meta, pages

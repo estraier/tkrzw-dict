@@ -5,11 +5,11 @@
 #
 # Usage:
 #   search_union.py [--data_prefix str] [--index str] [--search str] [--view str]
-#     [--capacity] words...
+#     [--capacity] [--query_file str] [--output_prefix str] [words...]
 #
 #   Index modes: auto (default), normal, reverse, inflection, grade, annot
 #   Search modes: auto (default), expact, prefix, suffix, contain, word, edit, related
-#   View mode: auto (default), full, simple, list
+#   View mode: auto (default), full, simple, list, annot
 #
 # Example:
 #   ./search_union.py --data_prefix union --search full --view full  united states
@@ -42,7 +42,7 @@ CGI_DATA_PREFIX = "union"
 CGI_CAPACITY = 100
 CGI_MAX_HTTP_CONTENT_LENGTH = 512 * 1024
 CGI_MAX_QUERY_LENGTH = 256 * 1024
-CGI_MAX_QUERY_LINE_LENGTH = 8 * 1024
+CGI_MAX_QUERY_LINE_LENGTH = 16 * 1024
 POSES = {
   "noun": "名",
   "verb": "動",
@@ -282,6 +282,64 @@ def PrintResult(entries, mode, query):
     print()
 
 
+def PrintResultAnnot(spans, head_level):
+  ruby_trans = None
+  ruby_word = None
+  ruby_annots = None
+  ruby_aoa = 0
+  ruby_life = 0
+  def StartRuby():
+    print("[", end="")
+  def EndRuby(ruby_trans):
+    word_width = 0
+    for c in ruby_word:
+      word_width += 2 if ord(c) > 256 else 1
+    tran_width = max(word_width * 2, 20)
+    ruby_text = ""
+    for tran in ruby_trans:
+      if tran_width < 6: break
+      if ruby_text:
+        ruby_text += ","
+        tran_width -= 1
+      for c in tran:
+        tran_width -= 2 if ord(c) > 256 else 1
+        if tran_width <= 0:
+          ruby_text += ".."
+          break
+        ruby_text += c
+    print("] (" + ruby_text + ")", end="")
+    ruby_trans.clear()
+  if head_level:
+    print("< ", end="")
+  for i in range(0, len(spans)):
+    text, is_word, annots = spans[i]
+    if regex.search(r"[^\s]", text) or ruby_life == 1:
+      ruby_life -= 1
+    if ruby_trans and ruby_life == 0:
+      EndRuby(ruby_trans)
+    if annots:
+      if ruby_life <= 0:
+        for entry in annots:
+          word = entry["word"]
+          trans = entry.get("translation")
+          if not trans: continue
+          ruby_trans = trans
+          ruby_word = word
+          ruby_life = word.count(" ") + 1
+          break
+        if ruby_trans:
+          ruby_annots = annots
+          StartRuby()
+      else:
+        ruby_annots.extend(annots)
+    print(text, end="")
+  if ruby_trans:
+    EndRuby(ruby_trans)
+  if head_level:
+    print(" >")
+  print()
+
+
 def main():
   args = sys.argv[1:]
   data_prefix = tkrzw_dict.GetCommandFlag(args, "--data_prefix", 1) or "union"
@@ -289,9 +347,21 @@ def main():
   search_mode = tkrzw_dict.GetCommandFlag(args, "--search", 1) or "auto"
   view_mode = tkrzw_dict.GetCommandFlag(args, "--view", 1) or "auto"
   capacity = int(tkrzw_dict.GetCommandFlag(args, "--capacity", 1) or "100")
-  query = " ".join(args)
+  query_file = tkrzw_dict.GetCommandFlag(args, "--query_file", 1) or ""
+  output_prefix = tkrzw_dict.GetCommandFlag(args, "--output_prefix", 1) or ""
+  if query_file:
+    if query_file == "-":
+      query = sys.stdin.read()
+    else:
+      with open(query_file) as input_file:
+        query = input_file.read()
+  else:
+    query = " ".join(args)
   if not query:
     raise RuntimeError("words are not specified")
+  query = query.strip()
+  if index_mode == "auto" and len(query) > 48:
+    index_mode = "annot"
   searcher = tkrzw_union_searcher.UnionSearcher(data_prefix)
   is_reverse = False
   if index_mode == "auto":
@@ -355,29 +425,166 @@ def main():
     page = max(Atoi(query), 1)
     result = searcher.SearchByGrade(capacity, page, True)
   elif search_mode == "annot":
-    result = []
-    for span, is_word, annots in searcher.AnnotateText(query):
-      if annots:
-        for entry in annots:
-          result.append(entry)
+    if view_mode in ("auto", "annot"):
+      result = True
+      view_mode = "annot"
+    else:
+      result = []
+      for span, is_word, annots in searcher.AnnotateText(query):
+        if annots:
+          for entry in annots:
+            result.append(entry)
   else:
     raise RuntimeError("unknown search mode: " + search_mode)
   if result:
     if view_mode == "auto":
       keys = searcher.GetResultKeys(result)
       if len(keys) < 2:
-        view_mode = "full"
+        PrintResult(result, "full", query)
       elif len(keys) < 6:
-        view_mode = "simple"
+        PrintResult(result, "simple", query)
       else:
-        view_mode = "list"
-    if view_mode == "list":
-      print()
-    PrintResult(result, view_mode, query)
-    if view_mode == "list":
-      print()
+        PrintResult(result, "list", query)
+    if view_mode == "annot":
+      if (query.startswith("<html") or query.startswith("<?xml") or
+          query.startswith("<!DOCTYPE")):
+        query = tkrzw_union_searcher.ConvertHTMLToText(query)
+      elif not query.startswith("====[META]====") and not query.startswith("====[PAGE]===="):
+        query = tkrzw_union_searcher.CramText(query)
+      meta, pages = tkrzw_union_searcher.DivideTextToPages(query)
+      doc_title = ""
+      meta_lines = []
+      for line in meta:
+        line = line.strip()
+        if line.startswith("[title]:"):
+          line = line[line.find(":") + 1:].strip()
+          if line:
+            doc_title = line
+        elif line:
+          meta_lines.append(line)
+      if output_prefix:
+        OutputAnnotHTML(searcher, output_prefix, doc_title, meta_lines, pages)
+      else:
+        print()
+        if doc_title:
+          print("<< " + doc_title + " >>")
+        for line in meta_lines:
+          print(" " + line)
+        num_sections = 0
+        num_words = 0
+        num_words_with_annots = 0
+        num_annots = 0
+        for page in pages:
+          print()
+          for line in page:
+            line = line.strip()
+            head_level = 0
+            match = regex.search(r"^\[head([1-3])\]:", line)
+            if match:
+              head_level = Atoi(match.group(1))
+              line = line[match.end():].strip()
+            if not line: continue
+            result = searcher.AnnotateText(line)
+            PrintResultAnnot(result, head_level)
+            num_sections += 1
+            for span, is_word, annots in result:
+              if is_word:
+                num_words += 1
+                if annots:
+                  num_words_with_annots += 1
+                  num_annots += len(annots)
+        print()
+        coverage = num_words_with_annots / num_words if num_words else 0
+        P('頁数: {}  段落数: {}  単語数: {}  注釈数: {}  カバー率: {:.1f}%',
+          len(pages), num_sections, num_words, num_annots, coverage * 100)
+        print()
+    else:
+      PrintResult(result, view_mode, query)
   else:
     print("No result.")
+
+
+def OutputAnnotHTML(searcher, output_prefix, doc_title, meta_lines, pages):
+  script_name = "https://dbmx.net/dict/search_union.cgi"
+  prefix_is_dir = os.path.isdir(output_prefix)
+  page_paths = []
+  num_sections = 0
+  num_words = 0
+  num_words_with_annots = 0
+  num_annots = 0
+  page_titles = {}
+  for page in pages:
+    page_id = len(page_paths) + 1
+    if prefix_is_dir:
+      page_path = os.path.join(output_prefix, "{:04d}.xhtml".format(page_id))      
+    else:
+      page_path = "{}-{:04d}.xhtml".format(output_prefix, page_id)
+    print(page_path)
+    page_paths.append(page_path)
+    page_title = (doc_title or "Page") + "-" + str(page_id)
+    with open(page_path, "w") as page_file:
+      def P(*args, end="\n"):
+        global P
+        P(*args, end, file=page_file)
+      PrintCGIHeader(page_title, file=page_file)
+      P('<div class="message_view">')
+      P('<form name="annot_navi_form">')
+      P('注釈想定年齢:')
+      P('<select name="min_aoa" onchange="toggle_rubies(parseInt(this.value))">')
+      for min_aoa in range(3, 21):
+        P('<option value="{}"', min_aoa, end="")
+        if min_aoa == 12:
+          P(' selected="selected"')
+        P('>{}歳</option>', min_aoa)
+      P('</select>')
+      P('</form>')
+      P('</div>')
+      for line in page:
+        line = line.strip()
+        head_level = 0
+        match = regex.search(r"^\[head([1-3])\]:", line)
+        if match:
+          head_level = Atoi(match.group(1))
+          line = line[match.end():].strip()
+        if not line: continue
+        if head_level == 1 and page_id not in page_titles:
+          page_titles[page_id] = line
+        result = searcher.AnnotateText(line)
+        PrintResultCGIAnnot(script_name, result, head_level, file=page_file)
+        num_sections += 1
+        for span, is_word, annots in result:
+          if is_word:
+            num_words += 1
+            if annots:
+              num_words_with_annots += 1
+              num_annots += len(annots)
+      PrintCGIFooter(file=page_file)
+  page_title = doc_title or "Index"
+  if prefix_is_dir:
+    index_path = os.path.join(output_prefix, "index.xhtml".format(page_id))      
+  else:
+    indexpath = "{}-index.xhtml".format(output_prefix, page_id)
+  with open(index_path, "w") as index_file:
+    def P(*args, end="\n"):
+      global P
+      P(*args, end, file=index_file)
+    PrintCGIHeader(page_title, file=index_file)
+    P('<div class="message_view">')
+    P('<h1>{}</h1>', page_title)
+    for meta_line in meta_lines:
+      P('<p>{}</p>', meta_line)
+    P('<ul>')
+    for i, page_path in enumerate(page_paths):
+      page_id = i + 1
+      page_name = os.path.basename(page_path)
+      page_title = page_titles.get(page_id) or "ページ{}".format(page_id)
+      P('<li><a href="{}">{}</a></li>', urllib.parse.quote(page_name), page_title)
+    P('</ul>')
+    coverage = num_words_with_annots / num_words if num_words else 0
+    P('<p>頁数: {} 。段落数: {} 。単語数: {} 。注釈数: {} 。カバー率: {:.1f}% 。</p>',
+      len(pages), num_sections, num_words, num_annots, coverage * 100)
+    P('</div>')
+    PrintCGIFooter(file=index_file)
 
 
 def esc(expr):
@@ -386,13 +593,13 @@ def esc(expr):
   return html.escape(str(expr), True)
 
 
-def P(*args, end="\n"):
+def P(*args, end="\n", file=sys.stdout):
   esc_args = []
   for arg in args[1:]:
     if isinstance(arg, str):
       arg = esc(arg)
     esc_args.append(arg)
-  print(args[0].format(*esc_args), end=end)
+  print(args[0].format(*esc_args), end=end, file=file)
 
 
 def PrintResultCGI(script_name, entries, query, details):
@@ -639,9 +846,14 @@ def PrintResultCGIList(script_name, entries, query):
   P('</div>')
 
 
-def PrintResultCGIAnnot(script_name, spans):
-  P('<div class="annot_view">')
-  num_spans = 0
+def PrintResultCGIAnnot(script_name, spans, head_level, file=sys.stdout):
+  def P(*args, end="\n"):
+    global P
+    P(*args, end, file=file)
+  class_tags = ["annot_view"]
+  if head_level > 0:
+    class_tags.append("annot_head_{}".format(head_level))
+  P('<div class="{}">', " ".join(class_tags))
   ruby_trans = None
   ruby_word = None
   ruby_annots = None
@@ -649,7 +861,7 @@ def PrintResultCGIAnnot(script_name, spans):
   ruby_life = 0
   def StartRuby():
     word_url = "{}?q={}".format(script_name, urllib.parse.quote(ruby_word))
-    P('<ruby><a href="{}" class="word">', word_url, end="")
+    P('<ruby><span class="word" onclick="fix_tip(this)">', word_url, end="")
   def EndRuby(ruby_trans):
     word_width = 0
     for c in ruby_word:
@@ -667,7 +879,7 @@ def PrintResultCGIAnnot(script_name, spans):
           ruby_text += ".."
           break
         ruby_text += c
-    P('<span class="tip">')
+    P('<span class="tip" onmouseleave="hide_tip(this)">')
     max_items = 8 if len(ruby_annots) < 2 else 4
     for entry in ruby_annots:
       P('<div class="annot_entry">')
@@ -693,7 +905,7 @@ def PrintResultCGIAnnot(script_name, spans):
         P('<a href="{}" class="annot_item_more">... ...</a>', word_url)
       P('</div>')
     P('</span>', end="")
-    P('</a>', end="")
+    P('</span>', end="")
     P('<rt class="rb_{}">{}</rt>', ruby_aoa, ruby_text, end="")
     P('</ruby>', end="")
     ruby_trans.clear()
@@ -741,7 +953,7 @@ def ReadHTTPQuery(url, error_notes):
       clen = int(info.get("Content-Length") or 0)
       if clen > CGI_MAX_HTTP_CONTENT_LENGTH:
         error_notes.append("HTTPのデータが長すぎる。")
-        return None
+        return None, None
       ctype = info.get("Content-Type") or "text/plain"
       charset = ""
       match = regex.search("charset=([-_a-zA-Z0-9]+)", ctype)
@@ -751,97 +963,24 @@ def ReadHTTPQuery(url, error_notes):
         charset = "utf-8"
       ctype = regex.sub(r";.*", "", ctype).strip()
       if ctype in ("text/html", "application/xhtml+xml", "application/xml"):
-        text = response.read(clen)
-        try:
-          text = text.decode(charset)
-        except UnicodeError:
-          error_notes.append("エンコーディングエラー。")
-          return None
-        text = regex.sub(r"\s+", " ", text)
-        text = regex.sub(r"<!--.*?-->", "", text)
-        text = regex.sub(r".*<body[^>]*>", "", text)
-        text = regex.sub(r"</body>.*", "", text)
-        text = regex.sub(r"<script[^>]*>.*</script>", "", text, flags=regex.IGNORECASE)
-        text = regex.sub(r"<style[^>]*>.*</style>", "", text, flags=regex.IGNORECASE)
-        text = regex.sub(r"<(h\d|p|div|br)(>|\s[^>]*>)", "[_LF_]", text, flags=regex.IGNORECASE)
-        text = regex.sub(r"</(h\d|p|div|br)>", "[_LF_]", text, flags=regex.IGNORECASE)
-        text = regex.sub(r"<[^>]*>", "", text)
-        text = html.unescape(text)
-        lines = []
-        for line in text.split("[_LF_]"):
-          line = line.strip()
-          if line:
-            lines.append(line)
-        text = "\n".join(lines) + "\n"
+        text = response.read(clen).decode(charset)
+        return text, "html"
       elif ctype in ("text/plain", "text/tab-separated-values", "text/csv"):
-        text = response.read(clen)
-        try:
-          text = text.decode(charset)
-        except UnicodeError:
-          error_notes.append("エンコーディングエラー。")
-          return None
-        lines = []
-        last_line = ""
-        for line in text.split("\n"):
-          line = line.strip()
-          if line:
-            if last_line:
-              last_line += " "
-            last_line += line
-          elif last_line:
-            lines.append(last_line)
-            last_line = ""
-        if last_line:
-          lines.append(last_line)
-        text = "\n".join(lines) + "\n"
-      else:
-        error_notes.append("未知のメディアタイプ。")
-        return None
-      return text
-  except urllib.error.URLError as e:
+        text = response.read(clen).decode(charset)
+        return text, "text"
+      error_notes.append("未知のメディアタイプ。")
+      return None, None
+  except urllib.error.URLError:
     error_notes.append("不正なURL。")
-  except urllib.error.HTTPError as e:
+  except urllib.error.HTTPError:
     error_notes.append("HTTP通信障害。")
-  return None
+  except UnicodeError:
+    error_notes.append("エンコーディングエラー。")
+  return None, None
 
 
-def main_cgi():
-  script_name = os.environ.get("SCRIPT_NAME", sys.argv[0])
-  request_method = os.environ.get("REQUEST_METHOD", sys.argv[0])
-  params = {}
-  form = cgi.FieldStorage()
-  for key in form.keys():
-    value = form[key]
-    if isinstance(value, list):
-      params[key] = value[0].value
-    else:
-      params[key] = value.value
-  query = (params.get("q") or "").strip()
-  error_notes = []
-  is_http_query = False
-  if regex.search("^https?://", query):
-    is_http_query = True
-    if CGI_MAX_HTTP_CONTENT_LENGTH <= 0:
-      error_notes.append("URL query is not supported.")
-    elif request_method != "POST":
-      error_notes.append("Non-POST URL query is forbidden.")
-    else:
-      query = ReadHTTPQuery(query, error_notes) or ""
-  if len(query) > CGI_MAX_QUERY_LENGTH:
-    query = query[:CGI_MAX_QUERY_LENGTH]
-  query = "\n".join([regex.sub(r"[\p{C}]+", " ", x).strip() for x in query.split("\n")])
-  index_mode = params.get("i") or "auto"
-  if index_mode == "auto" and len(query) > 48:
-    index_mode = "annot"
-  search_mode = params.get("s") or "auto"
-  view_mode = params.get("v") or "auto"
-  if index_mode == "grade" and not query:
-    query = "1"
-  page_title = "統合英和辞書検索"
-  if query:
-    page_title += ": " + regex.sub(r"\s+", " ", query).strip()[:24]
-  print("""Content-Type: application/xhtml+xml
-
+def PrintCGIHeader(page_title, file=sys.stdout):
+  print("""<?xml version="1.0" encoding="UTF-8"?>
 <html xmlns="http://www.w3.org/1999/xhtml" lang="ja">
 <head>
 <title>{}</title>
@@ -908,26 +1047,38 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
 .list_tran {{ font-size: 95%; color: #333333; }}
 .list_tran:hover {{ color: #0011ee; }}
 .list_gross {{ color: #444444; font-size: 95%; }}
+.annot_meta {{ background: #eeeeee; }}
+.annot_meta h2 {{ font-size: 100%; }}
+.annot_meta p {{ padding-left: 2ex; }}
 .annot_view {{ padding: 1ex 2ex; }}
+.annot_head_1 {{ font-weight: bold; font-size: 110%; }}
+.annot_head_2 {{ font-weight: bold; font-size: 105%; }}
+.annot_head_3 {{ font-weight: bold; }}
 .annot_view a {{ color: #000000; }}
-.annot_view .text {{ color: #000000; font-size: 120%; }}
-.annot_view ruby {{ ruby-align: start; }}
-.word {{ position: relative; display: inline-block; }}
+.annot_view .text {{ color: #000000; font-size: 100%; line-height: 190%; }}
+.word {{ position: relative; display: inline-block; line-height: 110%; }}
 .word .tip {{
   visibility: hidden;
   position: absolute;
-  top: 3ex;
+  top: 3.2ex;
   left: -0.8ex;
   width: 50ex;
   height: 40ex;
   overflow: scroll;
+  line-height: initial;
   background: #ffff99;
   opacity: 0.95;
   border-radius: 0.5ex;
   padding: 0.5ex 1ex;
   z-index: 1;
-  font-size: 90%;
+  font-size: 0.9rem;
+  font-weight: normal;
   box-shadow: 2px 2px 4px #aaaaaa;
+}}
+.word .fixedtip {{
+  visibility: visible;
+  background: #fff8aa;
+  opacity: 1.0;
 }}
 .word:hover {{ text-decoration: underline; }}
 .word:hover .tip {{ visibility: visible; }}
@@ -935,6 +1086,7 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
 .annot_title_word {{ font-weight: bold; }}
 .annot_title_pron {{ font-size: 95%; color: #444444; margin-left: 1ex; }}
 .annot_title_pron:before,.annot_title_pron:after {{ content: "/"; font-size: 90%; color: #888888; }}
+.annot_item {{ font-size: 95%; }}
 .annot_pos {{
   display: inline-block; border: solid 1px #999999; border-radius: 0.5ex;
   font-size: 65%; min-width: 3.5ex; text-align: center;
@@ -969,6 +1121,16 @@ function startup() {{
     toggle_rubies(parseInt(parseInt(annot_navi_form.min_aoa.value)))
   }}
 }}
+function check_search_form() {{
+  let search_form = document.forms["search_form"]
+  if (search_form) {{
+    let query = search_form.q.value.trim();
+    let re_url = new RegExp("^https?://")
+    if (re_url.test(query) || query.length > 2000) {{
+      search_form.method = "post"
+    }} 
+  }}
+}}
 function clear_query() {{
   let search_form = document.forms["search_form"]
   if (search_form) {{
@@ -989,22 +1151,87 @@ function toggle_rubies(min_aoa) {{
     }}
   }}
 }}
-function check_search_form() {{
-  let search_form = document.forms["search_form"]
-  if (search_form) {{
-    let query = search_form.q.value.trim();
-    let re_url = new RegExp("^https?://")
-    if (re_url.test(query) || query.length > 2000) {{
-      search_form.method = "post"
-    }} 
+function fix_tip(parent) {{
+  let elems = parent.getElementsByClassName("tip")
+  for (let elem of elems) {{
+    let list = elem.classList
+    if (list) {{
+      elem.classList.toggle("fixedtip")
+    }}
+  }}
+}}
+function hide_tip(elem) {{
+  let list = elem.classList
+  if (list) {{
+    elem.classList.remove("fixedtip")
   }}
 }}
 /*]]>*/</script>
 </head>
 <body onload="startup()">
 <article>
-<h1><a href="{}">統合英和辞書検索</a></h1>
-""".format(esc(page_title), esc(script_name)), end="")
+""".format(esc(page_title)), end="", file=file)
+
+
+def PrintCGIFooter(file=sys.stdout):
+  print("""</article>
+</body>
+</html>
+""", end="", file=file)
+  
+
+def main_cgi():
+  script_name = os.environ.get("SCRIPT_NAME", sys.argv[0])
+  request_method = os.environ.get("REQUEST_METHOD", sys.argv[0])
+  params = {}
+  form = cgi.FieldStorage()
+  for key in form.keys():
+    value = form[key]
+    if isinstance(value, list):
+      params[key] = value[0].value
+    else:
+      params[key] = value.value
+  query = (params.get("q") or "").strip()
+  error_notes = []
+  is_http_query = False
+  is_html_query = False
+  if regex.search("^https?://", query):
+    is_http_query = True
+    if CGI_MAX_HTTP_CONTENT_LENGTH <= 0:
+      error_notes.append("URL query is not supported.")
+    elif request_method != "POST":
+      error_notes.append("Non-POST URL query is forbidden.")
+    else:
+      query, ctype = ReadHTTPQuery(query, error_notes)
+      if query == None:
+        query = ""
+      elif not query:
+        error_notes.append("空のデータ。")
+      if ctype == "html":
+        is_html_query = True
+  if (is_html_query or
+      (query.startswith("<html") or query.startswith("<?xml") or
+       query.startswith("<!DOCTYPE"))):
+    query = tkrzw_union_searcher.ConvertHTMLToText(query)
+    is_html_query = True
+  if len(query) > CGI_MAX_QUERY_LENGTH:
+    query = query[:CGI_MAX_QUERY_LENGTH]
+  query = "\n".join([regex.sub(r"[\p{C}]+", " ", x).strip() for x in query.split("\n")])
+  index_mode = params.get("i") or "auto"
+  if index_mode == "auto" and len(query) > 48:
+    index_mode = "annot"
+  search_mode = params.get("s") or "auto"
+  view_mode = params.get("v") or "auto"
+  if index_mode == "grade" and not query:
+    query = "1"
+  page_title = "統合英和辞書検索"
+  if query:
+    page_title += ": " + regex.sub(r"\s+", " ", query).strip()[:24]
+  print("""Content-Type: application/xhtml+xml
+
+""", end="")
+  PrintCGIHeader(page_title)
+  P('<h1><a href="{}">統合英和辞書検索</a></h1>', script_name)
   if index_mode == "annot":
     if not is_http_query:
       P('<div class="search_form">')
@@ -1189,15 +1416,42 @@ function check_search_form() {{
         P('</select>')
         P('</form>')
         P('</div>')
+        if (not is_html_query and not query.startswith("====[META]====") and
+            not query.startswith("====[PAGE]====")):
+          query = tkrzw_union_searcher.CramText(query)
+        meta, pages = tkrzw_union_searcher.DivideTextToPages(query)
+        doc_title = ""
+        meta_lines = []
+        for line in meta:
+          line = line.strip()
+          if line.startswith("[title]:"):
+            line = line[line.find(":") + 1:].strip()
+            if line:
+              doc_title = line
+          elif line:
+            meta_lines.append(line)
+        if doc_title or meta_lines:
+          P('<div class="message_view annot_meta">')
+          if doc_title:
+            P('<h2>{}</h2>', doc_title)
+          for meta_line in meta_lines:
+            P('<p>{}</p>', meta_line)
+          P('</div>')
         num_sections = 0
         num_words = 0
         num_words_with_annots = 0
         num_annots = 0
-        for line in query.split("\n"):
-          line = line.strip()[:CGI_MAX_QUERY_LINE_LENGTH]
-          if line:
+        for page in pages:
+          for line in page:
+            line = line.strip()
+            head_level = 0
+            match = regex.search(r"^\[head([1-3])\]:", line)
+            if match:
+              head_level = Atoi(match.group(1))
+              line = line[match.end():].strip()
+            if not line: continue
             result = searcher.AnnotateText(line)
-            PrintResultCGIAnnot(script_name, result)
+            PrintResultCGIAnnot(script_name, result, head_level)
             num_sections += 1
             for span, is_word, annots in result:
               if is_word:
@@ -1206,7 +1460,7 @@ function check_search_form() {{
                   num_words_with_annots += 1
                   num_annots += len(annots)
         coverage = num_words_with_annots / num_words if num_words else 0
-        P('<div class="message_view">')
+        P('<div class="message_view annot_meta">')
         P('<p>段落数: {} 。単語数: {} 。注釈数: {} 。カバー率: {:.1f}% 。</p>',
           num_sections, num_words, num_annots, coverage * 100)
         P('</div>')
@@ -1240,6 +1494,12 @@ function check_search_form() {{
         PrintResultCGIList(script_name, infl_result, "")
       if edit_result:
         PrintResultCGIList(script_name, edit_result, "")
+  elif index_mode == "annot":
+    print("""<div class="license">
+<p>これは、英文の自動注釈付与機能です。入力欄に英文を入れて、「注釈」ボタンを押してください。入力された英文の中に現れる全ての語句を英和辞書で調べ、その語義をルビと付箋で表示します。結果に現れた語句が難しそうな場合、その和訳がルビとして振られます。「注釈想定年齢」を変更すると、ルビを振る基準となる難易度が変更されます。</p>
+<p>英文中の語句にポインタを合わせると、より詳しい語義が書いてある付箋が表示されます。語句をクリックすると付箋が固定されるので、その付箋の中をスクロールしたり、見出し語をクリックしたりできます。見出し語をクリックすると、その見出し語で英和辞書の検索が行われます。付箋の範囲からポインタを外すと付箋は消えます。</p>
+<p>入力欄にURLを指定すると、そのURLのWebページの内容を対象として処理を行います。HTMLとプレーンテキストに対応し、一度に{}KBまでのデータを処理することができます。</p>
+</div>""".format(int(CGI_MAX_QUERY_LENGTH / 1024)))
   else:
     print("""<div class="license">
 <p>デフォルトでは、英語の検索語が入力されると英和の索引が検索され、日本語の検索語が入力されると和英の索引が検索されます。オプションで索引を明示的に指定できます。英和屈折は、単語の過去形などの屈折形を吸収した検索を行います。等級は、検索語を無視して全ての見出し語を重要度順に表示します。注釈は、英文を和訳の注釈付きの形式に整形します。</p>
@@ -1256,9 +1516,7 @@ function check_search_form() {{
 <p>デフォルトでは、表示形式は自動的に設定されます。ヒット件数が1件の場合にはその語の語義が詳細に表示され、ヒット件数が5以下の場合には主要語義のみが表示され、ヒット件数がそれ以上の場合には翻訳語のみがリスト表示されます。結果の見出し語を選択すると詳細表示が見られます。</p>
 <p>このサイトはオープンな英和辞書検索のデモです。辞書データは<a href="https://wordnet.princeton.edu/">WordNet</a>と<a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">日本語WordNet</a>と<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>と<a href="https://en.wiktionary.org/">Wiktionary英語版</a>を統合したものです。検索システムは高性能データベースライブラリ<a href="https://dbmx.net/tkrzw/">Tkrzw</a>を用いて実装されています。<a href="https://github.com/estraier/tkrzw-dict">コードベース</a>はGitHubにて公開されています。</p>
 </div>""")
-  print("""</article>
-</body>
-</html>""")
+  PrintCGIFooter()
 
 
 if __name__=="__main__":

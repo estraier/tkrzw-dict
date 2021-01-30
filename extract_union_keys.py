@@ -96,7 +96,7 @@ class ExtractKeysBatch:
             if max_aoa < sys.maxsize:
               aoa = max_aoa + len(tokens) - 1
         aoa_score = (25 - min(aoa, 20.0)) / 10.0
-        tran_score = 1.0 if "translation" in word_entry else 0.6
+        tran_score = 1.0 if "translation" in word_entry else 0.5
         item_score = math.log2(len(word_entry["item"]) + 1)
         labels = set()
         for item in word_entry["item"]:
