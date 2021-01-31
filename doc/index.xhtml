@@ -307,6 +307,30 @@ $ ./extract_union_tran_keys.py --input union-tran-index.tkh --output union-tran-
 $ ./package_epub.sh union-dict-epub union-dict.epub
 ]]></pre>
 
+<h2 id="auto_annotation">自動注釈機能</h2>
+
+<p>任意の英文中に現れる全ての語句の語義を辞書で調べて注釈として付与する機能がある。出力はHTMLデータである。辞書に該当の情報がある語句に対しては、和訳がルビとして振られ、詳細な語義情報がポップアップする付箋として付与される。検索用のCGIスクリプトもこの機能を備えるが、Web上で公開する機能にしては負荷が高すぎ、また出力のデータ量も大きすぎる。したがって、コマンドラインで同等のデータを生成して静的なHTMLファイルとして公開する方が良い。コマンドラインの入力としてはプレーンテキストとHTMLを受け付ける。プレーンテキストの中ではページ区切りの文字列を使って複数ページの文書を表現することができる。小説などの大きな文書を処理する際には、章ごとに複数のページに分けた方が、結果のデータの利便性が良くなる。典型的には、以下のような入力データを用意する。</p>
+
+<pre><![CDATA[====[META]====
+[title]: ANNE OF GREEN GABLES
+By Lucy Maud Montgomery
+Published in 1908
+====[PAGE]====
+[head1]: CHAPTER I. Mrs. Rachel Lynde is Surprised
+MRS. Rachel Lynde lived just where the Avonlea main road ...
+There are plenty of people in Avonlea and out of it, who ...
+====[PAGE]====
+[head1]: CHAPTER II. Matthew Cuthbert is surprised
+MATTHEW Cuthbert and the sorrel mare jogged comfortably ...
+“The little birds sang as if it were...
+]]></pre>
+
+<p>上記のデータを "anne.txt" などとして保存したら、以下のコマンドを実行すると、ページ毎に注釈をつけたHTMLデータのファイルが出力され、またそれらのインデックス用のファイルも出力される。</p>
+
+<pre><![CDATA[$ mkdir annot-anne
+$ ./search_union.py --query_file anne.txt --index annot --view annot --output_prefix annot-anne
+]]></pre>
+
 <h2 id="licnese">ライセンス</h2>
 
 <p>Tkrzw-dictのソースコードは平林幹雄が書いて、Google LLCが著作権を保持し、Apache license 2.0に基づいて頒布される。辞書データのライセンスについては各々のデータソースのサイトを参照されたい。著者に連絡するには &lt;hirarin@gmail.com&gt; にメールを送られたい。</p>
