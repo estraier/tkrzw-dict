@@ -207,7 +207,7 @@ class WordCountBatch:
           if not dict_targets: continue
           cmp_trg_phrases = []
           for dict_target in dict_targets:
-            if dict_target in norm_target:
+            if len(dict_target) >= 2 and dict_target in norm_target:
               cmp_trg_phrases.append(dict_target)
           for trg_phrase in trg_phrases:
             if trg_phrase in dict_targets:

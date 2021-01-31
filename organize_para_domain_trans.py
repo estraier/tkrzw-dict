@@ -41,7 +41,7 @@ MIN_PROB = 0.000001
 logger = tkrzw_dict.GetLogger()
 
 
-def Run(rev_prob_path, min_count, enough_ef, enough_fe, omit_latin):
+def Run(rev_prob_path, min_count, enough_ef, enough_fe, omit_latin, max_targets):
   start_time = time.time()
   logger.info("Process started")
   rev_prob_dbm = None
@@ -97,6 +97,8 @@ def Run(rev_prob_path, min_count, enough_ef, enough_fe, omit_latin):
             is_single_noun = True
           else:
             is_prefix = True
+      #if source in ("draconian", "beautiful"):
+      #  print("H1", source, target, score, ef_prob, fe_prob, is_prefix, is_single_noun, file=sys.stderr)
       if omit_latin and regex.search(r"[\p{Latin}]{2,}", target):
         continue
       if len(target) <= 1 and is_prefix and not is_single_noun:
@@ -121,6 +123,8 @@ def Run(rev_prob_path, min_count, enough_ef, enough_fe, omit_latin):
         continue
       if norm_target.startswith("っ") or norm_target.startswith("を"):
         continue
+      if norm_target.endswith("っ") or norm_target.endswith("を"):
+        continue
       if regex.fullmatch(r"[\p{Hiragana}ー{Latin}]", target):
         continue
       if regex.search(r"^[\p{Hiragana}]+[\p{Han}\p{Katakana}\p{Latin}]", target):
@@ -141,7 +145,7 @@ def Run(rev_prob_path, min_count, enough_ef, enough_fe, omit_latin):
     good_targets = sorted(good_targets, key=lambda x: x[1], reverse=True)
     min_score = good_targets[0][1] * MIN_SECOND_SCORE_RATIO
     outputs = []
-    for target, score, ef_prob, fe_prob in good_targets[:MAX_TARGETS]:
+    for target, score, ef_prob, fe_prob in good_targets[:max_targets]:
       if rev_prob_dbm:
         prob = GetPhraseProb(rev_prob_dbm, "ja", target)
         if prob < MIN_PROB:
@@ -201,7 +205,8 @@ def main():
   enough_ef = float(tkrzw_dict.GetCommandFlag(args, "--enough_ef", 1) or 2.0)
   enough_fe = float(tkrzw_dict.GetCommandFlag(args, "--enough_fe", 1) or 2.0)
   omit_latin = tkrzw_dict.GetCommandFlag(args, "--omit_latin", 0)
-  Run(rev_prob_path, min_count, enough_ef, enough_fe, omit_latin)
+  max_targets = int(tkrzw_dict.GetCommandFlag(args, "--max_targets", 1) or 8)
+  Run(rev_prob_path, min_count, enough_ef, enough_fe, omit_latin, max_targets)
 
 
 if __name__=="__main__":
