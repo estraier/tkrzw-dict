@@ -388,8 +388,12 @@ def main():
   if search_mode in ("auto", "exact"):
     if is_reverse:
       result = searcher.SearchExactReverse(query, capacity)
+      if not result and search_mode == "auto":
+        result = searcher.SearchPatternMatchReverse("edit", query, capacity)
     else:
       result = searcher.SearchExact(query, capacity)
+      if not result and search_mode == "auto":
+        result = searcher.SearchPatternMatch("edit", query, capacity)
   elif search_mode == "prefix":
     if is_reverse:
       result = searcher.SearchPatternMatchReverse("begin", query, capacity)
@@ -437,14 +441,6 @@ def main():
   else:
     raise RuntimeError("unknown search mode: " + search_mode)
   if result:
-    if view_mode == "auto":
-      keys = searcher.GetResultKeys(result)
-      if len(keys) < 2:
-        PrintResult(result, "full", query)
-      elif len(keys) < 6:
-        PrintResult(result, "simple", query)
-      else:
-        PrintResult(result, "list", query)
     if view_mode == "annot":
       if (query.startswith("<html") or query.startswith("<?xml") or
           query.startswith("<!DOCTYPE")):
@@ -488,7 +484,7 @@ def main():
             PrintResultAnnot(result, head_level)
             num_sections += 1
             for span, is_word, annots in result:
-              if is_word:
+              if is_word and not regex.search(r"\d", span):
                 num_words += 1
                 if annots:
                   num_words_with_annots += 1
@@ -498,6 +494,14 @@ def main():
         P('頁数: {}  段落数: {}  単語数: {}  注釈数: {}  カバー率: {:.1f}%',
           len(pages), num_sections, num_words, num_annots, coverage * 100)
         print()
+    elif view_mode == "auto":
+      keys = searcher.GetResultKeys(result)
+      if len(keys) < 2:
+        PrintResult(result, "full", query)
+      elif len(keys) < 6:
+        PrintResult(result, "simple", query)
+      else:
+        PrintResult(result, "list", query)
     else:
       PrintResult(result, view_mode, query)
   else:
@@ -519,7 +523,7 @@ def OutputAnnotHTML(searcher, output_prefix, doc_title, meta_lines, pages):
       page_path = os.path.join(output_prefix, "{:04d}.xhtml".format(page_id))      
     else:
       page_path = "{}-{:04d}.xhtml".format(output_prefix, page_id)
-    print(page_path)
+    print("Outputting {}".format(page_path))
     page_paths.append(page_path)
     page_title = (doc_title or "Page") + "-" + str(page_id)
     with open(page_path, "w") as page_file:
@@ -553,7 +557,7 @@ def OutputAnnotHTML(searcher, output_prefix, doc_title, meta_lines, pages):
         PrintResultCGIAnnot(script_name, result, head_level, file=page_file)
         num_sections += 1
         for span, is_word, annots in result:
-          if is_word:
+          if is_word and not regex.search(r"\d", span):
             num_words += 1
             if annots:
               num_words_with_annots += 1
@@ -563,7 +567,8 @@ def OutputAnnotHTML(searcher, output_prefix, doc_title, meta_lines, pages):
   if prefix_is_dir:
     index_path = os.path.join(output_prefix, "index.xhtml".format(page_id))      
   else:
-    indexpath = "{}-index.xhtml".format(output_prefix, page_id)
+    index_path = "{}-index.xhtml".format(output_prefix, page_id)
+  print("Outputting {}".format(index_path))
   with open(index_path, "w") as index_file:
     def P(*args, end="\n"):
       global P
@@ -1050,13 +1055,14 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
 .annot_meta {{ background: #eeeeee; }}
 .annot_meta h2 {{ font-size: 100%; }}
 .annot_meta p {{ padding-left: 2ex; }}
-.annot_view {{ padding: 1ex 2ex; }}
+.annot_view {{ padding: 0ex 1.5ex; }}
 .annot_head_1 {{ font-weight: bold; font-size: 110%; }}
 .annot_head_2 {{ font-weight: bold; font-size: 105%; }}
 .annot_head_3 {{ font-weight: bold; }}
 .annot_view a {{ color: #000000; }}
-.annot_view .text {{ color: #000000; font-size: 100%; line-height: 190%; }}
+.annot_view .text {{ line-height: 190%; margin: 1ex 1ex; color: #000000; }}
 .word {{ position: relative; display: inline-block; line-height: 110%; }}
+.annot_view rt {{ color: #333333; }}
 .word .tip {{
   visibility: hidden;
   position: absolute;
@@ -1105,6 +1111,11 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
   .item_text4 {{ margin-left: 7ex; }}
   .item_text_n {{ font-size: 90%; }}
   .list_view {{ padding: 0.6ex 0.5ex 0.8ex 0.8ex; }}
+  .word .tip {{
+    left: -2ex;
+    width: 35ex;
+    height: 25ex;
+  }}
 }}
 /*]]>*/</style>
 <script>/*<![CDATA[*/
@@ -1152,6 +1163,7 @@ function toggle_rubies(min_aoa) {{
   }}
 }}
 function fix_tip(parent) {{
+  if (is_touchable()) return
   let elems = parent.getElementsByClassName("tip")
   for (let elem of elems) {{
     let list = elem.classList
@@ -1165,6 +1177,13 @@ function hide_tip(elem) {{
   if (list) {{
     elem.classList.remove("fixedtip")
   }}
+}}
+function is_touchable() {{
+  let ua = navigator.userAgent;
+  if (ua.indexOf('iPhone') >= 0 || ua.indexOf('iPad') >= 0 || ua.indexOf('Android') >= 0) {{
+    return true
+  }}
+  return false
 }}
 /*]]>*/</script>
 </head>
@@ -1454,7 +1473,7 @@ def main_cgi():
             PrintResultCGIAnnot(script_name, result, head_level)
             num_sections += 1
             for span, is_word, annots in result:
-              if is_word:
+              if is_word and not regex.search(r"\d", span):
                 num_words += 1
                 if annots:
                   num_words_with_annots += 1

@@ -346,7 +346,7 @@ class UnionSearcher:
     "verb_past", "verb_past_participle",
     "adjective_comparative", "adjective_superative",
     "adverb_comparative", "adverb_superative")
-  re_latin_word = regex.compile(r"[\p{Latin}\d][-_'’\p{Latin}]*")
+  re_latin_word = regex.compile(r"[\p{Latin}\d][-_'’\p{Latin}\d]*")
   re_aux_contraction = regex.compile(r"(.+)['’](s|ve|d|ll|m|re|em)$", regex.IGNORECASE)
   re_not_contraction = regex.compile(r"([a-z]{2,})n['’]t$", regex.IGNORECASE)
   re_multi_possessive = regex.compile(r"([a-z]{2,})(s|S)['’ ]$")
