@@ -38,7 +38,9 @@ import urllib.request
 
 
 PAGE_WIDTH = 100
-CGI_DATA_PREFIX = "union"
+#CGI_DATA_PREFIX = "union"
+CGI_DATA_PREFIX = "/home/mikio/public/dict/union"
+
 CGI_CAPACITY = 100
 CGI_MAX_HTTP_CONTENT_LENGTH = 512 * 1024
 CGI_MAX_QUERY_LENGTH = 256 * 1024
@@ -533,6 +535,7 @@ def OutputAnnotHTML(searcher, output_prefix, doc_title, meta_lines, pages):
       PrintCGIHeader(page_title, file=page_file)
       P('<div class="message_view">')
       P('<form name="annot_navi_form">')
+      P('<div id="annot_navi_line">')
       P('注釈想定年齢:')
       P('<select name="min_aoa" onchange="toggle_rubies(parseInt(this.value))">')
       for min_aoa in range(3, 21):
@@ -541,6 +544,7 @@ def OutputAnnotHTML(searcher, output_prefix, doc_title, meta_lines, pages):
           P(' selected="selected"')
         P('>{}歳</option>', min_aoa)
       P('</select>')
+      P('</div>')
       P('</form>')
       P('</div>')
       for line in page:
@@ -866,7 +870,8 @@ def PrintResultCGIAnnot(script_name, spans, head_level, file=sys.stdout):
   ruby_life = 0
   def StartRuby():
     word_url = "{}?q={}".format(script_name, urllib.parse.quote(ruby_word))
-    P('<ruby><span class="word" onclick="fix_tip(this)">', word_url, end="")
+    P('<ruby><span class="word" onmouseover="show_tip(this)" onclick="fix_tip(this)">',
+      word_url, end="")
   def EndRuby(ruby_trans):
     word_width = 0
     for c in ruby_word:
@@ -1001,9 +1006,9 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
 .search_form,.entry_view,.list_view,.annot_view,.message_view,.license {{
   border: 1px solid #dddddd; border-radius: 0.5ex;
   margin: 1ex 0ex; padding: 0.8ex 1ex 1.3ex 1ex; background: #ffffff; position: relative; }}
-#query_line {{ color: #333333; }}
+#query_line,#annot_navi_line {{ color: #333333; }}
 #query_input {{ zoom: 110%; color: #111111; width: 32ex; }}
-#query_input_annot {{ color: #111111; width: 80ex; height: 30ex; }}
+#query_input_annot {{ color: #111111; width: 99%; height: 30ex; }}
 #index_mode_box,#search_mode_box,#view_mode_box {{ color: #111111; width: 14ex; }}
 #submit_button {{ color: #111111; width: 10ex; }}
 #submit_button_annot {{ color: #111111; width: 20ex; }}
@@ -1054,7 +1059,7 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
 .list_gross {{ color: #444444; font-size: 95%; }}
 .annot_meta {{ background: #eeeeee; }}
 .annot_meta h2 {{ font-size: 100%; }}
-.annot_meta p {{ padding-left: 2ex; }}
+.annot_meta p {{ padding-left: 0.5ex; }}
 .annot_view {{ padding: 0ex 1.5ex; }}
 .annot_head_1 {{ font-weight: bold; font-size: 110%; }}
 .annot_head_2 {{ font-weight: bold; font-size: 105%; }}
@@ -1067,7 +1072,8 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
   visibility: hidden;
   position: absolute;
   top: 3.2ex;
-  left: -0.8ex;
+  left: -1.2ex;
+  right: auto;
   width: 50ex;
   height: 40ex;
   overflow: scroll;
@@ -1099,11 +1105,12 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
   margin-right: -0.3ex; color: #333333; }}
 @media (max-device-width:720px) {{
   html {{ background: #eeeeee; font-size: 32pt; }}
-  body {{ padding: 0.8ex; }}
-  article {{ width: 100%; }}
-  #query_line {{ font-size: 12pt; zoom: 250%; }}
+  body {{ padding: 0; }}
+  h1 {{ padding: 5ex 0 0 8ex; }}
+  article {{ width: 100%; overflow-x: hidden; }}
+  #query_line,#annot_navi_line {{ font-size: 12pt; zoom: 250%; }}
   .search_form,.entry_view,.list_view,.annot_view,.message_view,.license {{
-    padding: 0.5ex 0.5ex; }}
+    padding: 0.8ex 0.8ex; }}
   .attr {{ margin-left: 1ex; }}
   .item_text1 {{ margin-left: 1ex; }}
   .item_text2 {{ margin-left: 3ex; }}
@@ -1111,79 +1118,94 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
   .item_text4 {{ margin-left: 7ex; }}
   .item_text_n {{ font-size: 90%; }}
   .list_view {{ padding: 0.6ex 0.5ex 0.8ex 0.8ex; }}
+  .annot_view .text {{ margin: 0.3ex 0.2ex; font-size: 95%; }}
   .word .tip {{
-    left: -2ex;
+    font-size: 85%;
     width: 35ex;
-    height: 25ex;
+    height: 30ex;
   }}
 }}
 /*]]>*/</style>
 <script>/*<![CDATA[*/
 function startup() {{
-  let search_form = document.forms['search_form']
+  let search_form = document.forms['search_form'];
   if (search_form) {{
-    let query_input = search_form.elements['q']
+    let query_input = search_form.elements['q'];
     if (query_input) {{
-      query_input.focus()
+      query_input.focus();
     }}
   }}
-  let annot_navi_form = document.forms["annot_navi_form"]
+  let annot_navi_form = document.forms["annot_navi_form"];
   if (annot_navi_form) {{
-    toggle_rubies(parseInt(parseInt(annot_navi_form.min_aoa.value)))
+    toggle_rubies(parseInt(parseInt(annot_navi_form.min_aoa.value)));
   }}
 }}
 function check_search_form() {{
-  let search_form = document.forms["search_form"]
+  let search_form = document.forms["search_form"];
   if (search_form) {{
     let query = search_form.q.value.trim();
-    let re_url = new RegExp("^https?://")
+    let re_url = new RegExp("^https?://");
     if (re_url.test(query) || query.length > 2000) {{
-      search_form.method = "post"
+      search_form.method = "post";
     }} 
   }}
 }}
 function clear_query() {{
-  let search_form = document.forms["search_form"]
+  let search_form = document.forms["search_form"];
   if (search_form) {{
-    search_form.q.value = ""
+    search_form.q.value = "";
   }}
 }}
 function toggle_rubies(min_aoa) {{
-  let elems = document.getElementsByTagName("rt")
+  let elems = document.getElementsByTagName("rt");
   for (let elem of elems) {{
-    match = elem.className.match(/^rb_(\d+)$/)
+    match = elem.className.match(/^rb_(\d+)$/);
     if (match) {{
-      aoa = parseInt(match[1])
+      aoa = parseInt(match[1]);
       if (aoa <= min_aoa) {{
-        elem.style.display = "none"
+        elem.style.display = "none";
       }} else {{
-        elem.style.display = null
+        elem.style.display = null;
       }}
     }}
   }}
 }}
-function fix_tip(parent) {{
-  if (is_touchable()) return
-  let elems = parent.getElementsByClassName("tip")
-  for (let elem of elems) {{
-    let list = elem.classList
-    if (list) {{
-      elem.classList.toggle("fixedtip")
+function show_tip(parent) {{
+  let ww = window.innerWidth - 8;
+  let elems = parent.getElementsByClassName("tip");
+  for (let elem of elems) {{    
+    let list = elem.classList;
+    if (!list) continue
+    let rect = elem.getBoundingClientRect();
+    let right = rect.left + rect.width;
+    if (right > ww && !elem.right_overflow) {{
+      elem.right_overflow = right - ww;
+    }}
+    if (elem.right_overflow) {{
+      elem.style.transform = "translateX(" + (- elem.right_overflow) + "px)";
     }}
   }}
 }}
-function hide_tip(elem) {{
-  let list = elem.classList
-  if (list) {{
-    elem.classList.remove("fixedtip")
+function fix_tip(parent) {{
+  if (is_touchable()) return;
+  let elems = parent.getElementsByClassName("tip");
+  for (let elem of elems) {{
+    let list = elem.classList;
+    if (!list) continue;
+    elem.classList.toggle("fixedtip");
   }}
+}}
+function hide_tip(elem) {{
+  let list = elem.classList;
+  if (!list) return;
+  elem.classList.remove("fixedtip");
 }}
 function is_touchable() {{
   let ua = navigator.userAgent;
   if (ua.indexOf('iPhone') >= 0 || ua.indexOf('iPad') >= 0 || ua.indexOf('Android') >= 0) {{
-    return true
+    return true;
   }}
-  return false
+  return false;
 }}
 /*]]>*/</script>
 </head>
@@ -1425,6 +1447,7 @@ def main_cgi():
       elif view_mode == "annot":
         P('<div class="message_view">')
         P('<form name="annot_navi_form">')
+        P('<div id="annot_navi_line">')
         P('注釈想定年齢:')
         P('<select name="min_aoa" onchange="toggle_rubies(parseInt(this.value))">')
         for min_aoa in range(3, 21):
@@ -1433,6 +1456,7 @@ def main_cgi():
             P(' selected="selected"')
           P('>{}歳</option>', min_aoa)
         P('</select>')
+        P('</div>')
         P('</form>')
         P('</div>')
         if (not is_html_query and not query.startswith("====[META]====") and
