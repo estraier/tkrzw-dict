@@ -821,10 +821,12 @@ class BuildUnionDBBatch:
           if src != word:
             prob *= 0.1
           norm_trg = tkrzw_dict.NormalizeWord(trg)
-          if tkrzw_dict.IsStopWord("ja", norm_trg) or len(norm_trg) < 2:
-            prob *= 0.5
+          if tkrzw_dict.IsStopWord("ja", norm_trg):
+            prob *= 0.7
+          elif len(norm_trg) < 2:
+            prob *= 0.9
           prob **= 0.8
-          tran_probs[norm_trg] = prob
+          tran_probs[norm_trg] = max(tran_probs.get(norm_trg) or 0.0, prob)
           stem_trg = regex.sub(
             r"([\p{Han}\p{Katakana}ー]{2,})(する|すること|される|されること|をする)$",
             r"\1", norm_trg)

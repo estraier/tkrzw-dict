@@ -38,9 +38,7 @@ import urllib.request
 
 
 PAGE_WIDTH = 100
-#CGI_DATA_PREFIX = "union"
-CGI_DATA_PREFIX = "/home/mikio/public/dict/union"
-
+CGI_DATA_PREFIX = "union"
 CGI_CAPACITY = 100
 CGI_MAX_HTTP_CONTENT_LENGTH = 512 * 1024
 CGI_MAX_QUERY_LENGTH = 256 * 1024
