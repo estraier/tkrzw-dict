@@ -79,7 +79,7 @@ class AppendWordnetJPNBatch:
         if len(fields) != 3: continue
         synset_id, text, src = fields
         text = unicodedata.normalize('NFKC', text)
-        trans[synset_id].append(text)
+        trans[synset_id].append((text, src))
         num_trans += 1
         if num_trans % 10000 == 0:
           logger.info("Reading translations: synsets={}, word_entries={}".format(
@@ -219,7 +219,13 @@ class AppendWordnetJPNBatch:
         hyponym_ids = links.get("hyponym") or []
         similar_ids = links.get("similar") or []
         derivative_ids = links.get("derivative") or []
-        item_trans = wnjpn_trans.get(synset) or []
+        item_tran_pairs = wnjpn_trans.get(synset) or []
+        item_trans = []
+        hand_trans = set()
+        for tran, src in item_tran_pairs:
+          item_trans.append(tran)
+          if src == "hand":
+            hand_trans.add(tran)
         self.NormalizeTranslationList(tokenizer, pos, item_trans)
         item_aux_trans = aux_trans.get(word) or []
         item_aux_trans.extend(subaux_trans.get(word) or [])
@@ -263,6 +269,7 @@ class AppendWordnetJPNBatch:
                 checked_ids.add(rel_id)
                 tmp_aux_trans = wnjpn_trans.get(rel_id)
                 if tmp_aux_trans:
+                  tmp_aux_trans = [x[0] for x in tmp_aux_trans]
                   rel_aux_trans.extend(tmp_aux_trans)
             if rel_aux_trans:
               self.NormalizeTranslationList(tokenizer, pos, rel_aux_trans)
@@ -309,7 +316,7 @@ class AppendWordnetJPNBatch:
             num_items_rescued += 1
           if rev_prob_dbm or tran_prob_dbm:
             item_trans, item_score, tran_scores = (self.SortWordsByScore(
-              word, item_trans, rev_prob_dbm, tokenizer, tran_prob_dbm))
+              word, item_trans, hand_trans, rev_prob_dbm, tokenizer, tran_prob_dbm))
           item["translation"] = item_trans[:MAX_TRANSLATIONS_PER_WORD]
           if tran_scores:
             tran_score_map = {}
@@ -461,7 +468,7 @@ class AppendWordnetJPNBatch:
 
   _regex_stop_word_hiragana = regex.compile(r"^[\p{Hiragana}ー]+$")
   _regex_stop_word_single = regex.compile(r"^.$")
-  def SortWordsByScore(self, word, trans, rev_prob_dbm, tokenizer, tran_prob_dbm):
+  def SortWordsByScore(self, word, trans, hand_trans, rev_prob_dbm, tokenizer, tran_prob_dbm):
     scored_trans = []
     pure_translation_scores = []
     max_score = 0.0
@@ -490,6 +497,8 @@ class AppendWordnetJPNBatch:
         tran_score = self.GetTranProb(tran_prob_dbm, word, tran)
         if tran_score:
           pure_translation_scores.append((tran, tran_score))
+      if tran in hand_trans:
+        tran_score += 0.1
       score = max(prob_score, tran_score)
       scored_trans.append((tran, score))
       max_score = max(max_score, score)
