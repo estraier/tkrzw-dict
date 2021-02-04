@@ -542,6 +542,10 @@ def OutputAnnotHTML(searcher, output_prefix, doc_title, meta_lines, pages):
           P(' selected="selected"')
         P('>{}歳</option>', min_aoa)
       P('</select>')
+      P('<select name="init_only" onchange="toggle_rubies()">')
+      P('<option value="1" selected="selected">初出のみ</option>')
+      P('<option value="0">全て</option>')
+      P('</select>')
       P('</div>')
       P('</form>')
       P('</div>')
@@ -898,6 +902,9 @@ def PrintResultCGIAnnot(script_name, spans, head_level, file=sys.stdout):
       pron = entry.get("pronunciation")
       if pron:
         P('<span class="annot_title_pron">{}</span>', pron)
+      aoa = entry.get("aoa_syn")
+      if aoa:
+        P('<span class="annot_title_aoa">{}</span>', aoa)
       P('</div>')
       trans = entry.get("translation")
       if trans:
@@ -914,7 +921,7 @@ def PrintResultCGIAnnot(script_name, spans, head_level, file=sys.stdout):
       P('</div>')
     P('</span>', end="")
     P('</span>', end="")
-    P('<rt class="rb_{}">{}</rt>', ruby_aoa, ruby_text, end="")
+    P('<rt data-aoa="{}" data-word="{}">{}</rt>', ruby_aoa, ruby_word, ruby_text, end="")
     P('</ruby>', end="")
     ruby_trans.clear()
   P('<p class="text">', end="")
@@ -932,13 +939,7 @@ def PrintResultCGIAnnot(script_name, spans, head_level, file=sys.stdout):
           if not trans: continue
           ruby_trans = trans
           ruby_word = word
-          aoa = entry.get("aoa") or entry.get("aoa_concept") or entry.get("aoa_base")
-          if aoa:
-            aoa = float(aoa)
-          else:
-            prob = max(float(entry.get("probability") or 0), 0.0000001)
-            aoa = math.log(prob) * -1 + 3.5
-          ruby_aoa = min(max(3, int(aoa)), 20)
+          ruby_aoa = entry.get("aoa_syn") or 100
           ruby_life = word.count(" ") + 1
           break
         if ruby_trans:
@@ -1095,7 +1096,8 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
 .annot_entry {{ margin: 0.3ex 0.3ex; }}
 .annot_title_word {{ font-weight: bold; }}
 .annot_title_pron {{ font-size: 95%; color: #444444; margin-left: 1ex; }}
-.annot_title_pron:before,.annot_title_pron:after {{ content: "/"; font-size: 90%; color: #888888; }}
+.annot_title_pron:before,.annot_title_pron:after {{ content: "/"; font-size: 90%; color: #999999; }}
+.annot_title_aoa {{ font-size: 80%; color: #666666; margin-left: 1.5ex; opacity: 0.6; }}
 .annot_item {{ font-size: 95%; }}
 .annot_pos {{
   display: inline-block; border: solid 1px #999999; border-radius: 0.5ex;
@@ -1135,31 +1137,40 @@ function startup() {{
   }}
   let annot_navi_form = document.forms["annot_navi_form"];
   if (annot_navi_form) {{
-    toggle_rubies(parseInt(parseInt(annot_navi_form.min_aoa.value)));
+    toggle_rubies();
   }}
 }}
 function check_search_form() {{
   let search_form = document.forms["search_form"];
-  if (search_form) {{
-    let query = search_form.q.value.trim();
-    let re_url = new RegExp("^https?://");
-    if (re_url.test(query) || query.length > 2000) {{
-      search_form.method = "post";
-    }} 
-  }}
+  if (!search_form) return;
+  let query = search_form.q.value.trim();
+  let re_url = new RegExp("^https?://");
+  if (re_url.test(query) || query.length > 2000) {{
+    search_form.method = "post";
+  }} 
 }}
 function clear_query() {{
   let search_form = document.forms["search_form"];
-  if (search_form) {{
-    search_form.q.value = "";
-  }}
+  if (!search_form) return;
+  search_form.q.value = "";
 }}
-function toggle_rubies(min_aoa) {{
+function toggle_rubies() {{
+  let annot_navi_form = document.forms["annot_navi_form"];
+  let min_aoa = parseInt(annot_navi_form.min_aoa.value);
+  let init_only = annot_navi_form.init_only.value == "1"
+  let uniq_words = new Set();
   let elems = document.getElementsByTagName("rt");
   for (let elem of elems) {{
-    match = elem.className.match(/^rb_(\d+)$/);
-    if (match) {{
-      aoa = parseInt(match[1]);
+    if (elem.dataset.aoa) {{
+      let aoa = parseInt(elem.dataset.aoa);
+      let word = elem.dataset.word;
+      if (init_only) {{
+        if (uniq_words.has(word)) {{
+          aoa = 0;
+        }} else {{
+          uniq_words.add(word)
+        }}
+      }}
       if (aoa <= min_aoa) {{
         elem.style.display = "none";
       }} else {{
@@ -1173,7 +1184,7 @@ function show_tip(parent) {{
   let elems = parent.getElementsByClassName("tip");
   for (let elem of elems) {{    
     let list = elem.classList;
-    if (!list) continue
+    if (!list) continue;
     let rect = elem.getBoundingClientRect();
     let right = rect.left + rect.width;
     if (right > ww && !elem.right_overflow) {{
@@ -1447,12 +1458,16 @@ def main_cgi():
         P('<form name="annot_navi_form">')
         P('<div id="annot_navi_line">')
         P('注釈想定年齢:')
-        P('<select name="min_aoa" onchange="toggle_rubies(parseInt(this.value))">')
+        P('<select name="min_aoa" onchange="toggle_rubies()">')
         for min_aoa in range(3, 21):
           P('<option value="{}"', min_aoa, end="")
           if min_aoa == 12:
             P(' selected="selected"')
           P('>{}歳</option>', min_aoa)
+        P('</select>')
+        P('<select name="init_only" onchange="toggle_rubies()">')
+        P('<option value="1" selected="selected">初出のみ</option>')
+        P('<option value="0">全て</option>')
         P('</select>')
         P('</div>')
         P('</form>')

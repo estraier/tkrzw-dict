@@ -453,12 +453,16 @@ class UnionSearcher:
                         break
                   if match:
                     break
-              prob = float(entry.get("probability") or "0")
-              prob_score = min(1.0, max(prob ** 0.5, 0.00001))
-              aoa = float(entry.get("aoa") or entry.get("aoa_concept") or
-                          entry.get("aoa_base") or 20)
+              prob = float(entry.get("probability") or 0)
+              prob_score = min(0.05, max(prob ** 0.5, 0.00001)) * 20
+              aoa = entry.get("aoa") or entry.get("aoa_concept") or entry.get("aoa_base")
+              if aoa:
+                aoa = float(aoa)
+              else:
+                aoa = math.log(prob + 0.00000001) * -1 + 3.5
               aoa = min(max(aoa, 3), 20)
               aoa_score = (25 - min(aoa, 20.0)) / 10.0
+              entry["aoa_syn"] = int(aoa)
               tran_score = 1.0 if "translation" in entry else 0.5
               item_score = math.log2(len(entry["item"]) + 1)
               labels = set()
@@ -467,7 +471,7 @@ class UnionSearcher:
               label_score = len(labels) + 1
               children = entry.get("child")
               child_score = math.log2((len(children) if children else 0) + 4)
-              width_score = 100 ** word.count(" ")
+              width_score = 200 ** word.count(" ")
               match_score = 1.0 if match else 0.2
               score = var_score * prob_score * aoa_score * tran_score * item_score * label_score * child_score * match_score * width_score
               #print("{}: s={:.6f}, p={:.6f}, a={:.6f}, t={:.6f}, i={:.6f}, l={:.6f}, c={:.6f}, w={:d}".format(
@@ -480,6 +484,7 @@ class UnionSearcher:
         if len(tokens) > 3:
           break
       annots = sorted(annots, key=lambda x: x[1], reverse=True)
+      #print([(x[0]["word"], x[1]) for x in annots])
       annots = [x[0] for x in annots]
       out_spans.append((span, True, annots or None))
       sent_head = span.find("\n") >= 0 or bool(regex.search(r"[.!?;:]", span))
