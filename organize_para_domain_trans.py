@@ -31,17 +31,14 @@ import tkrzw_tokenizer
 
 EF_WEIGHT = 1.0
 FE_WEIGHT = 1.0
-MIN_SCORE = 0.25
-MIN_SCORE_LARGE = 0.35
-MAX_TARGETS = 8
-MIN_SECOND_SCORE_RATIO = 0.7
 MIN_PROB = 0.000001
 
 
 logger = tkrzw_dict.GetLogger()
 
 
-def Run(rev_prob_path, min_count, enough_ef, enough_fe, omit_latin, max_targets):
+def Run(rev_prob_path, min_count, enough_ef, enough_fe, omit_latin,
+        min_score, min_score_large, min_score_stop, max_targets):
   start_time = time.time()
   logger.info("Process started")
   rev_prob_dbm = None
@@ -92,11 +89,12 @@ def Run(rev_prob_path, min_count, enough_ef, enough_fe, omit_latin, max_targets)
       is_prefix = False
       is_single_noun = False
       for cmp_target, cmp_score, _, _ in scored_targets:
-        if target != cmp_target and cmp_target.startswith(target) and cmp_score >= MIN_SCORE:
+        if target != cmp_target and cmp_target.startswith(target) and cmp_score >= min_score:
           if (cmp_target == target + "の" or cmp_target == target + "する") and regex.fullmatch(r"\p{Han}+", target):
             is_single_noun = True
           else:
             is_prefix = True
+      is_stop = bool(regex.fullmatch(r"[\p{Hiragana}]+", target))
       #if source in ("draconian", "beautiful"):
       #  print("H1", source, target, score, ef_prob, fe_prob, is_prefix, is_single_noun, file=sys.stderr)
       if omit_latin and regex.search(r"[\p{Latin}]{2,}", target):
@@ -104,10 +102,13 @@ def Run(rev_prob_path, min_count, enough_ef, enough_fe, omit_latin, max_targets)
       if len(target) <= 1 and is_prefix and not is_single_noun:
         continue
       if large:
-        if score < MIN_SCORE_LARGE:
+        if score < min_score_large:
+          continue
+      elif is_stop:
+        if score < min_score_stop:
           continue
       else:
-        if score < MIN_SCORE:
+        if score < min_score:
           if (regex.search(r"[\p{Latin}]{4,}", source) and not regex.search(r"\d", source) and
               (regex.search(r"[\p{Han}]{2,}", target) or
                regex.search(r"[\p{Han}][\p{Hiragana}]", target)) and
@@ -143,7 +144,6 @@ def Run(rev_prob_path, min_count, enough_ef, enough_fe, omit_latin, max_targets)
       good_targets.append((target, score, ef_prob, fe_prob))
     if not good_targets: continue
     good_targets = sorted(good_targets, key=lambda x: x[1], reverse=True)
-    min_score = good_targets[0][1] * MIN_SECOND_SCORE_RATIO
     outputs = []
     for target, score, ef_prob, fe_prob in good_targets[:max_targets]:
       if rev_prob_dbm:
@@ -205,8 +205,12 @@ def main():
   enough_ef = float(tkrzw_dict.GetCommandFlag(args, "--enough_ef", 1) or 2.0)
   enough_fe = float(tkrzw_dict.GetCommandFlag(args, "--enough_fe", 1) or 2.0)
   omit_latin = tkrzw_dict.GetCommandFlag(args, "--omit_latin", 0)
+  min_score = float(tkrzw_dict.GetCommandFlag(args, "--min_score", 1) or 0.25)
+  min_score_large = float(tkrzw_dict.GetCommandFlag(args, "--min_score_large", 1) or 0.35)
+  min_score_stop = float(tkrzw_dict.GetCommandFlag(args, "--min_score_stop", 1) or 0.3)
   max_targets = int(tkrzw_dict.GetCommandFlag(args, "--max_targets", 1) or 8)
-  Run(rev_prob_path, min_count, enough_ef, enough_fe, omit_latin, max_targets)
+  Run(rev_prob_path, min_count, enough_ef, enough_fe, omit_latin,
+      min_score, min_score_large, min_score_stop, max_targets)
 
 
 if __name__=="__main__":
