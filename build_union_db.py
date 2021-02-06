@@ -499,6 +499,8 @@ class BuildUnionDBBatch:
       if len(stem) >= 8:
         valid_stems.add(stem)
       for deri in deris:
+        if len(word) <= len(deri):
+          continue
         hit = False
         if deri == stem:
           hit = True

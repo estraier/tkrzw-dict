@@ -617,8 +617,13 @@ def PrintResultCGI(script_name, entries, query, details):
   for entry in entries:
     P('<div class="entry_view">')
     word = entry["word"]
+    pron = entry.get("pronunciation")
     word_url = "{}?q={}".format(script_name, urllib.parse.quote(word))
-    P('<h2 class="entry_word"><a href="{}">{}</a></h2>', word_url, word)
+    P('<h2 class="entry_word">', end="")
+    P('<a href="{}">{}</a>', word_url, word, end="")
+    if not details and pron:
+      P(' <span class="title_pron">{}</span>', pron, end="")
+    P('</h2>')
     translations = entry.get("translation")
     if translations:
       if tkrzw_dict.PredictLanguage(query) != "en":
@@ -633,7 +638,6 @@ def PrintResultCGI(script_name, entries, query, details):
         print(", ".join(fields), end="")
         P('</div>')
     if details:
-      pron = entry.get("pronunciation")
       if pron:
         P('<div class="attr attr_pron"><span class="attr_label">発音</span>' +
           ' <span class="attr_value">{}</span></div>', pron)
@@ -1019,6 +1023,8 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
 .message_view p {{ margin: 0; padding: 0; }}
 .pagenavi {{ float: right; }}
 .pagenavi a {{ min-width: 3ex; color: #002244; padding-left: 0.5ex; }}
+.title_pron {{ margin-left: 1.5ex; font-size: 85%; font-weight: normal; color: #444444; }}
+.title_pron:before,.title_pron:after {{ content: "/"; font-size: 90%; color: #999999; }}
 .attr,.item {{ color: #999999; }}
 .attr a,.item a {{ color: #111111; }}
 .attr a:hover,.item a:hover {{ color: #0011ee; }}

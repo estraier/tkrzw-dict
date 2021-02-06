@@ -165,7 +165,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         if submode in ("{{noun}}", "{{name}}", "noun",
                        "{{verb}}", "verb",
                        "{{adj}}", "{{adjective}}", "adjective",
-                       "{{adv}}", "{{adverb}}", "adverb",
+                       "{{adv}}", "{{adverb}}", "adverb", "prepositional phrase",
                        "pronoun", "preposition", "article", "interjection", "conjunction"):
           mode = submode
           sections.append((mode,[]))
@@ -521,7 +521,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         mode = "verb"
       elif mode in ("{{adj}}", "{{adjective}}", "adjective"):
         mode = "adjective"
-      elif mode in ("{{adv}}", "{{adverb}}", "adverb"):
+      elif mode in ("{{adv}}", "{{adverb}}", "adverb", "prepositional phrase"):
         mode = "adverb"
       elif mode in ("{{pronoun}}", "pronoun"):
         mode = "pronoun"
