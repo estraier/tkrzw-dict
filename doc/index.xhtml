@@ -58,6 +58,8 @@ h2:hover a.headanc, h3:hover a.headanc {
 
 <p>EPUB形式の電子辞書として使いたい場合には、この<a href="https://dbmx.net/dict/union-dict.epub">EPUBファイル</a>をダウンロードして、任意のEPUBリーダにインストールすればよい。</p>
 
+<p>辞書データを使って英語の語彙力の診断を行うツールもある。<a href="https://dbmx.net/dict/quiz_aoa.cgi">こちらのデモサイト</a>を利用されたい。質問に答えていくと、回答者の語彙力がネイティブスピーカの何歳に相当するのかがわかる。</p>
+
 <h2 id="installation">インストール</h2>
 
 <p>本パッケージはUNIX系のOSで動作する。また、DBMライブラリである<a href="https://dbmx.net/tkrzw/">Tkrzw</a>とそのPythonインターフェイスに依存する。所定の手順に基づき、それらを予めインストールしておくこと。</p>
@@ -330,6 +332,15 @@ MATTHEW Cuthbert and the sorrel mare jogged comfortably ...
 <pre><![CDATA[$ mkdir annot-anne
 $ ./search_union.py --query_file anne.txt --index annot --view annot --output_prefix annot-anne
 ]]></pre>
+
+<h2 id="quiz_aoa">英語語彙力年齢診断</h2>
+
+<p>語彙力年齢診断のためのデータベースは、以下のコマンドで生成できる。</p>
+
+<pre><![CDATA[$ ./extract_union_aoa_ranks.py --input union-body.tkh --output union-aoa-ranks.tks
+]]></pre>
+
+<p>あとは、quiz_aoa.cgiをCGIスクリプトとして実行可能にし、またそのカレントディレクトリに "quiz-aoa-result" という名前でCGIスクリプトが書き込み可能なディレクトリを用意する。診断結果のデータはそのディレクトリの中にファイルとして作られる。</p>
 
 <h2 id="licnese">ライセンス</h2>
 
