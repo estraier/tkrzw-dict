@@ -65,8 +65,11 @@ class ExtractAOABatch:
         if not prob: continue
         prob = float(prob)
         labels = set()
+        poses = {}
         for item in word_entry["item"]:
           labels.add(item["label"])
+          poses[item["pos"]] = True
+        poses = poses.keys()
         aoa = (word_entry.get("aoa") or word_entry.get("aoa_concept") or
                word_entry.get("aoa_base"))
         if aoa:
@@ -75,7 +78,7 @@ class ExtractAOABatch:
           if len(labels) < 2:
             continue
           aoa = math.log(prob + 0.00000001) * -1 + 3.5
-        record = (word, aoa, trans)
+        record = (word, aoa, poses, trans)
         records.append(record)
       num_entries += 1
       if num_entries % 10000 == 0:
@@ -88,10 +91,11 @@ class ExtractAOABatch:
     output_dbm.Open(self.output_path, True, dbm="SkipDBM", truncate=True,
                     insert_in_order=True).OrDie()
     num_entries = 0
-    for word, aoa, trans in records:
+    for word, aoa, poses, trans in records:
       key = "{:05d}".format(num_entries)
       fields = [word]
       fields.append("{:.2f}".format(aoa))
+      fields.append(",".join(poses))
       fields.append(",".join(trans))
       output_dbm.Set(key, "\t".join(fields)).OrDie()
       num_entries += 1
