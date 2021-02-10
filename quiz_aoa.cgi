@@ -354,7 +354,7 @@ article {{ display: inline-block; width: 80ex; text-align: left; padding: 1ex 2e
     else:
       msg = "ばぶばぶ・・・"
     P('<p>{}</p>', msg)
-    tweet_msg = "語彙力年齢診断: {}さんの語彙力は、ネイティブスピーカの{}歳相当です。".format(user_name, aoa)
+    tweet_msg = "#語彙力年齢診断: {}さんの語彙力は、ネイティブスピーカの{}歳相当です。".format(user_name, aoa)
     P('<p>結果をつぶやく: ', end="")
     P('<a href="https://twitter.com/share" class="twitter-share-button" data-text="{}" data-count="none">Tweet</a>', tweet_msg, end="")
     P('<script>!function(d,s,id){{var js,fjs=d.getElementsByTagName(s)[0];if(!d.getElementById(id)){{js=d.createElement(s);js.id=id;js.src="//platform.twitter.com/widgets.js";fjs.parentNode.insertBefore(js,fjs);}}}}(document,"script","twitter-wjs");</script>', end="")
