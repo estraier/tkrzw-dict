@@ -26,18 +26,18 @@ import tkrzw_dict
 import tkrzw_union_searcher
 import urllib
 import urllib.request
-import zlib
 
 
 AOA_RANKS_PATH = "union-aoa-ranks.tks"
 DICT_URL = "https://dbmx.net/dict/search_union.cgi"
 RESULT_DIR = "quiz-aoa-result"
-START_RANK = 400
+START_RANK = 2000
 WINDOW_WIDTH = 2000
-NUM_CANDIDATES = 5
+NUM_CANDIDATES = 6
 NUM_SHOWN_TRANS = 4
 NUM_QUIZES = 22
 NUM_RAND_TRIES = 40
+RANK_GAMMA = 0.7
 
 
 def GetRecords(aoa_dbm, core_rank):
@@ -74,7 +74,7 @@ def IsSimilarKanaTran(word, tran):
       top_letters.append(token[:1].lower())
   for top_letter in top_letters:
     if top_letter == "a":
-      if regex.search(r"^[アエ]", kana_tran): return True
+      if regex.search(r"^[アエオ]", kana_tran): return True
     elif top_letter == "b":
       if regex.search(r"^[バビブベボ]", kana_tran): return True
     elif top_letter == "c":
@@ -112,7 +112,7 @@ def IsSimilarKanaTran(word, tran):
     elif top_letter == "s":
       if regex.search(r"^[サシスセソ]", kana_tran): return True
     elif top_letter == "t":
-      if regex.search(r"^[タチツテトデ]", kana_tran): return True
+      if regex.search(r"^[タチツテトデサ]", kana_tran): return True
     elif top_letter == "u":
       if regex.search(r"^[ウアユ]", kana_tran): return True
     elif top_letter == "v":
@@ -142,8 +142,9 @@ def GetCandidates(records, used_words):
     if word in used_words: continue
     if len(word) <= 1: continue
     if regex.search(r"\d", word): continue
-    if word.count(" ") and random.randint(0, 1): continue
-    if regex.search(r"\p{Lu}", word) and random.randint(0, 1): continue
+    if word.count("-") and random.randint(0, 1): continue
+    if word.count(" ") and random.randint(0, 2): continue
+    if regex.search(r"\p{Lu}", word) and random.randint(0, 2): continue
     if top_pos and top_pos in popular_poses and top_pos not in poses and random.randint(0, 2):
       continue
     if word in checked_words: continue
@@ -318,7 +319,9 @@ article {{ display: inline-block; width: 80ex; text-align: left; padding: 1ex 2e
       wrong_aoa = wrong_aoas[min(min_index, len(wrong_aoas) - 1)]
       if len(wrong_aoas) >= 3:
         wrong_aoa -= 0.5
-      aoa = (aoa * len(correct_aoas) + wrong_aoa * len(wrong_aoas)) / (len(correct_aoas) + len(wrong_aoas))
+      aoa = (aoa * len(correct_aoas) + wrong_aoa * len(wrong_aoas) * 2) / (len(correct_aoas) + len(wrong_aoas) * 2)
+    else:
+      aoa += 0.5
     aoa = min(max(3, round(aoa)), 20)
     P('<p>{}さんの語彙力は、ネイティブスピーカの<strong class="result_age">{}</strong>歳相当です。</p>', user_name, aoa)
     if aoa >= 20:
@@ -377,19 +380,19 @@ article {{ display: inline-block; width: 80ex; text-align: left; padding: 1ex 2e
     if question >= 0 and answer >= 0:
       history.append((question, answer))
       if answer:
-        move = (num_ranks - current_rank) / 8
+        move = (num_ranks - current_rank) / (8 + random.normalvariate(0, 1))
         move = int(min(move, num_ranks / (len(history) + 1)))
         current_rank += move
         current_rank = min(current_rank, int(num_ranks - WINDOW_WIDTH / 4))
       else:
-        move = current_rank / 6
+        move = current_rank / (8 + random.normalvariate(0, 1))
         move = int(min(move, num_ranks / (len(history) + 1)))
         current_rank -= move
-        current_rank = max(current_rank, 50)
+        current_rank = max(current_rank, 100)
     current_aoa = ParseRecord(aoa_dbm.GetStr("{:05d}".format(current_rank)))[1]
     if len(history) >= NUM_QUIZES:
       tmp_name = "{:04x}{:08x}".format(
-        zlib.adler32(user_name.encode()) % 0x10000, random_seed % 100000000)
+        tkrzw.Utility.PrimaryHash(user_name) % 0x10000, random_seed % 100000000)
       tmp_path = os.path.join(result_dir, tmp_name)
       with open(tmp_path, "w") as tmp_file:
         print(user_name, file=tmp_file)
@@ -409,7 +412,9 @@ article {{ display: inline-block; width: 80ex; text-align: left; padding: 1ex 2e
         value = aoa_dbm.GetStr(key)
         record = ParseRecord(value)
         used_words.add(record[0])
-      records = GetRecords(aoa_dbm, current_rank)
+      rank_ratio = current_rank / (num_ranks - 1)
+      gamma_rank = int((rank_ratio ** (1 / RANK_GAMMA)) * num_ranks)
+      records = GetRecords(aoa_dbm, gamma_rank)
       core_rank, core_expr = records[int(len(records) / 2)]
       core_record = ParseRecord(core_expr)
       aoa = core_record[1]
@@ -418,7 +423,7 @@ article {{ display: inline-block; width: 80ex; text-align: left; padding: 1ex 2e
         correct = candidates[0]
         random.shuffle(candidates)
         P('<p>Q{}: "<strong class="theme_word">{}</strong>" の意味は？</p>', len(history) + 1, correct[1])
-        P('<form method="get" name="search_form" action="{}">', script_url)
+        P('<form method="post" name="search_form" action="{}">', script_url)
         P('<ul class="candidates_list">')
         for i, candidate in enumerate(candidates):
           P('<li><input type="radio" name="a" value="{}" id="a{}"/> <label for="a{}">{}</label></li>',
@@ -446,7 +451,7 @@ article {{ display: inline-block; width: 80ex; text-align: left; padding: 1ex 2e
     P("""<p>あなたの英語の語彙力は、ネイティブスピーカの何歳に相当するでしょうか？</p>
 <p>{}問のクイズで診断してみましょう。</p>
 <div>
-<form name="start" method="get" action="{}">
+<form name="start" method="post" action="{}">
 あなたの名前:<input type="text" name="u" size="16" value=""/>
 <input type="submit" value="開始" class="start_button"/>
 <input type="hidden" name="c" value="{}"/>
