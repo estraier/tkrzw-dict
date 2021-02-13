@@ -120,10 +120,13 @@ class BuildUnionDBBatch:
     for tran_aux_path in self.tran_aux_paths:
       if not tran_aux_path: continue
       self.ReadTranAuxTSV(tran_aux_path, aux_trans)
-    aoa_words = {}
+    raw_aoa_words = collections.defaultdict(list)
     for aoa_path in self.aoa_paths:
       if not aoa_path: continue
-      self.ReadAOAWords(aoa_path, aoa_words)
+      self.ReadAOAWords(aoa_path, raw_aoa_words)
+    aoa_words = {}
+    for word, values in raw_aoa_words.items():
+      aoa_words[word] = sum(values) / len(values)
     keywords = set()
     if self.keyword_path:
       self.ReadKeywords(self.keyword_path, keywords)
@@ -245,8 +248,7 @@ class BuildUnionDBBatch:
           mean += float(stddev)
         else:
           mean += 3.0
-        if word not in aoa_words:
-          aoa_words[word] = mean
+        aoa_words[word].append(mean)
         num_entries += 1
         if num_entries % 10000 == 0:
           logger.info("Reading a AOA file: num_entries={}".format(num_entries))
