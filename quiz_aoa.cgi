@@ -32,16 +32,17 @@ AOA_RANKS_PATH = "union-aoa-ranks.tks"
 DICT_URL = "https://dbmx.net/dict/search_union.cgi"
 RESULT_DIR = "quiz-aoa-result"
 START_RANK = 2000
-WINDOW_WIDTH = 2000
+MIN_WINDOW_WIDTH = 100
+MAX_WINDOW_WIDTH = 2000
 NUM_CANDIDATES = 6
 NUM_SHOWN_TRANS = 4
 NUM_QUIZES = 22
 NUM_RAND_TRIES = 40
-RANK_GAMMA = 0.7
+RANK_GAMMA = 0.6
 
 
 def GetRecords(aoa_dbm, core_rank):
-  window_width = min(core_rank, WINDOW_WIDTH)
+  window_width = max(MIN_WINDOW_WIDTH, min(core_rank, MAX_WINDOW_WIDTH))
   start_rank = max(0, int(core_rank - window_width / 2))
   start_key = "{:05d}".format(start_rank)
   it = aoa_dbm.MakeIterator()
@@ -156,7 +157,7 @@ def GetCandidates(records, used_words):
     good_trans = []
     for tran in trans:
       if IsSimilarKanaTran(word, tran): continue
-      if regex.search("[\p{Latin}]", tran): continue
+      if not regex.search("[\p{Han}\p{Hiragana}\p{Katakana}ー]", tran): continue
       good_trans.append(tran)
       if len(good_trans) >= NUM_SHOWN_TRANS: break
     if not good_trans: continue
@@ -308,15 +309,15 @@ article {{ display: inline-block; width: 80ex; text-align: left; padding: 1ex 2e
       record_scores.append((rank, record, score))        
     if correct_aoas:
       correct_aoas = sorted(correct_aoas, reverse=True)
-      aoa = correct_aoas[min(2, len(correct_aoas) - 1)]
+      min_index = min(2, len(wrong_aoas) + 1)
+      aoa = correct_aoas[min(min_index, len(correct_aoas) - 1)]
       if len(correct_aoas) < 3:
         aoa -= 3 - len(correct_aoas)
     else:
       aoa = 0
     if wrong_aoas:
       wrong_aoas = sorted(wrong_aoas)
-      min_index = max(0, int(NUM_QUIZES / 3 - len(wrong_aoas)))
-      wrong_aoa = wrong_aoas[min(min_index, len(wrong_aoas) - 1)]
+      wrong_aoa = wrong_aoas[min(1, len(wrong_aoas) - 1)]
       if len(wrong_aoas) >= 3:
         wrong_aoa -= 0.5
       aoa = (aoa * len(correct_aoas) + wrong_aoa * len(wrong_aoas) * 2) / (len(correct_aoas) + len(wrong_aoas) * 2)
@@ -381,14 +382,14 @@ article {{ display: inline-block; width: 80ex; text-align: left; padding: 1ex 2e
       history.append((question, answer))
       if answer:
         move = (num_ranks - current_rank) / (8 + random.normalvariate(0, 1))
-        move = int(min(move, num_ranks / (len(history) + 1)))
+        move = int(min(move, num_ranks / (len(history) + 1))) + int(num_ranks / 300) + 1
         current_rank += move
-        current_rank = min(current_rank, int(num_ranks - WINDOW_WIDTH / 4))
+        current_rank = min(current_rank, int(num_ranks - MAX_WINDOW_WIDTH / 4))
       else:
-        move = current_rank / (8 + random.normalvariate(0, 1))
-        move = int(min(move, num_ranks / (len(history) + 1)))
+        move = current_rank / (8 + random.normalvariate(0, 1)) + int(num_ranks / 300) + 1
+        move = int(min(move, num_ranks / (len(history) + 1))) + 10
         current_rank -= move
-        current_rank = max(current_rank, 100)
+        current_rank = max(current_rank, MIN_WINDOW_WIDTH)
     current_aoa = ParseRecord(aoa_dbm.GetStr("{:05d}".format(current_rank)))[1]
     if len(history) >= NUM_QUIZES:
       tmp_name = "{:04x}{:08x}".format(
