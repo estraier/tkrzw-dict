@@ -265,6 +265,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         if "noun" in infl_modes: continue
         infl_modes.add("noun")
         value = regex.sub(r".*\{\{en-noun\|?([^\}]*)\}\}.*", r"\1", line).strip()
+        value = regex.sub(r"\[\[:en:#[^\]]*?\|(.*?)\]\]", r"\1", value)
         values = value.split("|") if value else []
         values = self.TrimInflections(values)
         stop = False
@@ -304,6 +305,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         if "verb" in infl_modes: continue
         infl_modes.add("verb")
         value = regex.sub(r".*\{\{en-verb\|?([^\}]*)\}\}.*", r"\1", line).strip()
+        value = regex.sub(r"\[\[:en:#[^\]]*?\|(.*?)\]\]", r"\1", value)
         values = value.split("|") if value else []
         values = self.TrimInflections(values)
         stop = False
@@ -393,6 +395,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         if "adjective" in infl_modes: continue
         infl_modes.add("adjective")
         value = regex.sub(r".*\{\{en-adj\|?([^\}]*)\}\}.*", r"\1", line).strip()
+        value = regex.sub(r"\[\[:en:#[^\]]*?\|(.*?)\]\]", r"\1", value)
         values = value.split("|") if value else []
         values = self.TrimInflections(values)
         stop = False
@@ -439,6 +442,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         if "adverb" in infl_modes: continue
         infl_modes.add("adverb")
         value = regex.sub(r".*\{\{en-adv\|?([^\}]*)\}\}.*", r"\1", line).strip()
+        value = regex.sub(r"\[\[:en:#[^\]]*?\|(.*?)\]\]", r"\1", value)
         values = value.split("|") if value else []
         values = self.TrimInflections(values)
         stop = False
