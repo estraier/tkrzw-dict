@@ -61,9 +61,6 @@ class ExtractAOABatch:
         trans = word_entry.get("translation")
         if not trans: continue
         trans = trans[:8]
-        prob = word_entry.get("probability")
-        if not prob: continue
-        prob = float(prob)
         labels = set()
         poses = {}
         for item in word_entry["item"]:
@@ -77,6 +74,23 @@ class ExtractAOABatch:
         else:
           if len(labels) < 2:
             continue
+          prob = word_entry.get("probability")
+          if not prob: continue
+          prob = float(prob)
+          if word.count(" "):
+            token_probs = []
+            for token in word.split(" "):
+              token_serialized = input_dbm.GetStr(token.lower())
+              token_prob = 0.0
+              if token_serialized:
+                for token_entry in json.loads(token_serialized):
+                  token_word = token_entry["word"]
+                  if token_word != token: continue
+                  token_prob = float(token_entry.get("probability") or 0.0)
+              token_probs.append(token_prob)
+            min_token_prob = min(token_probs)
+            if min_token_prob > prob:
+              prob = (prob * min_token_prob) ** 0.5
           aoa = math.log(prob + 0.00000001) * -1 + 3.5
         record = (word, aoa, poses, trans)
         records.append(record)
