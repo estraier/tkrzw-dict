@@ -383,6 +383,10 @@ class AppendWordnetJPNBatch:
         stem = tran[:-1]
         if tokenizer.IsJaWordAdjvNoun(stem):
           return stem
+      if tran.endswith("い"):
+        pos = tokenizer.GetJaLastPos(tran)
+        if pos and pos[1] == "形容詞":
+          return tran[:-1] + "さ"
     if pos == "verb":
       if not tran.endswith("な"):
         restored = tokenizer.ConvertJaWordBaseForm(tran)
@@ -394,6 +398,14 @@ class AppendWordnetJPNBatch:
       restored = tokenizer.RestoreJaWordAdjSaNoun(tran)
       if restored != tran:
         return restored
+      if len(tran) >= 2 and tran.endswith("さ"):
+        restored = tran[:-1]
+        if tokenizer.IsJaWordAdjvNoun(restored):
+          return restored + "な"
+        restored = tran[:-1] + "い"
+        pos = tokenizer.GetJaLastPos(restored)
+        if pos and pos[1] == "形容詞":
+          return restored
       if tran.endswith("である"):
         tran = tran[:-3]
       if tokenizer.IsJaWordAdjvNoun(tran):
