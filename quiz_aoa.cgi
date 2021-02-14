@@ -31,7 +31,7 @@ import urllib.request
 AOA_RANKS_PATH = "union-aoa-ranks.tks"
 DICT_URL = "https://dbmx.net/dict/search_union.cgi"
 RESULT_DIR = "quiz-aoa-result"
-START_RANK = 2000
+START_RANK = 3000
 MIN_WINDOW_WIDTH = 100
 MAX_WINDOW_WIDTH = 2000
 NUM_CANDIDATES = 6
@@ -254,6 +254,8 @@ article {{ display: inline-block; width: 80ex; text-align: left; padding: 1ex 2e
 .candidates_list {{ list-style: none; margin-left: 0; padding-left: 1ex; color: #333333; }}
 .dunno {{ font-size: 95%; color: #666666; }}
 .result_age {{ font-size: 110%; }}
+hr {{ background-color: #dddddd; border: none; height: 1px; }}
+.note {{ font-size: 90%; color: #333333; }}
 .answers_list {{ list-style: none; margin-left: 0; padding-left: 1ex; color: #888888; font-size: 80%; }}
 .answer_correct:before {{ color: #001188; content: "○ "; }}
 .answer_incorrect:before {{ color: #881100; content: "╳︎ ️"; }}
@@ -321,8 +323,10 @@ article {{ display: inline-block; width: 80ex; text-align: left; padding: 1ex 2e
       if len(wrong_aoas) >= 3:
         wrong_aoa -= 0.5
       aoa = (aoa * len(correct_aoas) + wrong_aoa * len(wrong_aoas) * 2) / (len(correct_aoas) + len(wrong_aoas) * 2)
-    else:
+    if not wrong_aoas:
       aoa += 0.5
+    elif len(wrong_aoas) <= 1:
+      aoa += 0.25
     aoa = min(max(3, round(aoa)), 20)
     P('<p>{}さんの語彙力は、ネイティブスピーカの<strong class="result_age">{}</strong>歳相当です。</p>', user_name, aoa)
     if aoa >= 20:
@@ -332,15 +336,15 @@ article {{ display: inline-block; width: 80ex; text-align: left; padding: 1ex 2e
     elif aoa >= 18:
       msg = "海外や外資系企業で仕事をするのにも問題ない水準の語彙力です。"
     elif aoa >= 17:
-      msg = "英語の新聞や小説を辞書なしで読める水準の語彙力です。"
-    elif aoa >= 16:
       msg = "海外の大学への留学を検討できる水準の語彙力です。"
+    elif aoa >= 16:
+      msg = "英語の新聞や小説を辞書なしで読める水準の語彙力です。"
     elif aoa >= 15:
       msg = "ネイティブスピーカと楽しく会話できる水準の語彙力です。"
     elif aoa >= 14:
-      msg = "海外旅行で困らない水準の語彙力です。"
-    elif aoa >= 13:
       msg = "海外の高校への留学を検討できる水準の語彙力です。"
+    elif aoa >= 13:
+      msg = "海外旅行で困らない水準の語彙力です。"
     elif aoa >= 12:
       msg = "辞書があれば英語の新聞や小説が読める水準の語彙力です。"
     elif aoa >= 11:
@@ -364,6 +368,8 @@ article {{ display: inline-block; width: 80ex; text-align: left; padding: 1ex 2e
     P('<script>!function(d,s,id){{var js,fjs=d.getElementsByTagName(s)[0];if(!d.getElementById(id)){{js=d.createElement(s);js.id=id;js.src="//platform.twitter.com/widgets.js";fjs.parentNode.insertBefore(js,fjs);}}}}(document,"script","twitter-wjs");</script>', end="")
     P('</p>')
     P('<p><a href="{}" class="goto">⇨ 再挑戦する</a></p>', script_url)
+    P('<hr/>')
+    P('<p class="note">回答一覧。見出し語をクリックすると辞書の解説が読めます。</p>')
     P('<ul class="answers_list">')
     for rank, record, score in record_scores:
       class_expr = "answer_correct" if score else "answer_incorrect"
