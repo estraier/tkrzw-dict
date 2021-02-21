@@ -997,6 +997,7 @@ def PrintCGIHeader(page_title, file=sys.stdout):
 <html xmlns="http://www.w3.org/1999/xhtml" lang="ja">
 <head>
 <title>{}</title>
+<meta name="robots" content="noindex,nofollow,noarchive"/>
 <style type="text/css">/*<![CDATA[*/
 html {{ margin: 0ex; padding: 0ex; background: #eeeeee; font-size: 12pt; }}
 body {{ margin: 0ex; padding: 0ex; text-align: center; -webkit-text-size-adjust: 100%; }}

@@ -95,7 +95,7 @@ def IsSimilarKanaTran(word, tran):
     elif top_letter == "j":
       if regex.search(r"^[ジヤユヨイエ]", kana_tran): return True
     elif top_letter == "k":
-      if regex.search(r"^[カキクケコ]", kana_tran): return True
+      if regex.search(r"^[カキクケコナ]", kana_tran): return True
     elif top_letter == "l":
       if regex.search(r"^[ラリルレロ]", kana_tran): return True
     elif top_letter == "m":
@@ -136,16 +136,18 @@ def GetCandidates(records, used_words):
   candidates = []
   num_tries = 0
   top_pos = None
+  top_is_capital = False
   while len(candidates) < NUM_CANDIDATES and num_tries < NUM_RAND_TRIES:
     num_tries += 1
     rank, expr = random.choice(records)
     word, aoa, poses, trans = ParseRecord(expr)
     if word in used_words: continue
     if len(word) <= 1: continue
+    is_capital = bool(regex.search(r"\p{Lu}", word))
     if regex.search(r"\d", word): continue
     if word.count("-") and random.randint(0, 1): continue
     if word.count(" ") and random.randint(0, 2): continue
-    if regex.search(r"\p{Lu}", word) and random.randint(0, 2): continue
+    if not top_is_capital and is_capital and random.randint(0, 2): continue
     if top_pos and top_pos in popular_poses and top_pos not in poses and random.randint(0, 2):
       continue
     if word in checked_words: continue
@@ -161,6 +163,12 @@ def GetCandidates(records, used_words):
       good_trans.append(tran)
       if len(good_trans) >= NUM_SHOWN_TRANS: break
     if not good_trans: continue
+    if is_capital and not candidates and len(good_trans) < len(trans):
+      has_kanji = False
+      for tran in good_trans:
+        if regex.search(r"\p{Han}", tran):
+          has_kanji = True
+      if not has_kanji: continue
     has_dup_tran = False
     for tran in good_trans:
       if tran in checked_trans:
@@ -170,6 +178,8 @@ def GetCandidates(records, used_words):
       checked_trans.add(tran)
     if not candidates:
       top_pos = poses[0]
+    if not candidates:
+      top_is_capital = is_capital
     candidates.append((rank, word, aoa, good_trans))
   return candidates
   
@@ -241,6 +251,7 @@ def main():
 <html xmlns="http://www.w3.org/1999/xhtml" lang="ja">
 <head>
 <title>語彙力年齢診断</title>
+<meta name="robots" content="noindex,nofollow,noarchive"/>
 <style type="text/css">/*<![CDATA[*/
 html {{ margin: 0ex; padding: 0ex; background: #eeeeee; font-size: 12pt; color: }}
 body {{ margin: 0ex; padding: 0ex; text-align: center; -webkit-text-size-adjust: 100%; }}
@@ -423,18 +434,28 @@ hr {{ background-color: #dddddd; border: none; height: 1px; }}
       gamma_rank = int((rank_ratio ** (1 / RANK_GAMMA)) * num_ranks)
       records = GetRecords(aoa_dbm, gamma_rank)
       core_rank, core_expr = records[int(len(records) / 2)]
-      core_record = ParseRecord(core_expr)
-      aoa = core_record[1]
+      is_eiwa = True
       candidates = GetCandidates(records, used_words)
       if candidates:
         correct = candidates[0]
         random.shuffle(candidates)
-        P('<p>Q{}: "<strong class="theme_word">{}</strong>" の意味は？</p>', len(history) + 1, correct[1])
+
+        if is_eiwa:
+          question_word = correct[1]
+          P('<p>Q{}: "<strong class="theme_word">{}</strong>" の意味は？</p>', len(history) + 1, question_word)
+        else:
+          question_word = ", ".join(correct[3])
+          P('<p>Q{}: "<strong class="theme_word">{}</strong>" という意味の言葉は？</p>', len(history) + 1, question_word)
+
         P('<form method="post" name="search_form" action="{}">', script_url)
         P('<ul class="candidates_list">')
         for i, candidate in enumerate(candidates):
+          if is_eiwa:
+            cand_word = ", ".join(candidate[3])
+          else:
+            cand_word = candidate[1]
           P('<li><input type="radio" name="a" value="{}" id="a{}"/> <label for="a{}">{}</label></li>',
-            int(candidate[0] == correct[0]), i, i, ", ".join(candidate[3]))
+            int(candidate[0] == correct[0]), i, i, cand_word)
         P('<li><input type="radio" name="a" value="0" id="ax" checked="checked"/> <label for="ax" class="dunno">（わからない）</label></li>')
         P('</ul>')
         P('<div id="submit_line">')
