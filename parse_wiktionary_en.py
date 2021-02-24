@@ -425,6 +425,10 @@ class XMLHandler(xml.sax.handler.ContentHandler):
             else:
               adjective_comparative = values[0] + "er"
               adjective_superative = values[0] + "est"
+          elif len(values) == 2 and values[0] in ("-", "~") and values[1] in "more":
+            pass
+          elif len(values) == 2 and values[0] == "more" and values[1] in ("-", "~"):
+            pass
           elif len(values) == 2 and values[0] == "r" and values[1] == "more":
             adjective_comparative = title + "r"
             adjective_superative = ""
@@ -472,6 +476,10 @@ class XMLHandler(xml.sax.handler.ContentHandler):
             else:
               adverb_comparative = values[0] + "er"
               adverb_superative = values[0] + "est"
+          elif len(values) == 2 and values[0] in ("-", "~") and values[1] == "more":
+            pass
+          elif len(values) == 2 and values[0] == "more" and values[1] in ("-", "~"):
+            pass
           elif len(values) == 2 and values[0] == "r" and values[1] == "more":
             adverb_comparative = title + "r"
             adverb_superative = ""
