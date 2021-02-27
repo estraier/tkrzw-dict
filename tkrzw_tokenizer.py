@@ -121,7 +121,7 @@ class Tokenizer:
     mecab = importlib.import_module("MeCab")
     if not self.tagger_mecab:
       self.tagger_mecab = mecab.Tagger(r"--node-format=%m\t%f[0]\t%f[1]\t%f[6]\n")
-    
+
   def TokenizeJaMecab(self, sentence, stemming):
     self.InitMecab()
     sentence = self.regex_ja_sections.sub(r" \1 ", sentence)

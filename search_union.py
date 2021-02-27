@@ -109,7 +109,7 @@ def Atoi(text):
   except ValueError:
     return 0
 
-  
+
 def CutTextByWidth(text, width):
   result = ""
   for c in text:
@@ -255,7 +255,7 @@ def PrintResult(entries, mode, query):
         coocs = entry.get("cooccurrence")
         if coocs:
           text = "[共起] {}".format(", ".join(coocs[:8]))
-          PrintWrappedText(text, 4)          
+          PrintWrappedText(text, 4)
         etym_parts = []
         etym_prefix = entry.get("etymology_prefix")
         if etym_prefix: etym_parts.append(etym_prefix + "-")
@@ -520,7 +520,7 @@ def OutputAnnotHTML(searcher, output_prefix, doc_title, meta_lines, pages):
   for page in pages:
     page_id = len(page_paths) + 1
     if prefix_is_dir:
-      page_path = os.path.join(output_prefix, "{:04d}.xhtml".format(page_id))      
+      page_path = os.path.join(output_prefix, "{:04d}.xhtml".format(page_id))
     else:
       page_path = "{}-{:04d}.xhtml".format(output_prefix, page_id)
     print("Outputting {}".format(page_path))
@@ -571,7 +571,7 @@ def OutputAnnotHTML(searcher, output_prefix, doc_title, meta_lines, pages):
       PrintCGIFooter(file=page_file)
   page_title = doc_title or "Index"
   if prefix_is_dir:
-    index_path = os.path.join(output_prefix, "index.xhtml".format(page_id))      
+    index_path = os.path.join(output_prefix, "index.xhtml".format(page_id))
   else:
     index_path = "{}-index.xhtml".format(output_prefix, page_id)
   print("Outputting {}".format(index_path))
@@ -1154,7 +1154,7 @@ function check_search_form() {{
   let re_url = new RegExp("^https?://");
   if (re_url.test(query) || query.length > 2000) {{
     search_form.method = "post";
-  }} 
+  }}
 }}
 function clear_query() {{
   let search_form = document.forms["search_form"];
@@ -1189,7 +1189,7 @@ function toggle_rubies() {{
 function show_tip(parent) {{
   let ww = window.innerWidth - 8;
   let elems = parent.getElementsByClassName("tip");
-  for (let elem of elems) {{    
+  for (let elem of elems) {{
     let list = elem.classList;
     if (!list) continue;
     let rect = elem.getBoundingClientRect();
@@ -1235,7 +1235,7 @@ def PrintCGIFooter(file=sys.stdout):
 </body>
 </html>
 """, end="", file=file)
-  
+
 
 def main_cgi():
   script_name = os.environ.get("SCRIPT_NAME", sys.argv[0])

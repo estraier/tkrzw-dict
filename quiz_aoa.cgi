@@ -31,14 +31,14 @@ import urllib.request
 AOA_RANKS_PATH = "union-aoa-ranks.tks"
 DICT_URL = "https://dbmx.net/dict/search_union.cgi"
 RESULT_DIR = "quiz-aoa-result"
-START_RANK = 3000
+START_RANK = 4000
 MIN_WINDOW_WIDTH = 100
 MAX_WINDOW_WIDTH = 2000
 NUM_CANDIDATES = 6
 NUM_SHOWN_TRANS = 4
 NUM_QUIZES = 22
 NUM_RAND_TRIES = 40
-RANK_GAMMA = 0.6
+RANK_GAMMA = 0.65
 
 
 def GetRecords(aoa_dbm, core_rank):

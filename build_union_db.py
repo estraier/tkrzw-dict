@@ -69,7 +69,7 @@ verb_suffixes = [
 ]
 adjective_suffixes = [
   "some", "able", "ible", "ic", "ical", "ive", "ful", "less", "ly", "ous", "y",
-  "ised", "ing", "ed", "ish",
+  "ised", "ing", "ed", "ish", "al",
 ]
 adverb_suffixes = [
   "ly",
@@ -280,8 +280,10 @@ class BuildUnionDBBatch:
         keys.add(key)
 
     # hoge
-    #keys = set(["aerial", "aerially", "sublate", "negate", ""])
-        
+    #keys = set(["sublate", "negate", "deny", "aerial", "aerially", "heat", "thermic", "thermal", "caloric", "ahriman", "eye md", "ophthalmologist",
+    #            "yellow", "yellowed", "mimically", "imitative", "aberrational", "aberration", "repressional", "repression", "heat", "thermic", "thermal", "caloric",
+    #            "papal", "papally", "uxorial", "uxorially"])
+
     logger.info("Extracting keys done: num_keys={}, elapsed_time={:.2f}s".format(
       len(keys), time.time() - start_time))
     start_time = time.time()
@@ -424,7 +426,6 @@ class BuildUnionDBBatch:
         rev_word = " ".join(reversed(word.split(" ")))
         rev_live_words.Set(rev_word, value).OrDie()
     num_entries = 0
-    first_trans = {}
     for key, merged_entry in merged_entries:
       for word_entry in merged_entry:
         word = word_entry["word"]
@@ -436,7 +437,7 @@ class BuildUnionDBBatch:
             if entry["word"] == word:
               entries.append((label, entry))
         self.SetAOA(word_entry, entries, aoa_words, live_words, phrase_prob_dbm)
-        self.SetTranslations(word_entry, aux_trans, tran_prob_dbm, rev_prob_dbm, first_trans)
+        self.SetTranslations(word_entry, aux_trans, tran_prob_dbm, rev_prob_dbm)
         self.SetRelations(word_entry, entries, word_dicts, live_words, rev_live_words,
                           phrase_prob_dbm, tran_prob_dbm, cooc_prob_dbm)
         if phrase_prob_dbm and cooc_prob_dbm:
@@ -446,10 +447,13 @@ class BuildUnionDBBatch:
         logger.info("Modifying entries: num_records={}".format(num_entries))
     logger.info("Modifying entries done: elapsed_time={:.2f}s".format(time.time() - start_time))
     logger.info("Finishing entries")
+    merged_dict = {}
+    for key, merged_entry in merged_entries:
+      merged_dict[key] = merged_entry
     num_entries = 0
     for key, merged_entry in merged_entries:
       for word_entry in merged_entry:
-        self.BorrowTranslations(word_entry, first_trans, tran_prob_dbm)
+        self.PropagateTranslations(word_entry, merged_dict, tran_prob_dbm)
       num_entries += 1
       if num_entries % 1000 == 0:
         logger.info("Finishing entries: num_records={}".format(num_entries))
@@ -536,6 +540,7 @@ class BuildUnionDBBatch:
     word_trans = collections.defaultdict(set)
     entry_tran_texts = collections.defaultdict(list)
     num_words = 0
+    poses = set()
     for label, word_dict in word_dicts:
       dict_entries = word_dict.get(key)
       if not dict_entries: continue
@@ -549,6 +554,7 @@ class BuildUnionDBBatch:
         if texts:
           text_score = len(texts) * 1.0
           for pos, text in texts:
+            poses.add(pos)
             trans = self.ExtractTextLabelTrans(text)
             if trans:
               text_score += 0.5
@@ -601,7 +607,7 @@ class BuildUnionDBBatch:
                 prob *= 0.1
               if not regex.search(r"[\p{Han}\{Hiragana}]", trg):
                 prob *= 0.5
-                if regex.match(r"[A-Z]", src):
+                if regex.search(r"\p{Lu}", src):
                   prob *= 0.5
               if trg in cap_trans:
                 max_prob = max(max_prob, prob)
@@ -621,6 +627,24 @@ class BuildUnionDBBatch:
       effective_labels = set()
       surfaces = set([word.lower()])
       is_keyword = word in aux_trans or word in aoa_words or word in keywords
+      for pos in poses:
+        for rule_pos, suffixes in (
+            ("noun", noun_suffixes),
+            ("verb", verb_suffixes),
+            ("adjective", adjective_suffixes),
+            ("adverb", adverb_suffixes)):
+          if pos == rule_pos:
+            for suffix in suffixes:
+              if word.endswith(suffix):
+                pos_stem = word[:-len(suffix)]
+                if len(pos_stem) >= 4:
+                  pos_stems = set()
+                  pos_stems.add(pos_stem)
+                  pos_stems.add(regex.sub(r"i$", r"y", pos_stem))
+                  for pos_stem in pos_stems:
+                    if pos_stem in aux_trans or pos_stem in aoa_words or pos_stem in keywords:
+                      is_keyword = True
+                      break
       is_super_keyword = is_keyword and bool(regex.fullmatch(r"\p{Latin}{3,}", word))
       for label, entry in entries:
         if label not in self.surfeit_labels or is_keyword:
@@ -704,7 +728,7 @@ class BuildUnionDBBatch:
                     min_prob *= 0.1
                   if is_super_keyword:
                     norm_text = tkrzw_dict.NormalizeWord(item["text"])
-                    norm_text = regex.sub(r"^to ", "", norm_text)
+                    norm_text = regex.sub(r"^(to|a|an|the) +([\p{Latin}])", r"\2", norm_text)
                     dist = tkrzw.Utility.EditDistanceLev(key, norm_text)
                     dist /= max(len(key), len(norm_text))
                     if dist > 0.5:
@@ -829,12 +853,13 @@ class BuildUnionDBBatch:
         tran = tran.strip()
         tran = regex.sub(r"[\p{S}\p{P}]+ *(が|の|を|に|へ|と|より|から|で|や)", "", tran)
         tran = regex.sub(r"[～\p{S}\p{P}]", " ", tran)
+        tran = regex.sub(r" +(?=[\p{Han}\p{Hiragana}\p{Katakana}ー])", "", tran)
         tran = regex.sub(r"[\s]+", " ", tran).strip()
         if tran:
           trans.append(tran)
     return trans
 
-  def SetTranslations(self, entry, aux_trans, tran_prob_dbm, rev_prob_dbm, first_trans):
+  def SetTranslations(self, entry, aux_trans, tran_prob_dbm, rev_prob_dbm):
     word = entry["word"]
     tran_probs = {}
     if tran_prob_dbm:
@@ -982,6 +1007,7 @@ class BuildUnionDBBatch:
     poses = set()
     for item in entry["item"]:
       poses.add(item["pos"])
+    pure_noun = len(poses) == 1 and "noun" in poses
     pure_verb = len(poses) == 1 and "verb" in poses
     pure_adjective = len(poses) == 1 and "adjective" in poses
     pure_adverb = len(poses) == 1 and "adverb" in poses
@@ -1049,12 +1075,14 @@ class BuildUnionDBBatch:
         final_translations.append(tran)
     sorted_aux_trans = sorted(count_aux_trans.items(), key=lambda x: -x[1])
     for aux_tran, count in sorted_aux_trans:
-      if pure_verb and self.tokenizer.IsJaWordSahenNoun(aux_tran):
-        aux_tran += "する"
-      if pure_adjective and self.tokenizer.IsJaWordAdjvNoun(aux_tran):
-        aux_tran += "な"
-      if pure_adverb and self.tokenizer.IsJaWordAdjvNoun(aux_tran):
-        aux_tran += "に"
+      if pure_noun:
+        aux_tran = self.MakeTranNoun(aux_tran)
+      if pure_verb:
+        aux_tran = self.MakeTranVerb(aux_tran)
+      if pure_adjective:
+        aux_tran = self.MakeTranAdjective(aux_tran)
+      if pure_adverb:
+        aux_tran = self.MakeTranAdverb(aux_tran)
       if len(final_translations) >= max_elems: break
       norm_tran = tkrzw_dict.NormalizeWord(aux_tran)
       if norm_tran in uniq_trans:
@@ -1063,7 +1091,6 @@ class BuildUnionDBBatch:
       final_translations.append(aux_tran)
     if final_translations:
       entry["translation"] = final_translations
-      first_trans[word] = final_translations[:4]
 
   def SetRelations(self, word_entry, entries, word_dicts, live_words, rev_live_words,
                    phrase_prob_dbm, tran_prob_dbm, cooc_prob_dbm):
@@ -1322,14 +1349,48 @@ class BuildUnionDBBatch:
     if final_cooc_words:
       word_entry["cooccurrence"] = final_cooc_words
 
-  def BorrowTranslations(self, entry, first_trans, tran_prob_dbm):
+  def GetEntryTranslations(self, merged_dict, word, is_capital, best_pos):
+    key = tkrzw_dict.NormalizeWord(word)
+    entry = merged_dict.get(key)
+    if not entry: return None
+    scored_trans = []
+    word_score = 1.0
+    for word_entry in entry:
+      cmp_word = word_entry["word"]
+      if bool(regex.search(r"\p{Lu}", cmp_word)) != is_capital:
+        continue
+      item_score = 1.0
+      for item in word_entry["item"]:
+        pos = item["pos"]
+        text = item["text"]
+        trans = self.ExtractTextLabelTrans(text)
+        if trans:
+          score = word_score * item_score
+          if pos == best_pos:
+            score *= 2.0
+          for tran in trans:
+            scored_trans.append((tran, score))
+            score *= 0.9
+          item_score *= 0.9
+      trans = word_entry.get("translation")
+      if trans:
+        score = word_score * item_score
+        for tran in trans:
+          scored_trans.append((tran, score))
+          score *= 0.9
+      word_score *= 0.5
+    scored_trans = sorted(scored_trans, key=lambda x: x[1], reverse=True)
+    return [x[0] for x in scored_trans]
+
+  def PropagateTranslations(self, entry, merged_dict, tran_prob_dbm):
     old_trans = entry.get("translation") or []
-    if len(old_trans) >= 2: return
+    if len(old_trans) >= 3: return
     word = entry["word"]
+    is_capital = bool(regex.search(r"\p{Lu}", word))
     if len(word) <= 2: return
-    is_capital = bool(regex.search("\p{Lu}", word))
-    trans = []
     uniq_labels = set()
+    top_exprs = []
+    synonyms = []
     for item in entry["item"]:
       label = item["label"]
       pos = item["pos"]
@@ -1337,128 +1398,176 @@ class BuildUnionDBBatch:
       if label in uniq_labels: continue
       uniq_labels.add(label)
       text = item["text"]
+      for field in text.split(" [-] "):
+        if not field.startswith("[synonym]: "): continue
+        field = regex.sub(r"^[^:]+: ", "", field)
+        field = regex.sub(r"\(.*?\) *", "", field)
+        for synonym in field.split(","):
+          synonym = synonym.strip()
+          if synonym:
+            synonyms.append((synonym, pos))
       text = regex.sub(r" \[-+\] .*", "", text)
       text = regex.sub(r"\(.*?\)", "", text)
-      text = regex.sub(r";.*", "", text)
-      text = regex.sub(r"\.$", "", text).strip()
-      if pos == "verb":
-        text = regex.sub(r"^to ", "", text, flags=regex.IGNORECASE)
-      text = regex.sub(r"^([\p{Latin}]{4,}), *[\p{Latin}]+,? (or +)?[\p{Latin}]+$", r"\1", text)
-      text = regex.sub(r"^([\p{Latin}]{4,}) +or +[\p{Latin}]+$", r"\1", text)
-      text = regex.sub(r"^(a|an) ([\p{Latin}]{4,})", r"\2", text)
-      text = text.strip()
-      manner_match = regex.match(r"^in +(a|an|the) +([-\p{Latin}]+?) manner", text, regex.IGNORECASE)
-      relate_match = regex.match(r"^of (or relating to |or related to )?([\p{Latin}].*)", text, regex.IGNORECASE)
+      text = regex.sub(r"\.$", "", text)
+      text = regex.sub(r"([-\p{Latin}\d]{5,})\.", r"\1;", text)
+      for expr in text.split(";"):
+        expr = expr.strip()
+        if pos == "verb":
+          expr = regex.sub(r"^to +([\p{Latin}])", r"\1", expr, flags=regex.IGNORECASE)
+        elif pos == "noun":
+          expr = regex.sub(r"^(a|an|the) +([\p{Latin}])", r"\2", expr, flags=regex.IGNORECASE)
+        if expr:
+          top_exprs.append((expr, pos))
+    top_words = []
+    for expr, pos in top_exprs:
+      manner_match = regex.search(r"^in +([-\p{Latin}].*?) +(manner|fashion)$", expr, regex.IGNORECASE)
+      preps = ["of", "in", "at", "from", "by", "part of", "out of", "inside",
+               "relating to", "related to", "associated with",
+               "characterized by", "pertaining to", "derived from"]
+      prep_expr = None
+      for prep in preps:
+        if len(expr) > len(prep):
+          if expr[:len(prep)].lower() == prep:
+            expr_lead = expr[len(prep):]
+            joint_match = regex.match(r"^,?( +or)? +", expr_lead)
+            if joint_match:
+              expr = expr_lead[joint_match.end():]
+              prep_expr = expr
       if manner_match:
-        text = manner_match.group(2).strip()
-        text = regex.sub(r" and .*", "", text)
-        if is_capital:
-          tmp_trans = first_trans.get(text) or first_trans.get(text.lower())
-        else:
-          tmp_trans = first_trans.get(text.lower()) or first_trans.get(text)
-        if tmp_trans:
-          for tmp_tran in tmp_trans:
-            tmp_tran = self.MakeTranAdverb(tmp_tran)
-            trans.append(tmp_tran)
-
-          # hoge
-          print("MAN", word, label, text, trans, flush=True)
-      elif relate_match:
-        text = relate_match.group(2).strip()
-        text = regex.sub(r" and .*", "", text)
-        if is_capital:
-          tmp_trans = first_trans.get(text) or first_trans.get(text.lower())
-        else:
-          tmp_trans = first_trans.get(text.lower()) or first_trans.get(text)
-        if tmp_trans:
-          for tmp_tran in tmp_trans:
-            tmp_tran = self.MakeTranAdjective(tmp_tran)
-            trans.append(tmp_tran)
-
-          # hoge
-          print("REL", word, label, text, trans, flush=True)
+        expr = manner_match.group(1).strip()
+        expr = regex.sub(r"^(a|an|the) +", "", expr, flags=regex.IGNORECASE)
+        if expr:
+          top_words.append((expr, "adjective", "adverb", True))
+      elif prep_expr:
+        expr = regex.sub(r"^(a|an|the) +([\p{Latin}])", r"\2", prep_expr, flags=regex.IGNORECASE)
+        if expr:
+          top_words.append((expr, "noun", "adjective", True))
       else:
-        if is_capital:
-          tmp_trans = first_trans.get(text) or first_trans.get(text.lower())
+        expr = expr.strip()
+        if expr:
+          top_words.append((expr, pos, "", True))
+    for synonym, pos in synonyms:
+      top_words.append((synonym, pos, "", False))
+    trans = []
+    for expr, pos, conversion, trustable in top_words:
+      expr = regex.sub(r"^([-\p{Latin}]+), ([-\p{Latin}]+),? +or +([-\p{Latin}]+)$", r"\1; \2; \3", expr)
+      expr = regex.sub(r"^([-\p{Latin}]+) +or +([-\p{Latin}]+)$", r"\1; \2", expr)
+      expr = regex.sub(r"^([-\p{Latin}]+), +([-\p{Latin}]+)$", r"\1; \2", expr)
+      for rel_word in expr.split(";"):
+        rel_word = rel_word.strip()
+        if len(rel_word) <= 2: continue
+        word_trans = self.GetEntryTranslations(merged_dict, rel_word, is_capital, pos)
+        if not word_trans: continue
+        new_pos = conversion or pos
+        if new_pos == "noun":
+          word_trans = [self.MakeTranNoun(x) for x in word_trans]
+          print("NOUN", word, rel_word, word_trans[:5], flush=True)
+        elif new_pos == "verb":
+          word_trans = [self.MakeTranVerb(x) for x in word_trans]
+          print("VERB", word, rel_word, word_trans[:5], flush=True)
+        elif new_pos == "adjective":
+          word_trans = [self.MakeTranAdjective(x) for x in word_trans]
+          print("ADV", word, rel_word, word_trans[:5], flush=True)
+        elif new_pos == "adverb":
+          word_trans = [self.MakeTranAdverb(x) for x in word_trans]
+          print("ADJ", word, rel_word, word_trans[:5], flush=True)
         else:
-          tmp_trans = first_trans.get(text.lower()) or first_trans.get(text)
-        if tmp_trans:
-          trans.extend(tmp_trans)
-
-          # hoge
-          print("STD", word, label, text, trans, flush=True)
+          print("MISC", pos, word, rel_word, word_trans[:5], flush=True)
+        for word_tran in word_trans:
+          trans.append((word_tran, trustable, rel_word))
     if trans:
-
-      prob_trans = set()
+      prob_trans = {}
       key = tkrzw_dict.NormalizeWord(word)
       tsv = tran_prob_dbm.GetStr(key)
       if tsv:
         fields = tsv.split("\t")
         for i in range(0, len(fields), 3):
           src, trg, prob = fields[i], fields[i + 1], float(fields[i + 2])
-          prob_trans.add(tkrzw_dict.NormalizeWord(trg))
-
+          norm_trg = tkrzw_dict.NormalizeWord(trg)
+          prob = float(prob)
+          if src != word:
+            prob *= 0.1
+          prob_trans[norm_trg] = max(prob_trans.get(norm_trg) or 0.0, prob)
       scored_trans = []
-      for tran in trans:
+      rel_word_counts = {}
+      for tran, trustable, rel_word in trans:
         norm_tran = tkrzw_dict.NormalizeWord(tran)
-        score = 0
-        for prob_tran in prob_trans:
+        max_weight = 0
+        prob_hit = False
+        for prob_tran, prob in prob_trans.items():
+          prob **= 0.25
+          dist = tkrzw.Utility.EditDistanceLev(norm_tran, prob_tran)
+          dist /= max(len(norm_tran), len(prob_tran))
+          weight = prob ** 0.5 + 2.0 - dist
           if norm_tran == prob_tran:
-            score = max(score, 10)
+            weight *= 10
+            prob_hit = True
           elif len(prob_tran) >= 2 and norm_tran.startswith(prob_tran):
-            score = max(score, 5)
+            weight *= 5
+            prob_hit = True
           elif len(norm_tran) >= 2 and prob_tran.startswith(norm_tran):
-            score = max(score, 5)
+            weight *= 5
+            prob_hit = True
           elif len(prob_tran) >= 2 and norm_tran.find(prob_tran) >= 0:
-            score = max(score, 3)
+            weight *= 3
+            prob_hit = True
           elif len(norm_tran) >= 2 and prob_tran.find(norm_tran) >= 0:
-            score = max(score, 3)
-          else:
-            dist = tkrzw.Utility.EditDistanceLev(norm_tran, prob_tran)
-            dist /= max(len(norm_tran), len(prob_tran))
-            if dist < 0.3:
-              score = max(score, 2)
-        scored_trans.append((tran, score))
+            weight *= 3
+            prob_hit = True
+          elif dist < 0.3:
+            weight *= 2
+            prob_hit = True
+          max_weight = max(max_weight, weight)
+        if not trustable and not prob_hit:
+          continue
+        rel_word_count = rel_word_counts.get(rel_word) or 0
+        base_score = 0.95 ** rel_word_count
+        score = base_score * max_weight
+        scored_trans.append((tran, score, prob_hit))
+        rel_word_counts[rel_word] = rel_word_count + 1
       scored_trans = sorted(scored_trans, key=lambda x: x[1], reverse=True)
-
-      print(scored_trans)
-      
+      print("SCORED", word, scored_trans[:5])
       final_trans = []
       uniq_trans = set()
       for tran in old_trans:
         norm_tran = tkrzw_dict.NormalizeWord(tran)
         uniq_trans.add(norm_tran)
         final_trans.append(tran)
-      for tran, score in scored_trans:
+      num_rank = 0
+      for tran, score, prob_hit in scored_trans:
+        if len(final_trans) >= 3: break
         norm_tran = tkrzw_dict.NormalizeWord(tran)
         if norm_tran in uniq_trans: continue
+        num_rank += 1
+        if not prob_hit:
+          if num_rank > 3: continue
+          if num_rank > 2 and len(final_trans) >= 2: continue
         uniq_trans.add(norm_tran)
         final_trans.append(tran)
       entry["translation"] = final_trans[:2]
 
-  def MakeTranAdverb(self, tran):
+  def MakeTranNoun(self, tran):
     pos = self.tokenizer.GetJaLastPos(tran)
     stem = self.tokenizer.CutJaWordNounParticle(tran)
     if tran.endswith("する"):
-      tran = tran[:-2] + "して"
+      tran = tran[:-2]
     elif tran.endswith("される"):
-      tran = tran[:-3] + "されて"
+      tran = tran[:-3]
     elif tran.endswith("された"):
-      tran = tran[:-3] + "されて"
+      tran = tran[:-3]
     elif tran.endswith("ような"):
-      tran = tran[:-3] + "ように"
-    elif tran.endswith("い") and pos[1] == "形容詞":
-      tran = tran[:-1] + "く"
-    elif self.tokenizer.IsJaWordSahenNoun(stem):
-      tran = stem + "して"
+      tran = tran[:-3]
     elif self.tokenizer.IsJaWordAdjvNoun(stem):
-      tran = stem + "に"
-    elif stem != tran or pos[1] == "名詞":
-      tran = stem + "で"
-    elif pos[0] == "た" and pos[1] == "助動詞":
-      tran = tran[:-1] + "て"
-    elif not stem.endswith("て") and not stem.endswith("で"):
-      tran = stem + "ように"
+      tran = stem
+    elif tran.endswith("い") and pos[1] == "形容詞":
+      tran = tran[:-1] + "さ"
+    elif pos[1] in ("形容詞", "動詞"):
+      tran = tran + "こと"
+    return tran
+
+  def MakeTranVerb(self, tran):
+    if self.tokenizer.IsJaWordSahenNoun(tran):
+      tran = tran + "する"
     return tran
 
   def MakeTranAdjective(self, tran):
@@ -1472,16 +1581,45 @@ class BuildUnionDBBatch:
       tran = tran[:-3]
     elif tran.endswith("ような"):
       tran = tran[:-3]
-    elif tran.endswith("い") and pos[1] == "形容詞":
-      tran = tran[:-1] + "さ"
     elif self.tokenizer.IsJaWordAdjvNoun(stem):
       tran = stem
     pos = self.tokenizer.GetJaLastPos(tran)
     if pos[1] == "名詞":
       tran += "の"
+    elif pos[1] == "動詞":
+      tran = stem + "ような"
     return tran
 
-  
+  def MakeTranAdverb(self, tran):
+    pos = self.tokenizer.GetJaLastPos(tran)
+    stem = self.tokenizer.CutJaWordNounParticle(tran)
+    if tran.endswith("する"):
+      tran = tran[:-2] + "して"
+    elif tran.endswith("される"):
+      tran = tran[:-3] + "されて"
+    elif tran.endswith("された"):
+      tran = tran[:-3] + "されて"
+    elif tran.endswith("ような"):
+      tran = tran[:-3] + "ように"
+    elif tran.endswith("らしい"):
+      tran = tran[:-3] + "らしく"
+    elif tran.endswith("とした"):
+      tran = tran[:-3] + "として"
+    elif tran.endswith("い") and pos[1] == "形容詞":
+      tran = tran[:-1] + "く"
+    elif self.tokenizer.IsJaWordSahenNoun(stem):
+      tran = stem + "して"
+    elif self.tokenizer.IsJaWordAdjvNoun(stem):
+      tran = stem + "に"
+    elif stem != tran or pos[1] == "名詞":
+      tran = stem + "で"
+    elif pos[0] == "た" and pos[1] == "助動詞":
+      tran = tran[:-1] + "て"
+    elif pos[1] == "動詞":
+      tran = stem + "ように"
+    return tran
+
+
 def main():
   args = sys.argv[1:]
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-body.tkh"

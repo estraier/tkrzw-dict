@@ -340,7 +340,7 @@ class UnionSearcher:
         if first_only:
           break
     return result
-  
+
   infl_names = (
     "noun_plural", "verb_singular", "verb_present_participle",
     "verb_past", "verb_past_participle",
@@ -471,7 +471,7 @@ class UnionSearcher:
               label_score = len(labels) + 1
               children = entry.get("child")
               child_score = math.log2((len(children) if children else 0) + 4)
-              width_score = 200 ** word.count(" ")
+              width_score = (200 if "translation" in entry else 10) ** word.count(" ")
               match_score = 1.0 if match else 0.2
               score = var_score * prob_score * aoa_score * tran_score * item_score * label_score * child_score * match_score * width_score
               #print("{}: s={:.6f}, p={:.6f}, a={:.6f}, t={:.6f}, i={:.6f}, l={:.6f}, c={:.6f}, w={:d}".format(
@@ -509,12 +509,8 @@ def ConvertHTMLToText(text):
                    "[_LF_]", text, flags=regex.IGNORECASE)
   text = regex.sub(r"</(h\d|p|div|br|li|dt|dd|tr)>",
                    "[_LF_]", text, flags=regex.IGNORECASE)
-
   text = regex.sub(r"<(th|td)(>|\s[^>]*?>)",
                    " ", text, flags=regex.IGNORECASE)
-
-
-  
   text = regex.sub(r"<[^>]*?>", "", text)
   text = html.unescape(text)
   lines = []

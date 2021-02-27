@@ -125,7 +125,7 @@ class ExtractTransBatch:
     if outputs:
       print("{}\t{}\t{}".format(source, source_count, "\t".join(outputs)), flush=True)
 
-      
+
 def main():
   args = sys.argv[1:]
   data_prefix = tkrzw_dict.GetCommandFlag(args, "--data_prefix", 1) or "result-para"

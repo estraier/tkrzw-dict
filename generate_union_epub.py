@@ -303,7 +303,7 @@ class GenerateUnionEPUBBatch:
     logger.info("Creating: {}".format(out_path))
     with open(out_path, "w") as out_file:
       print("application/epub+zip", file=out_file, end="")
-    
+
   def MakeContainer(self, meta_dir_path):
     out_path = os.path.join(meta_dir_path, "container.xml")
     logger.info("Creating: {}".format(out_path))

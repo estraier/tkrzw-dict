@@ -199,7 +199,6 @@ class XMLHandler(xml.sax.handler.ContentHandler):
             rel_words.append(rel_word)
           for rel_word in regex.findall(r"\[\[([- \p{Latin}]+?)\]\]", line):
             rel_words.append(rel_word)
-
         if mode == "etymology":
           match = regex.search(r"\{\{([a-z]+)\|en\|(.*?)\}\}", line)
           if match and not etym_core and not etym_prefix and not etym_suffix:
@@ -264,7 +263,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
       if regex.search(r"\{\{en-noun\|?([^\}]*)\}\}", line):
         if "noun" in infl_modes: continue
         infl_modes.add("noun")
-        value = regex.sub(r".*\{\{en-noun\|?([^\}]*)\}\}.*", r"\1", line).strip()
+        value = regex.sub(r".*\{\{en-noun[a-z]*\|?([^\}]*)\}\}.*", r"\1", line).strip()
         value = regex.sub(r"\[\[:en:#[^\]]*?\|(.*?)\]\]", r"\1", value)
         values = value.split("|") if value else []
         values = self.TrimInflections(values)
@@ -304,7 +303,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
       if regex.search(r"\{\{en-verb\|?([^\}]*)\}\}", line):
         if "verb" in infl_modes: continue
         infl_modes.add("verb")
-        value = regex.sub(r".*\{\{en-verb\|?([^\}]*)\}\}.*", r"\1", line).strip()
+        value = regex.sub(r".*\{\{en-verb[a-z]*\|?([^\}]*)\}\}.*", r"\1", line).strip()
         value = regex.sub(r"\[\[:en:#[^\]]*?\|(.*?)\]\]", r"\1", value)
         values = value.split("|") if value else []
         values = self.TrimInflections(values)
@@ -394,7 +393,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
       if regex.search(r"\{\{en-adj\|?([^\}]*)\}\}", line):
         if "adjective" in infl_modes: continue
         infl_modes.add("adjective")
-        value = regex.sub(r".*\{\{en-adj\|?([^\}]*)\}\}.*", r"\1", line).strip()
+        value = regex.sub(r".*\{\{en-adj[a-z]*\|?([^\}]*)\}\}.*", r"\1", line).strip()
         value = regex.sub(r"\[\[:en:#[^\]]*?\|(.*?)\]\]", r"\1", value)
         values = value.split("|") if value else []
         values = self.TrimInflections(values)
@@ -435,6 +434,9 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           elif len(values) == 2 and values[0] == "er" and values[1] == "more":
             adjective_comparative = stem + "er"
             adjective_superative = stem + "est"
+          elif len(values) == 2 and values[0] == "more" and values[1] != "most":
+            adjective_comparative = values[1]
+            adjective_superative = regex.sub("er$", "est", values[1])
           elif len(values) == 2:
             adjective_comparative = values[0]
             adjective_superative = values[1]
@@ -442,10 +444,16 @@ class XMLHandler(xml.sax.handler.ContentHandler):
             adjective_comparative = ""
           if adjective_superative == "-":
             adjective_superative = ""
+          if adjective_superative == "more":
+            adjective_superative = regex.sub("er$", "est", adjective_comparative)
+          if adjective_comparative and adjective_comparative.startswith("more "):
+            adjective_comparative = ""
+          if adjective_superative and adjective_superative.startswith("most "):
+            adjective_superative = ""
       if regex.search(r"\{\{en-adv\|?([^\}]*)\}\}", line):
         if "adverb" in infl_modes: continue
         infl_modes.add("adverb")
-        value = regex.sub(r".*\{\{en-adv\|?([^\}]*)\}\}.*", r"\1", line).strip()
+        value = regex.sub(r".*\{\{en-adv[a-z]*\|?([^\}]*)\}\}.*", r"\1", line).strip()
         value = regex.sub(r"\[\[:en:#[^\]]*?\|(.*?)\]\]", r"\1", value)
         values = value.split("|") if value else []
         values = self.TrimInflections(values)
@@ -486,12 +494,21 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           elif len(values) == 2 and values[0] == "er" and values[1] == "more":
             adverb_comparative = stem + "er"
             adverb_superative = stem + "est"
+          elif len(values) == 2 and values[0] == "more" and values[1] != "most":
+            adverb_comparative = values[1]
+            adverb_superative = regex.sub("er$", "est", values[1])
           elif len(values) == 2:
             adverb_comparative = values[0]
             adverb_superative = values[1]
           if adverb_comparative == "-":
             adverb_comparative = ""
           if adverb_superative == "-":
+            adverb_superative = ""
+          if adverb_superative == "more":
+            adverb_superative = regex.sub("er$", "est", adverb_comparative)
+          if adverb_comparative and adverb_comparative.startswith("more "):
+            adverb_comparative = ""
+          if adverb_superative and adverb_superative.startswith("most "):
             adverb_superative = ""
     ipa = ipa_us or ipa_misc
     if ipa and ipa not in ("...", "?"):

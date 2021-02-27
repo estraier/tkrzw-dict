@@ -187,11 +187,6 @@ class AppendWordnetJPNBatch:
       key, serialized = record
       entry = json.loads(serialized)
       items = entry["item"]
-      has_trans = False
-      for item in items:
-        if item["synset"] in wnjpn_trans:
-          has_trans = True
-          break
       spell_ratios = {}
       for item in items:
         word = item["word"]
@@ -220,16 +215,25 @@ class AppendWordnetJPNBatch:
         similar_ids = links.get("similar") or []
         derivative_ids = links.get("derivative") or []
         item_tran_pairs = wnjpn_trans.get(synset) or []
+        item_aux_trans = aux_trans.get(word) or []
+        item_aux_trans.extend(subaux_trans.get(word) or [])
+        self.NormalizeTranslationList(tokenizer, pos, item_aux_trans)
         item_trans = []
         hand_trans = set()
         for tran, src in item_tran_pairs:
+          if src == "mono":
+            hit = False
+            for item_aux_tran in item_aux_trans:
+              dist = tkrzw.Utility.EditDistanceLev(tran, item_aux_tran)
+              dist_ratio = dist / max(len(tran), len(item_aux_tran))
+              if dist < 0.3:
+                hit = True
+            if not hit:
+              continue
           item_trans.append(tran)
           if src == "hand":
             hand_trans.add(tran)
         self.NormalizeTranslationList(tokenizer, pos, item_trans)
-        item_aux_trans = aux_trans.get(word) or []
-        item_aux_trans.extend(subaux_trans.get(word) or [])
-        self.NormalizeTranslationList(tokenizer, pos, item_aux_trans)
         num_items += 1
         bare = not item_trans
         if bare:
@@ -294,7 +298,7 @@ class AppendWordnetJPNBatch:
                     continue
                   voted_rel_records.add(voted_record)
                   tran_counts[rel_aux_tran] += 1
-        if not has_trans:
+        if bare:
           for deri_tran, count in derivative_tran_counts.items():
             syno_tran_counts[deri_tran] = syno_tran_counts[deri_tran] + count
           derivative_tran_counts.clear()
@@ -304,7 +308,7 @@ class AppendWordnetJPNBatch:
           if syno_tran in hypo_tran_counts: count += 1
           if syno_tran in similar_tran_counts: count += 1
           if syno_tran in derivative_tran_counts: count += 1
-          if not has_trans and syno_tran in aux_trans_set: count += 1
+          if bare and syno_tran in aux_trans_set: count += 1
           if count >= 3 and syno_tran not in item_trans:
             valid_pos = self.IsValidPosTran(tokenizer, pos, syno_tran)
             if valid_pos and syno_tran not in item_trans:
