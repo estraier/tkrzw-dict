@@ -278,12 +278,6 @@ class BuildUnionDBBatch:
       for key in word_dict.keys():
         if key.find("\t") >= 0: continue
         keys.add(key)
-
-    # hoge
-    #keys = set(["sublate", "negate", "deny", "aerial", "aerially", "heat", "thermic", "thermal", "caloric", "ahriman", "eye md", "ophthalmologist",
-    #            "yellow", "yellowed", "mimically", "imitative", "aberrational", "aberration", "repressional", "repression", "heat", "thermic", "thermal", "caloric",
-    #            "papal", "papally", "uxorial", "uxorially"])
-
     logger.info("Extracting keys done: num_keys={}, elapsed_time={:.2f}s".format(
       len(keys), time.time() - start_time))
     start_time = time.time()
@@ -1461,18 +1455,12 @@ class BuildUnionDBBatch:
         new_pos = conversion or pos
         if new_pos == "noun":
           word_trans = [self.MakeTranNoun(x) for x in word_trans]
-          print("NOUN", word, rel_word, word_trans[:5], flush=True)
         elif new_pos == "verb":
           word_trans = [self.MakeTranVerb(x) for x in word_trans]
-          print("VERB", word, rel_word, word_trans[:5], flush=True)
         elif new_pos == "adjective":
           word_trans = [self.MakeTranAdjective(x) for x in word_trans]
-          print("ADV", word, rel_word, word_trans[:5], flush=True)
         elif new_pos == "adverb":
           word_trans = [self.MakeTranAdverb(x) for x in word_trans]
-          print("ADJ", word, rel_word, word_trans[:5], flush=True)
-        else:
-          print("MISC", pos, word, rel_word, word_trans[:5], flush=True)
         for word_tran in word_trans:
           trans.append((word_tran, trustable, rel_word))
     if trans:
@@ -1526,7 +1514,6 @@ class BuildUnionDBBatch:
         scored_trans.append((tran, score, prob_hit))
         rel_word_counts[rel_word] = rel_word_count + 1
       scored_trans = sorted(scored_trans, key=lambda x: x[1], reverse=True)
-      print("SCORED", word, scored_trans[:5])
       final_trans = []
       uniq_trans = set()
       for tran in old_trans:

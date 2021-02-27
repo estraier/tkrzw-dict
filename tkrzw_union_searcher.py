@@ -474,8 +474,6 @@ class UnionSearcher:
               width_score = (200 if "translation" in entry else 10) ** word.count(" ")
               match_score = 1.0 if match else 0.2
               score = var_score * prob_score * aoa_score * tran_score * item_score * label_score * child_score * match_score * width_score
-              #print("{}: s={:.6f}, p={:.6f}, a={:.6f}, t={:.6f}, i={:.6f}, l={:.6f}, c={:.6f}, w={:d}".format(
-              #  word, score, prob_score, aoa_score, tran_score, item_score, label_score, child_score, width_score))
               annots.append((entry, score))
         elif index == start_index:
           break
@@ -484,7 +482,6 @@ class UnionSearcher:
         if len(tokens) > 3:
           break
       annots = sorted(annots, key=lambda x: x[1], reverse=True)
-      #print([(x[0]["word"], x[1]) for x in annots])
       annots = [x[0] for x in annots]
       out_spans.append((span, True, annots or None))
       sent_head = span.find("\n") >= 0 or bool(regex.search(r"[.!?;:]", span))
