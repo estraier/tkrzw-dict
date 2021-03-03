@@ -573,7 +573,10 @@ class BuildUnionDBBatch:
         word_probs = {}
         for word, share in sorted_word_shares:
           if word in word_probs: continue
-          word_probs[word] = self.GetPhraseProb(phrase_prob_dbm, "en", word)
+          prob = self.GetPhraseProb(phrase_prob_dbm, "en", word)
+          if not regex.search(r"\p{Lu}", word):
+            prob *= 1.1
+          word_probs[word] = prob
         sum_prob = sum([x[1] for x in word_probs.items()])
         for word, prob in word_probs.items():
           spell_ratios[word] = prob / sum_prob
@@ -1463,75 +1466,81 @@ class BuildUnionDBBatch:
           word_trans = [self.MakeTranAdverb(x) for x in word_trans]
         for word_tran in word_trans:
           trans.append((word_tran, trustable, rel_word))
-    if trans:
-      prob_trans = {}
-      key = tkrzw_dict.NormalizeWord(word)
-      tsv = tran_prob_dbm.GetStr(key)
-      if tsv:
-        fields = tsv.split("\t")
-        for i in range(0, len(fields), 3):
-          src, trg, prob = fields[i], fields[i + 1], float(fields[i + 2])
-          norm_trg = tkrzw_dict.NormalizeWord(trg)
-          prob = float(prob)
-          if src != word:
-            prob *= 0.1
-          prob_trans[norm_trg] = max(prob_trans.get(norm_trg) or 0.0, prob)
-      scored_trans = []
-      rel_word_counts = {}
-      for tran, trustable, rel_word in trans:
-        norm_tran = tkrzw_dict.NormalizeWord(tran)
-        max_weight = 0
-        prob_hit = False
-        for prob_tran, prob in prob_trans.items():
-          prob **= 0.25
-          dist = tkrzw.Utility.EditDistanceLev(norm_tran, prob_tran)
-          dist /= max(len(norm_tran), len(prob_tran))
-          weight = prob ** 0.5 + 2.0 - dist
-          if norm_tran == prob_tran:
-            weight *= 10
-            prob_hit = True
-          elif len(prob_tran) >= 2 and norm_tran.startswith(prob_tran):
-            weight *= 5
-            prob_hit = True
-          elif len(norm_tran) >= 2 and prob_tran.startswith(norm_tran):
-            weight *= 5
-            prob_hit = True
-          elif len(prob_tran) >= 2 and norm_tran.find(prob_tran) >= 0:
-            weight *= 3
-            prob_hit = True
-          elif len(norm_tran) >= 2 and prob_tran.find(norm_tran) >= 0:
-            weight *= 3
-            prob_hit = True
-          elif dist < 0.3:
-            weight *= 2
-            prob_hit = True
-          max_weight = max(max_weight, weight)
-        if not trustable and not prob_hit:
-          continue
-        rel_word_count = rel_word_counts.get(rel_word) or 0
-        base_score = 0.95 ** rel_word_count
-        score = base_score * max_weight
-        scored_trans.append((tran, score, prob_hit))
-        rel_word_counts[rel_word] = rel_word_count + 1
-      scored_trans = sorted(scored_trans, key=lambda x: x[1], reverse=True)
-      final_trans = []
-      uniq_trans = set()
-      for tran in old_trans:
-        norm_tran = tkrzw_dict.NormalizeWord(tran)
-        uniq_trans.add(norm_tran)
-        final_trans.append(tran)
-      num_rank = 0
-      for tran, score, prob_hit in scored_trans:
-        if len(final_trans) >= 3: break
-        norm_tran = tkrzw_dict.NormalizeWord(tran)
-        if norm_tran in uniq_trans: continue
-        num_rank += 1
-        if not prob_hit:
-          if num_rank > 3: continue
-          if num_rank > 2 and len(final_trans) >= 2: continue
-        uniq_trans.add(norm_tran)
-        final_trans.append(tran)
-      entry["translation"] = final_trans[:2]
+    if not trans:
+      return
+    prob_trans = {}
+    key = tkrzw_dict.NormalizeWord(word)
+    tsv = tran_prob_dbm.GetStr(key)
+    if tsv:
+      fields = tsv.split("\t")
+      for i in range(0, len(fields), 3):
+        src, trg, prob = fields[i], fields[i + 1], float(fields[i + 2])
+        norm_trg = tkrzw_dict.NormalizeWord(trg)
+        prob = float(prob)
+        if src != word:
+          prob *= 0.1
+        prob_trans[norm_trg] = max(prob_trans.get(norm_trg) or 0.0, prob)
+    scored_trans = []
+    rel_word_counts = {}
+    tran_counts = {}
+    for tran, trustable, rel_word in trans:
+      tran_counts[tran] = (tran_counts.get(tran) or 0) + 1
+    for tran, trustable, rel_word in trans:
+      norm_tran = tkrzw_dict.NormalizeWord(tran)
+      max_weight = 0
+      prob_hit = False
+      for prob_tran, prob in prob_trans.items():
+        prob **= 0.25
+        dist = tkrzw.Utility.EditDistanceLev(norm_tran, prob_tran)
+        dist /= max(len(norm_tran), len(prob_tran))
+        weight = prob ** 0.5 + 2.0 - dist
+        if norm_tran == prob_tran:
+          weight *= 10
+          prob_hit = True
+        elif len(prob_tran) >= 2 and norm_tran.startswith(prob_tran):
+          weight *= 5
+          prob_hit = True
+        elif len(norm_tran) >= 2 and prob_tran.startswith(norm_tran):
+          weight *= 5
+          prob_hit = True
+        elif len(prob_tran) >= 2 and norm_tran.find(prob_tran) >= 0:
+          weight *= 3
+          prob_hit = True
+        elif len(norm_tran) >= 2 and prob_tran.find(norm_tran) >= 0:
+          weight *= 3
+          prob_hit = True
+        elif dist < 0.3:
+          weight *= 2
+          prob_hit = True
+        max_weight = max(max_weight, weight)
+      if not trustable and not prob_hit:
+        continue
+      tran_count = tran_counts[tran]
+      max_weight *= 1 + (tran_count * 0.1)
+      rel_word_count = rel_word_counts.get(rel_word) or 0
+      base_score = 0.95 ** rel_word_count
+      score = base_score * max_weight
+      scored_trans.append((tran, score, prob_hit))
+      rel_word_counts[rel_word] = rel_word_count + 1
+    scored_trans = sorted(scored_trans, key=lambda x: x[1], reverse=True)
+    final_trans = []
+    uniq_trans = set()
+    for tran in old_trans:
+      norm_tran = tkrzw_dict.NormalizeWord(tran)
+      uniq_trans.add(norm_tran)
+      final_trans.append(tran)
+    num_rank = 0
+    for tran, score, prob_hit in scored_trans:
+      if len(final_trans) >= 3: break
+      norm_tran = tkrzw_dict.NormalizeWord(tran)
+      if norm_tran in uniq_trans: continue
+      num_rank += 1
+      if not prob_hit:
+        if num_rank > 3: continue
+        if num_rank > 2 and len(final_trans) >= 2: continue
+      uniq_trans.add(norm_tran)
+      final_trans.append(tran)
+    entry["translation"] = final_trans[:2]
 
   def MakeTranNoun(self, tran):
     pos = self.tokenizer.GetJaLastPos(tran)
