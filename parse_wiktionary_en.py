@@ -713,7 +713,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     text = regex.sub(r"\{\{rfdate[a-z]+\|[a-z]+\|([^\|\}]+)(\|[^\}\|]+)*\}\}", r"\1", text)
     text = regex.sub(r"\{\{(RQ|Q):([^\|\}]+)(\|[^\|\}]+)*\|passage=([^\|\}]+)(\|[^\|\}]+)*\}\}",
                      r"\2 -- \4", text)
-    text = regex.sub(r"\{\{(RQ|R):([^\|\}]+)(\|[^\}\|]+)*\}\}", r"\2", text)
+    text = regex.sub(r"\{\{(RQ|R):([^\|\}]+)(\|[^\}\|]+)*\}\}", "", text)
     text = regex.sub(r"\{\{[^}]*\}\}", r"", text)
     text = regex.sub(r"\{\}", r"", text)
     text = regex.sub(r"\}\}", r"", text)
