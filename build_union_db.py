@@ -1387,12 +1387,14 @@ class BuildUnionDBBatch:
     if len(word) <= 2: return
     uniq_labels = set()
     top_exprs = []
+    poses = set()
     synonyms = []
     for item in entry["item"]:
       label = item["label"]
       pos = item["pos"]
+      poses.add(pos)
       if label in self.gross_labels: continue
-      if label in uniq_labels: continue
+      is_first = label not in uniq_labels
       uniq_labels.add(label)
       text = item["text"]
       for field in text.split(" [-] "):
@@ -1414,9 +1416,9 @@ class BuildUnionDBBatch:
         elif pos == "noun":
           expr = regex.sub(r"^(a|an|the) +([\p{Latin}])", r"\2", expr, flags=regex.IGNORECASE)
         if expr:
-          top_exprs.append((expr, pos))
+          top_exprs.append((expr, pos, is_first))
     top_words = []
-    for expr, pos in top_exprs:
+    for expr, pos, is_first in top_exprs:
       manner_match = regex.search(r"^in +([-\p{Latin}].*?) +(manner|fashion)$", expr, regex.IGNORECASE)
       preps = ["of", "in", "at", "from", "by", "part of", "out of", "inside",
                "relating to", "related to", "associated with",
@@ -1434,18 +1436,57 @@ class BuildUnionDBBatch:
         expr = manner_match.group(1).strip()
         expr = regex.sub(r"^(a|an|the) +", "", expr, flags=regex.IGNORECASE)
         if expr:
-          top_words.append((expr, "adjective", "adverb", True))
+          top_words.append((expr, "adjective", "adverb", is_first))
       elif prep_expr:
         expr = regex.sub(r"^(a|an|the) +([\p{Latin}])", r"\2", prep_expr, flags=regex.IGNORECASE)
         if expr:
-          top_words.append((expr, "noun", "adjective", True))
+          new_pos = "adverb" if pos == "adverb" else "adjective"
+          top_words.append((expr, "noun", new_pos, is_first))
       else:
         expr = expr.strip()
         if expr:
-          top_words.append((expr, pos, "", True))
+          top_words.append((expr, pos, "", is_first))
+    etym_prefix = entry.get("etymology_prefix")
+    etym_core = entry.get("etymology_core")
+    etym_suffix = entry.get("etymology_suffix")
+    if "noun" in poses and not etym_prefix and etym_core and etym_suffix in ("ness", "cy", "ity"):
+      print("ETYM_ADV_NOUN", word, etym_core, etym_suffix)
+      top_words.append((etym_core, "adjective", "noun", True))
+    if "noun" in poses and not etym_prefix and etym_core and etym_suffix in ("ment", "tion", "sion"):
+      print("ETYM_VERB_NOUN", word, etym_core, etym_suffix)
+      top_words.append((etym_core, "verb", "noun", True))
+    if "verb" in poses and not etym_prefix and etym_core and etym_suffix in ("ise", "ize"):
+      print("ETYM_ADJ_VERB", word, etym_core, etym_suffix)
+      top_words.append((etym_core, "adjective", "verb", True))
+    if "adjective" in poses and not etym_prefix and etym_core and etym_suffix in ("ic", "ical", "ish", "ly"):
+      print("ETYM_NOUN_ADJ", word, etym_core, etym_suffix)
+      top_words.append((etym_core, "noun", "adjective", True))
+    if "adverb" in poses and not etym_prefix and etym_core and etym_suffix == "ly":
+      print("ETYM_ADJ_ADV", word, etym_core, etym_suffix)
+      top_words.append((etym_core, "adjective", "adverb", True))
+    parents = entry.get("parent")
+    if parents:
+      for parent in parents:
+        if len(parent) < 5: continue
+        if "noun" in poses and (word.endswith("ness") or word.endswith("cy") or word.endswith("ity")):
+          print("PARENT_ADV_NOUN", word, parent)
+          top_words.append((parent, "adjective", "noun", True))
+        if "noun" in poses and (word.endswith("ment") or word.endswith("tion") or word.endswith("sion")):
+          print("PARENT_VERB_NOUN", word, parent)
+          top_words.append((parent, "verb", "noun", True))
+        if "verb" in poses and (word.endswith("ise") or word.endswith("tze")):
+          print("PARENT_ADJ_VERB", word, parent)
+          top_words.append((parent, "adjective", "verb", True))
+        if "adjective" in poses and (word.endswith("ic") or word.endswith("ical") or word.endswith("ish")):
+          print("PARENT_NOUN_ADJ", word, parent)
+          top_words.append((parent, "noun", "adjective", True))
+        if "adverb" in poses and word.endswith("ly"):
+          print("PARENT_ADJ_ADV", word, parent)
+          top_words.append((parent, "adjective", "adverb", True))
     for synonym, pos in synonyms:
       top_words.append((synonym, pos, "", False))
     trans = []
+    tran_sources = set()
     for expr, pos, conversion, trustable in top_words:
       expr = regex.sub(r"^([-\p{Latin}]+), ([-\p{Latin}]+),? +or +([-\p{Latin}]+)$", r"\1; \2; \3", expr)
       expr = regex.sub(r"^([-\p{Latin}]+) +or +([-\p{Latin}]+)$", r"\1; \2", expr)
@@ -1464,8 +1505,11 @@ class BuildUnionDBBatch:
           word_trans = [self.MakeTranAdjective(x) for x in word_trans]
         elif new_pos == "adverb":
           word_trans = [self.MakeTranAdverb(x) for x in word_trans]
-        for word_tran in word_trans:
-          trans.append((word_tran, trustable, rel_word))
+        for rank, word_tran in enumerate(word_trans):
+          tran_source = (word_tran, rel_word)
+          if tran_source in tran_sources: continue
+          tran_sources.add(tran_source)
+          trans.append((word_tran, trustable, rel_word, rank))
     if not trans:
       return
     prob_trans = {}
@@ -1481,11 +1525,10 @@ class BuildUnionDBBatch:
           prob *= 0.1
         prob_trans[norm_trg] = max(prob_trans.get(norm_trg) or 0.0, prob)
     scored_trans = []
-    rel_word_counts = {}
     tran_counts = {}
-    for tran, trustable, rel_word in trans:
+    for tran, trustable, rel_word, rank in trans:
       tran_counts[tran] = (tran_counts.get(tran) or 0) + 1
-    for tran, trustable, rel_word in trans:
+    for tran, trustable, rel_word, rank in trans:
       norm_tran = tkrzw_dict.NormalizeWord(tran)
       max_weight = 0
       prob_hit = False
@@ -1516,13 +1559,15 @@ class BuildUnionDBBatch:
       if not trustable and not prob_hit:
         continue
       tran_count = tran_counts[tran]
-      max_weight *= 1 + (tran_count * 0.1)
-      rel_word_count = rel_word_counts.get(rel_word) or 0
-      base_score = 0.95 ** rel_word_count
-      score = base_score * max_weight
+      count_score = 1 + (tran_count * 0.2)
+      rank_score = 0.95 ** rank
+      score = max_weight * count_score * rank_score
       scored_trans.append((tran, score, prob_hit))
-      rel_word_counts[rel_word] = rel_word_count + 1
     scored_trans = sorted(scored_trans, key=lambda x: x[1], reverse=True)
+
+    if scored_trans:
+      print("SCORE", word, scored_trans)
+    
     final_trans = []
     uniq_trans = set()
     for tran in old_trans:
@@ -1559,11 +1604,18 @@ class BuildUnionDBBatch:
       tran = tran[:-1] + "さ"
     elif pos[1] in ("形容詞", "動詞"):
       tran = tran + "こと"
+    elif pos[0] in ("た", "な") and pos[1] == "助動詞":
+      tran = tran + "こと"
     return tran
 
   def MakeTranVerb(self, tran):
+    pos = self.tokenizer.GetJaLastPos(tran)
     if self.tokenizer.IsJaWordSahenNoun(tran):
       tran = tran + "する"
+    elif tran.endswith("い") and pos[1] == "形容詞":
+      tran = tran[:-1] + "くする"
+    elif pos[1] == "名詞":
+      tran = tran + "にする"
     return tran
 
   def MakeTranAdjective(self, tran):
@@ -1581,7 +1633,10 @@ class BuildUnionDBBatch:
       tran = stem
     pos = self.tokenizer.GetJaLastPos(tran)
     if pos[1] == "名詞":
-      tran += "の"
+      if tran.endswith("的"):
+        tran += "な"
+      else:
+        tran += "の"
     elif pos[1] == "動詞":
       tran = stem + "ような"
     return tran
@@ -1603,6 +1658,8 @@ class BuildUnionDBBatch:
       tran = tran[:-3] + "として"
     elif tran.endswith("い") and pos[1] == "形容詞":
       tran = tran[:-1] + "く"
+    elif tran.endswith("的な"):
+      tran = tran[:-1] + "に"
     elif self.tokenizer.IsJaWordSahenNoun(stem):
       tran = stem + "して"
     elif self.tokenizer.IsJaWordAdjvNoun(stem):
