@@ -1279,8 +1279,8 @@ def main_cgi():
     index_mode = "annot"
   search_mode = params.get("s") or "auto"
   view_mode = params.get("v") or "auto"
-  if index_mode == "grade" and not query:
-    query = "1"
+  if index_mode == "grade":
+    query = str(max(Atoi(query), 1))
   page_title = "統合英和辞書検索"
   if query:
     page_title += ": " + regex.sub(r"\s+", " ", query).strip()[:24]
