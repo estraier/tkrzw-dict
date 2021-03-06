@@ -327,6 +327,9 @@ class XMLHandler(xml.sax.handler.ContentHandler):
             verb_past_participle = title + "d"
           elif len(values) == 1 and values[0] == "ing":
             verb_present_participle = title + "ing"
+          elif len(values) == 1 and values[0] == "ies":
+            stem = regex.sub(r"([^aeiou])y$", r"\1", title)
+            verb_singular = stem + "ies"
           elif len(values) == 1:
             verb_present_participle = values[0] + "ing"
             verb_past = values[0] + "ed"
@@ -341,6 +344,11 @@ class XMLHandler(xml.sax.handler.ContentHandler):
             verb_present_participle = values[0] + "ying"
             verb_past = values[0] + "ied"
             verb_past_participle = values[0] + "ied"
+          elif len(values) == 2 and values[1] == "ed":
+            verb_singular = title + "s"
+            verb_present_participle = values[0] + "ing"
+            verb_past = values[0] + "ed"
+            verb_past_participle = values[0] + "ed"
           elif len(values) == 2 and values[1] == "d":
             verb_singular = values[0] + "es"
             verb_present_participle = values[0] + "ing"
@@ -371,15 +379,15 @@ class XMLHandler(xml.sax.handler.ContentHandler):
             verb_present_participle = values[0] + values[1] + "ing"
             verb_past = values[0] + values[1] + "ed"
             verb_past_participle = values[0] + values[1] + "ed"
-          elif len(values) == 3 and values[1] == "k" and values[2] == "ing":
-            verb_present_participle = values[0] + "king"
-          elif len(values) == 3 and values[1] == "n" and values[2] == "ing":
-            verb_present_participle = values[0] + "ning"
           elif len(values) == 3 and values[1] == "y" and values[2] == "ing":
             verb_singular = values[0] + "ies"
             verb_present_participle = values[0] + "ying"
             verb_past = values[0] + "ied"
             verb_past_participle = values[0] + "ied"
+          elif len(values) == 3 and len(values[1]) == 1 and values[2] == "ing":
+            verb_present_participle = values[0] + values[1] + "ing"
+            verb_past = values[0] + values[1] + "ed"
+            verb_past_participle = values[0] + values[1] + "ed"
           elif len(values) == 3:
             verb_singular = values[0]
             verb_present_participle = values[1]
@@ -417,6 +425,9 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           elif len(values) == 1 and values[0].endswith("er"):
             adjective_comparative = values[0]
             adjective_superative = values[0][:-2] + "est"
+          elif len(values) == 2 and values[0] == "er":
+            adjective_comparative = stem + "er"
+            adjective_superative = stem + "est"
           elif len(values) == 2 and values[1] == "er":
             if values[0] in ("-", "more"):
               adjective_comparative = stem + "er"
