@@ -28,6 +28,7 @@ import time
 import tkrzw
 import tkrzw_dict
 import tkrzw_tokenizer
+import unicodedata
 
 EF_WEIGHT = 1.0
 FE_WEIGHT = 1.0
@@ -38,13 +39,31 @@ logger = tkrzw_dict.GetLogger()
 
 
 def Run(rev_prob_path, min_count, enough_ef, enough_fe, omit_latin,
-        min_score, min_score_large, min_score_stop, max_targets):
+        min_score, min_score_large, min_score_stop, max_targets, tran_aux_paths):
   start_time = time.time()
   logger.info("Process started")
+  aux_trans = collections.defaultdict(list)
+  for tran_aux_path in tran_aux_paths:
+    if not tran_aux_path: continue
+    logger.info("Reading: " + tran_aux_path)
+    with open(tran_aux_path) as input_file:
+      for line in input_file:
+        fields = line.strip().split("\t")
+        if len(fields) < 2: continue
+        source = fields[0]
+        targets = set()
+        for target in fields[1:]:
+          target = unicodedata.normalize('NFKC', target)
+          target = regex.sub(r"[\p{Ps}\p{Pe}\p{C}]", "", target)
+          target = regex.sub(r"\s+", " ", target).strip()
+          if target:
+            aux_trans[source].append(target)
   rev_prob_dbm = None
   if rev_prob_path:
+    logger.info("Reading: " + rev_prob_path)
     rev_prob_dbm = tkrzw.DBM()
     rev_prob_dbm.Open(rev_prob_path, False, dbm="HashDBM").OrDie()
+  logger.info("Processing records")
   records = {}
   for line in sys.stdin:
     fields = line.strip().split("\t")
@@ -84,54 +103,56 @@ def Run(rev_prob_path, min_count, enough_ef, enough_fe, omit_latin,
       #score = 2 * ef_prob * fe_prob / (ef_prob + fe_prob)
       scored_targets.append((target, score, ef_prob, fe_prob))
     scored_targets = sorted(scored_targets, key=lambda x: x[1], reverse=True)
+    source_aux_trans = aux_trans.get(source) or []
     good_targets = []
     for target, score, ef_prob, fe_prob in scored_targets:
-      is_prefix = False
-      is_single_noun = False
-      for cmp_target, cmp_score, _, _ in scored_targets:
-        if target != cmp_target and cmp_target.startswith(target) and cmp_score >= min_score:
-          if (cmp_target == target + "の" or cmp_target == target + "する") and regex.fullmatch(r"\p{Han}+", target):
-            is_single_noun = True
-          else:
-            is_prefix = True
-      is_stop = bool(regex.fullmatch(r"[\p{Hiragana}]+", target))
-      #if source in ("draconian", "beautiful"):
-      #  print("H1", source, target, score, ef_prob, fe_prob, is_prefix, is_single_noun, file=sys.stderr)
-      if omit_latin and regex.search(r"[\p{Latin}]{2,}", target):
-        continue
-      if len(target) <= 1 and is_prefix and not is_single_noun:
-        continue
-      if large:
-        if score < min_score_large:
-          continue
-      elif is_stop:
-        if score < min_score_stop:
-          continue
+      if target in source_aux_trans:
+        score *= 1.1
       else:
-        if score < min_score:
-          if (regex.search(r"[\p{Latin}]{4,}", source) and not regex.search(r"\d", source) and
-              (regex.search(r"[\p{Han}]{2,}", target) or
-               regex.search(r"[\p{Han}][\p{Hiragana}]", target)) and
-              (ef_prob >= enough_ef or fe_prob >= enough_fe)):
-            pass
-          else:
+        is_prefix = False
+        is_single_noun = False
+        for cmp_target, cmp_score, _, _ in scored_targets:
+          if target != cmp_target and cmp_target.startswith(target) and cmp_score >= min_score:
+            if (cmp_target == target + "の" or cmp_target == target + "する") and regex.fullmatch(r"\p{Han}+", target):
+              is_single_noun = True
+            else:
+              is_prefix = True
+        is_stop = bool(regex.fullmatch(r"[\p{Hiragana}]+", target))
+        if omit_latin and regex.search(r"[\p{Latin}]{2,}", target):
+          continue
+        if len(target) <= 1 and is_prefix and not is_single_noun:
+          continue
+        if large:
+          if score < min_score_large:
             continue
-      norm_source = source.lower()
-      norm_target = target.lower()
-      if norm_source.find(norm_target) >= 0 or norm_target.find(norm_source) >= 0:
-        continue
-      if norm_target in ("する", "ます", "より", "から"):
-        continue
-      if norm_target.startswith("っ") or norm_target.startswith("を"):
-        continue
-      if norm_target.endswith("っ") or norm_target.endswith("を"):
-        continue
-      if regex.fullmatch(r"[\p{Hiragana}ー{Latin}]", target):
-        continue
-      if regex.search(r"^[\p{Hiragana}]+[\p{Han}\p{Katakana}\p{Latin}]", target):
-        continue
-      elif regex.search(r"[\p{Han}\{Katakana}ー\p{Latin}][は|が|を|と]", target):
-        continue
+        elif is_stop:
+          if score < min_score_stop:
+            continue
+        else:
+          if score < min_score:
+            if (regex.search(r"[\p{Latin}]{4,}", source) and not regex.search(r"\d", source) and
+                (regex.search(r"[\p{Han}]{2,}", target) or
+                 regex.search(r"[\p{Han}][\p{Hiragana}]", target)) and
+                (ef_prob >= enough_ef or fe_prob >= enough_fe)):
+              pass
+            else:
+              continue
+        norm_source = source.lower()
+        norm_target = target.lower()
+        if norm_source.find(norm_target) >= 0 or norm_target.find(norm_source) >= 0:
+          continue
+        if norm_target in ("する", "ます", "より", "から"):
+          continue
+        if norm_target.startswith("っ") or norm_target.startswith("を"):
+          continue
+        if norm_target.endswith("っ") or norm_target.endswith("を"):
+          continue
+        if regex.fullmatch(r"[\p{Hiragana}ー{Latin}]", target):
+          continue
+        if regex.search(r"^[\p{Hiragana}]+[\p{Han}\p{Katakana}\p{Latin}]", target):
+          continue
+        elif regex.search(r"[\p{Han}\{Katakana}ー\p{Latin}][は|が|を|と]", target):
+          continue
       if len(target) <= 1:
         score *= 0.5
       elif len(target) <= 2:
@@ -209,8 +230,9 @@ def main():
   min_score_large = float(tkrzw_dict.GetCommandFlag(args, "--min_score_large", 1) or 0.35)
   min_score_stop = float(tkrzw_dict.GetCommandFlag(args, "--min_score_stop", 1) or 0.3)
   max_targets = int(tkrzw_dict.GetCommandFlag(args, "--max_targets", 1) or 8)
+  tran_aux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or "").split(",")
   Run(rev_prob_path, min_count, enough_ef, enough_fe, omit_latin,
-      min_score, min_score_large, min_score_stop, max_targets)
+      min_score, min_score_large, min_score_stop, max_targets, tran_aux_paths)
 
 
 if __name__=="__main__":
