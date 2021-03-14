@@ -5,8 +5,9 @@
 #
 # Usage:
 #   build_union_db.py [--output str] [--core str] [--gross str] [--top str] [--slim str]
-#     [--phrase_prob str] [--tran_prob str] [--tran_aux str] [--rev_prob str] [--cooc_prob str]
-#     [--aoa str] [--keyword str] [--min_prob str] [--quiet] inputs...
+#     [--phrase_prob str] [--tran_prob str] [--tran_aux str] [--tran_aux_last str]
+#     [--rev_prob str] [--cooc_prob str] [--aoa str] [--keyword str] [--min_prob str]
+#     [--quiet] inputs...
 #   (An input specified as "label:tsv_file".
 #
 # Example:
@@ -87,8 +88,8 @@ particles = [
 class BuildUnionDBBatch:
   def __init__(self, input_confs, output_path, core_labels, gross_labels,
                surfeit_labels, top_labels, slim_labels, tran_list_labels,
-               phrase_prob_path, tran_prob_path, tran_aux_paths, rev_prob_path,
-               cooc_prob_path, aoa_paths, keyword_path, min_prob_map):
+               phrase_prob_path, tran_prob_path, tran_aux_paths, tran_aux_last_paths,
+               rev_prob_path, cooc_prob_path, aoa_paths, keyword_path, min_prob_map):
     self.input_confs = input_confs
     self.output_path = output_path
     self.core_labels = core_labels
@@ -100,6 +101,7 @@ class BuildUnionDBBatch:
     self.phrase_prob_path = phrase_prob_path
     self.tran_prob_path = tran_prob_path
     self.tran_aux_paths = tran_aux_paths
+    self.tran_aux_last_paths = tran_aux_last_paths
     self.rev_prob_path = rev_prob_path
     self.cooc_prob_path = cooc_prob_path
     self.aoa_paths = aoa_paths
@@ -121,6 +123,10 @@ class BuildUnionDBBatch:
     for tran_aux_path in self.tran_aux_paths:
       if not tran_aux_path: continue
       self.ReadTranAuxTSV(tran_aux_path, aux_trans)
+    aux_last_trans = {}
+    for tran_aux_last_path in self.tran_aux_last_paths:
+      if not tran_aux_last_path: continue
+      self.ReadTranAuxTSV(tran_aux_last_path, aux_last_trans)
     raw_aoa_words = collections.defaultdict(list)
     for aoa_path in self.aoa_paths:
       if not aoa_path: continue
@@ -131,7 +137,7 @@ class BuildUnionDBBatch:
     keywords = set()
     if self.keyword_path:
       self.ReadKeywords(self.keyword_path, keywords)
-    self.SaveWords(word_dicts, aux_trans, aoa_words, keywords)
+    self.SaveWords(word_dicts, aux_trans, aux_last_trans, aoa_words, keywords)
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
   def ReadInput(self, input_path, slim):
@@ -270,7 +276,7 @@ class BuildUnionDBBatch:
     logger.info("Reading a translation aux file: num_entries={}, elapsed_time={:.2f}s".format(
       num_entries, time.time() - start_time))
 
-  def SaveWords(self, word_dicts, aux_trans, aoa_words, keywords):
+  def SaveWords(self, word_dicts, aux_trans, aux_last_trans, aoa_words, keywords):
     start_time = time.time()
     logger.info("Extracting keys")
     keys = set()
@@ -447,7 +453,7 @@ class BuildUnionDBBatch:
     num_entries = 0
     for key, merged_entry in merged_entries:
       for word_entry in merged_entry:
-        self.PropagateTranslations(word_entry, merged_dict, tran_prob_dbm)
+        self.PropagateTranslations(word_entry, merged_dict, tran_prob_dbm, aux_last_trans)
       num_entries += 1
       if num_entries % 1000 == 0:
         logger.info("Finishing entries: num_records={}".format(num_entries))
@@ -1379,7 +1385,7 @@ class BuildUnionDBBatch:
     scored_trans = sorted(scored_trans, key=lambda x: x[1], reverse=True)
     return [x[0] for x in scored_trans]
 
-  def PropagateTranslations(self, entry, merged_dict, tran_prob_dbm):
+  def PropagateTranslations(self, entry, merged_dict, tran_prob_dbm, aux_last_trans):
     old_trans = entry.get("translation") or []
     if len(old_trans) >= 3: return
     word = entry["word"]
@@ -1419,7 +1425,7 @@ class BuildUnionDBBatch:
           top_exprs.append((expr, pos, is_first))
     top_words = []
     for expr, pos, is_first in top_exprs:
-      manner_match = regex.search(r"^in +([-\p{Latin}].*?) +(manner|fashion)$", expr, regex.IGNORECASE)
+      manner_match = regex.search(r"^in +([-\p{Latin}].*?) +(manner|fashion|way)$", expr, regex.IGNORECASE)
       preps = ["of", "in", "at", "from", "by", "part of", "out of", "inside",
                "relating to", "related to", "associated with",
                "characterized by", "pertaining to", "derived from"]
@@ -1564,10 +1570,14 @@ class BuildUnionDBBatch:
       score = max_weight * count_score * rank_score
       scored_trans.append((tran, score, prob_hit))
     scored_trans = sorted(scored_trans, key=lambda x: x[1], reverse=True)
-
     if scored_trans:
       print("SCORE", word, scored_trans)
-    
+    rec_aux_trans = aux_last_trans.get(word)
+    if rec_aux_trans:
+      if len(old_trans) + len(scored_trans) < 2:
+        print("AUX", word, rec_aux_trans)
+      for aux_tran in rec_aux_trans:
+        scored_trans.append((aux_tran, 0, False))
     final_trans = []
     uniq_trans = set()
     for tran in old_trans:
@@ -1585,7 +1595,8 @@ class BuildUnionDBBatch:
         if num_rank > 2 and len(final_trans) >= 2: continue
       uniq_trans.add(norm_tran)
       final_trans.append(tran)
-    entry["translation"] = final_trans[:2]
+    if final_trans:
+      entry["translation"] = final_trans
 
   def MakeTranNoun(self, tran):
     pos = self.tokenizer.GetJaLastPos(tran)
@@ -1685,6 +1696,7 @@ def main():
   phrase_prob_path = tkrzw_dict.GetCommandFlag(args, "--phrase_prob", 1) or ""
   tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
   tran_aux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or "").split(",")
+  tran_aux_last_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux_last", 1) or "").split(",")
   rev_prob_path = tkrzw_dict.GetCommandFlag(args, "--rev_prob", 1) or ""
   cooc_prob_path = tkrzw_dict.GetCommandFlag(args, "--cooc_prob", 1) or ""
   aoa_paths = (tkrzw_dict.GetCommandFlag(args, "--aoa", 1) or "").split(",")
@@ -1711,7 +1723,7 @@ def main():
     input_confs.append(input_conf)
   BuildUnionDBBatch(input_confs, output_path, core_labels, gross_labels,
                     surfeit_labels, top_labels, slim_labels, tran_list_labels,
-                    phrase_prob_path, tran_prob_path, tran_aux_paths,
+                    phrase_prob_path, tran_prob_path, tran_aux_paths, tran_aux_last_paths,
                     rev_prob_path, cooc_prob_path, aoa_paths, keyword_path,
                     min_prob_map).Run()
 
