@@ -150,9 +150,6 @@ dfn { font-weight: bold; font-style: normal; }
   font-size: 70%; color: #444444;
   display: inline-block; min-width: 4.0ex; text-align: center; padding: 0; margin-left: -0.5ex; }
 .attr_value { color: #000000; }
-.label_wn { background: #f8ffee; }
-.label_we { background: #ffeef8; }
-.label_wj { background: #eef8ff; }
 """
 NAVIGATION_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
@@ -185,7 +182,7 @@ OVERVIEW_TEXT = """
 <article>
 <h2>概要</h2>
 <p>これは、オープンなデータから作成された英和辞書である。このデータは<a href="http://idpf.org/epub/dict/epub-dict.html">EPUB Dictionaries and Glossaries 1.0</a>の仕様に準拠しているので、EPUBの閲覧用システムにインストールすれば、検索機能を備える電子辞書として利用することができる。辞書データは<a href="https://wordnet.princeton.edu/">WordNet</a>と<a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">日本語WordNet</a>と<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>と<a href="https://en.wiktionary.org/">Wiktionary英語版</a>を統合したものだ。作成方法については<a href="https://dbmx.net/dict/">公式サイト</a>を参照のこと。利用や再配布の権利については各データのライセンスに従うべきだ。</p>
-<p>見出し語は太字で表示される。IPA発音記号の情報がある場合、見出し語の右に「//」で括って表示される。訳語の情報がある場合、見出し語の下に訳語のリストが表示される。語義の各項目の先頭にはラベルが付いている。「WJ」はWiktionary日本語版由来の語義を示し、「WE」はWiktionary英語版由来の語義を示し、「WN」はWordNet由来の語義を示す。その後に、「名」＝名詞、「動」＝動詞、「形」＝形容詞、「副」＝副詞などの品詞情報が付いている。その後に、日本語の訳語か、日本語または英語の語義説明が来る。「複数」「三単」「現分」「過去」「過分」「比較」「最上」は、名詞や動詞や形容詞の屈折形を示す。</p>
+<p>見出し語は太字で表示される。IPA発音記号の情報がある場合、見出し語の右に「//」で括って表示される。訳語の情報がある場合、見出し語の下に訳語のリストが表示される。語義の各項目の先頭には品詞のラベルが付いている。その後に、英語か日本語の語義説明が来る。「複数」「三単」「現分」「過去」「過分」「比較」「最上」は、名詞や動詞や形容詞の屈折形を示す。</p>
 </article>
 </body>
 </html>
@@ -280,7 +277,6 @@ class GenerateUnionEPUBBatch:
         if not self.IsGoodEntry(entry): continue
         words.add(entry["word"])
       it.Next()
-      #if len(words) >= 1000: break
     logger.info("Checking words done: {}".format(len(words)))
     return words
 
@@ -416,6 +412,16 @@ class GenerateUnionEPUBBatch:
     word = entry["word"]
     pronunciation = entry.get("pronunciation")
     translations = entry.get("translation")
+    items = []
+    first_label = None
+    for item in entry["item"]:
+      label = item["label"]
+      if first_label:
+        if first_label != label:
+          break
+      else:
+        first_label = label
+      items.append(item)
     P('<article id="{}">', ConvertWordToID(word))
     P('<aside epub:type="condensed-entry" hidden="hidden">')
     P('<dfn>{}</dfn>', word)
@@ -427,7 +433,7 @@ class GenerateUnionEPUBBatch:
       P('<li class="top_attr">')
       P('<span class="attr_value">{}</span>', ", ".join(translations[:6]))
       P('</li>')
-    for item in entry["item"][:5]:
+    for item in items[:5]:
       self.MakeMainEntryItem(P, item, True)
     P('</ul>')
     P('</aside>')
@@ -440,18 +446,7 @@ class GenerateUnionEPUBBatch:
       P('<li class="top_attr">')
       P('<span class="attr_value">{}</span>', ", ".join(translations[:8]))
       P('</li>')
-    labels = set()
-    for item in entry["item"]:
-      labels.add(item["label"])
-    we_count = 0
-    for item in entry["item"]:
-      label = item["label"]
-      if label == "we":
-        if "wn" in labels: continue
-        text = item["text"]
-        if text.startswith("[translation]:"): continue
-        if we_count >= 8: continue
-        we_count += 1
+    for item in items[:10]:
       self.MakeMainEntryItem(P, item, False)
     for attr_list in INFLECTIONS:
       fields = []
@@ -465,23 +460,10 @@ class GenerateUnionEPUBBatch:
         P('<li class="top_attr">')
         print(", ".join(fields), file=out_file, end="")
         P('</li>')
-    #related = entry.get("related")
-    #if related:
-    #  P('<li class="top_attr">')
-    #  P('<span class="attr_name">関連</span>')
-    #  P('<span class="attr_value">{}</span>', ", ".join(related[:8]))
-    #  P('</li>')
-    #prob = entry.get("probability")
-    #if prob:
-    #  P('<li class="top_attr">')
-    #  P('<span class="attr_name">確率</span>')
-    #  P('<span class="attr_value">{:.4f}%</span>', float(prob) * 100)
-    #  P('</li>')
     P('</ul>')
     P('</article>')
 
   def MakeMainEntryItem(self, P, item, simple):
-    label = item["label"]
     pos = item["pos"]
     text = item["text"]
     annots = []
@@ -504,7 +486,6 @@ class GenerateUnionEPUBBatch:
     if simple:
       text = CutTextByWidth(text, 100)
     P('<li class="item">')
-    P('<span class="attr_name label_{}">{}</span>', label, label.upper())
     P('<span class="attr_name">{}</span>', POSES.get(pos) or pos)
     for annot in annots:
       P('<span class="attr_name">{}</span>', annot)
