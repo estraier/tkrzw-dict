@@ -994,11 +994,12 @@ def ReadHTTPQuery(url, error_notes):
 
 def PrintCGIHeader(page_title, file=sys.stdout):
   print("""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" lang="ja">
 <head>
 <title>{}</title>
 <meta name="robots" content="noindex,nofollow,noarchive"/>
-<style type="text/css">/*<![CDATA[*/
+<style>/*<![CDATA[*/
 html {{ margin: 0ex; padding: 0ex; background: #eeeeee; font-size: 12pt; }}
 body {{ margin: 0ex; padding: 0ex; text-align: center; -webkit-text-size-adjust: 100%; }}
 article {{ display: inline-block; width: 100ex; text-align: left; padding-bottom: 3ex; }}
@@ -1134,6 +1135,7 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
 }}
 /*]]>*/</style>
 <script>/*<![CDATA[*/
+'use strict';
 function startup() {{
   let search_form = document.forms['search_form'];
   if (search_form) {{
