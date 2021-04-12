@@ -27,6 +27,7 @@
 
 import cgi
 import html
+import json
 import os
 import math
 import regex
@@ -43,6 +44,7 @@ CGI_CAPACITY = 100
 CGI_MAX_HTTP_CONTENT_LENGTH = 512 * 1024
 CGI_MAX_QUERY_LENGTH = 256 * 1024
 CGI_MAX_QUERY_LINE_LENGTH = 16 * 1024
+POPUP_CAPACITY = 5
 POSES = {
   "noun": "名",
   "verb": "動",
@@ -1012,7 +1014,7 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
   border: 1px solid #dddddd; border-radius: 0.5ex;
   margin: 1ex 0ex; padding: 0.8ex 1ex 1.3ex 1ex; background: #ffffff; position: relative; }}
 #query_line,#annot_navi_line {{ color: #333333; }}
-#query_input {{ zoom: 110%; color: #111111; width: 32ex; }}
+#query_input {{ zoom: 120%; color: #111111; width: 32ex; }}
 #query_input_annot {{ color: #111111; width: 99%; height: 30ex; }}
 #index_mode_box,#search_mode_box,#view_mode_box {{ color: #111111; width: 14ex; }}
 #submit_button {{ color: #111111; width: 10ex; }}
@@ -1251,6 +1253,10 @@ def main_cgi():
     else:
       params[key] = value.value
   query = (params.get("q") or "").strip()
+  api_mode = (params.get("x") or "").strip()
+  if api_mode == "popup":
+    ProcessPopUp(query)
+    return
   error_notes = []
   is_http_query = False
   is_html_query = False
@@ -1582,6 +1588,45 @@ def main_cgi():
 <p>このサイトはオープンな英和辞書検索のデモです。辞書データは<a href="https://wordnet.princeton.edu/">WordNet</a>と<a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">日本語WordNet</a>と<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>と<a href="https://en.wiktionary.org/">Wiktionary英語版</a>を統合したものです。検索システムは高性能データベースライブラリ<a href="https://dbmx.net/tkrzw/">Tkrzw</a>を用いて実装されています。<a href="https://github.com/estraier/tkrzw-dict">コードベース</a>はGitHubにて公開されています。</p>
 </div>""")
   PrintCGIFooter()
+
+
+def ProcessPopUp(query):
+  print("""Content-Type: application/json
+Access-Control-Allow-Origin: *
+
+""", end="")
+  searcher = tkrzw_union_searcher.UnionSearcher(CGI_DATA_PREFIX)
+  out_records = []
+  query = query.strip()
+  if not query:
+    pass
+  elif tkrzw_dict.PredictLanguage(query) == "en":
+    result = searcher.SearchExact(query, POPUP_CAPACITY)
+    if result:
+      out_records.extend(result)
+    uniq_words = set([query])
+    lemmas = searcher.SearchInflections(query)
+    for lemma in lemmas:
+      if lemma in uniq_words:
+        continue
+      uniq_words.add(lemma)
+      result = searcher.SearchExact(lemma, POPUP_CAPACITY)
+      if result:
+        out_records.extend(result)
+    if not result:
+      result = searcher.SearchPatternMatch("edit", query, POPUP_CAPACITY)
+      if result:
+        out_records.extend(result)
+  else:
+    result = searcher.SearchExactReverse(query, POPUP_CAPACITY)
+    if result:
+      out_records.extend(result)
+    else:
+      result = searcher.SearchPatternMatchReverse("edit", query, POPUP_CAPACITY)
+      if result:
+        out_records.extend(result)
+  serialized = json.dumps(out_records, separators=(",", ":"), ensure_ascii=False)
+  print(serialized)
 
 
 if __name__=="__main__":

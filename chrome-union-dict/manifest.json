@@ -1,0 +1,22 @@
+{
+  "manifest_version": 2,
+  "name": "English-Japanese Union Dictionary",
+  "description": "WordNetとWiktionaryの英和統合辞書。ポップアップでも検索できる。",
+  "version": "1.0",
+  "browser_action": {
+    "default_title": "統合英和辞書",
+    "default_popup": "browser_action.xhtml"
+  },
+  "content_scripts": [{
+    "matches": ["http://*/*", "https://*/*"],
+    "js": ["union_dict_pane.js", "startup.js"],
+    "css": ["union_dict_pane.css"]
+  }],
+  "permissions": [
+    "https://dbms.net/*",
+    "storage"
+  ],
+  "icons": {
+    "128": "icon128.png"
+  }
+}

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="ja">
+<head>
+<title>English-Japanese Union Dictionary</title>
+<style>/*<![CDATA[*/
+html {
+    width: 28ex;
+    background: #ffffff;
+}
+body {
+    font-size: 9pt;
+}
+h1 {
+    font-size: 120%;
+    margin: 0ex;
+}
+h2 {
+    font-size: 100%;
+    margin: 0ex;
+}
+#search_word_input {
+    zoom: 1.2;
+    width: 17ex;
+}
+form {
+    margin: 0.5ex;
+    padding: 0.8ex;
+    background: #eeeeee;
+    border-radius: 0.5ex;
+}
+/*]]>*/</style>
+</head>
+<body>
+
+<h1>英和統合辞書</h1>
+
+<form name="search_form" action="https://dbmx.net/dict/search_union.cgi" target="_blank" id="search_form">
+<input type="text" name="q" value="" id="search_word_input"/>
+<input type="submit" value="検索" id="search_submit"/>
+</form>
+
+<form name="config_form" action="#" id="config_form">
+<div>ポップアップ検索:
+<input type="radio" name="popup_enable" value="on" id="popup_enable_on"/><label for="popup_enable_on">有効</label>
+<input type="radio" name="popup_enable" value="off" id="popup_enable_off"/><label for="popup_enable_off">無効</label>
+</div>
+</form>
+
+<script src="browser_action.js"></script>
+</body>
+</html>
