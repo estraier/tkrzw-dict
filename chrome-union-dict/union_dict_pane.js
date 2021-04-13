@@ -38,28 +38,37 @@ union_dict_pane.addEventListener("mouseup", function(event) {
 }, true);
 
 function union_dict_activate() {
-  let body = document.body;
-  if (!body) {
-    return;
-  }
-  if (body.has_union_dict) {
-    return;
-  }
-  body.appendChild(union_dict_pane);
-  body.addEventListener("mouseup", union_dict_mouseup, false);
-  body.has_union_dict = true;
+  if (!document.body) return;
+  document.body.addEventListener("mouseup", union_dict_mouseup, false);
+  document.body.removeEventListener("mouseup", union_dict_mouseup_disabled, false);
 }
 
 function union_dict_deactivate() {
-  let body = document.body;
-  if (!body) {
-    return;
-  }
-  body.removeEventListener("mouseup", union_dict_mouseup, false);
+  if (!document.body) return;
+  document.body.removeEventListener("mouseup", union_dict_mouseup, false);
+  document.body.addEventListener("mouseup", union_dict_mouseup_disabled, false);
+  union_dict_pane.style.display = "none";
 }
 
 function union_dict_mouseup() {
+  if (!document.body) return;
+  if (!document.body.has_union_dict) {
+    document.body.appendChild(union_dict_pane);
+    document.body.has_union_dict = true;
+  }
+  union_dict_pane.style.display = "none";
   let selection = window.getSelection();
+  if (selection.rangeCount < 1) {
+    return;
+  }
+  let is_form_input = false;
+  if (selection.focusNode) {
+    for (let elem of selection.focusNode.childNodes) {
+      if (elem.nodeName == "input" || elem.nodeName == "textarea") {
+        return;
+      }
+    }
+  }
   let range = selection.getRangeAt(0);
   let rect = range.getBoundingClientRect();
   let left = rect.x;
@@ -67,29 +76,20 @@ function union_dict_mouseup() {
   let text = selection.toString();
   text = text.replaceAll(/[^-'\p{Script=Latin}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}ー]/gu, " ");
   text = text.trim();
-  let is_form_input = false;
-  if (selection.focusNode) {
-    for (let elem of selection.focusNode.childNodes) {
-      if (elem.nodeName == "input" || elem.nodeName == "textarea") {
-        is_form_input = true;
-      }
-    }
+  if (text.length == 0 || text.length > 50) {
+    return;
   }
-  if (text.length == 0 || text.length > 50 || is_form_input) {
-    union_dict_pane.style.display = "none";
-  } else {
-    union_dict_pane.style.display = "block";
-    let pane_left = Math.min(rect.left, window.innerWidth - union_dict_pane.offsetWidth - 8);
-    pane_left += window.pageXOffset;
-    union_dict_pane.style.left = pane_left + "px";
-    let pane_top = rect.top + rect.height * 1.5;
-    if (pane_top + union_dict_pane.offsetHeight + 3 > window.innerHeight) {
-      pane_top = rect.top - union_dict_pane.offsetHeight - 8;
-    }
-    pane_top += window.pageYOffset;
-    union_dict_pane.style.top = pane_top + "px";
-    union_dict_update_pane(text);
+  union_dict_pane.style.display = "block";
+  let pane_left = Math.min(rect.left, window.innerWidth - union_dict_pane.offsetWidth - 8);
+  pane_left += window.pageXOffset;
+  union_dict_pane.style.left = pane_left + "px";
+  let pane_top = rect.top + rect.height * 1.5;
+  if (pane_top + union_dict_pane.offsetHeight + 3 > window.innerHeight) {
+    pane_top = rect.top - union_dict_pane.offsetHeight - 8;
   }
+  pane_top += window.pageYOffset;
+  union_dict_pane.style.top = pane_top + "px";
+  union_dict_update_pane(text);
 }
 
 function union_dict_update_pane(query) {
@@ -272,4 +272,8 @@ function union_dict_fill_entry(entry, max_items) {
     union_dict_pane.style.display = "none";
   }, true);
   union_dict_pane.appendChild(close_button);
+}
+
+function union_dict_mouseup_disabled() {
+  union_dict_pane.style.display = "none";  
 }

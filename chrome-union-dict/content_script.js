@@ -9,3 +9,12 @@ function update_page_state() {
 }
 
 update_page_state();
+
+chrome.extension.onMessage.addListener(function(request, sender, send_response) {
+  if (request == "union_dict_update_config") {
+    update_page_state();
+  }
+  if (request == "union_dict_popup") {
+    union_dict_mouseup();
+  }
+});
