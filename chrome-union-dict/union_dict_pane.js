@@ -35,24 +35,25 @@ union_dict_pane.className = "union_dict_pane";
 union_dict_pane.my_query = "";
 union_dict_pane.addEventListener("mouseup", function(event) {
   event.stopPropagation();
-}, true);
+}, false);
 
 function union_dict_activate() {
-  if (!document.body) return;
-  document.body.addEventListener("mouseup", union_dict_mouseup, false);
-  document.body.removeEventListener("mouseup", union_dict_mouseup_disabled, false);
+  document.addEventListener("mouseup", union_dict_mouseup, false);
+  document.removeEventListener("mouseup", union_dict_hide_popup, false);
 }
 
 function union_dict_deactivate() {
-  if (!document.body) return;
-  document.body.removeEventListener("mouseup", union_dict_mouseup, false);
-  document.body.addEventListener("mouseup", union_dict_mouseup_disabled, false);
-  union_dict_pane.style.display = "none";
+  document.removeEventListener("mouseup", union_dict_mouseup, false);
+  document.addEventListener("mouseup", union_dict_hide_popup, false);
+  union_dict_hide_popup();
 }
 
 function union_dict_mouseup() {
-  if (!document.body) return;
-  if (!document.body.has_union_dict) {
+  union_dict_toggle_popup(true);
+}
+
+function union_dict_toggle_popup(dom_check) {
+  if (!document.has_union_dict) {
     document.body.appendChild(union_dict_pane);
     document.body.has_union_dict = true;
   }
@@ -61,11 +62,13 @@ function union_dict_mouseup() {
   if (selection.rangeCount < 1) {
     return;
   }
-  let is_form_input = false;
-  if (selection.focusNode) {
-    for (let elem of selection.focusNode.childNodes) {
-      if (elem.nodeName == "input" || elem.nodeName == "textarea") {
-        return;
+  if (dom_check) {
+    let is_form_input = false;
+    if (selection.focusNode) {
+      for (let elem of selection.focusNode.childNodes) {
+        if (elem.nodeName == "input" || elem.nodeName == "textarea") {
+          return;
+        }
       }
     }
   }
@@ -74,7 +77,7 @@ function union_dict_mouseup() {
   let left = rect.x;
   let top = rect.y + rect.height;
   let text = selection.toString();
-  text = text.replaceAll(/[^-'\p{Script=Latin}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}ー]/gu, " ");
+  text = text.replaceAll(/[^-'\p{Script=Latin}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}ー]+/gu, " ");
   text = text.trim();
   if (text.length == 0 || text.length > 50) {
     return;
@@ -192,6 +195,7 @@ function union_dict_fill_entry(entry, max_items) {
             item_line.style.display = "block";
           }
           omit_line.style.display = "none";
+          event.stopPropagation();
         }, false);
         omit_line.appendChild(omit_link);
         article.appendChild(omit_line);
@@ -270,10 +274,10 @@ function union_dict_fill_entry(entry, max_items) {
   close_button.textContent = "️X";
   close_button.addEventListener("click", function(event) {
     union_dict_pane.style.display = "none";
-  }, true);
+  }, false);
   union_dict_pane.appendChild(close_button);
 }
 
-function union_dict_mouseup_disabled() {
-  union_dict_pane.style.display = "none";  
+function union_dict_hide_popup() {
+  union_dict_pane.style.display = "none";
 }

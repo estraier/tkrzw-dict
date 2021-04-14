@@ -3,6 +3,7 @@
   "name": "English-Japanese Union Dictionary",
   "description": "WordNetとWiktionaryの英和統合辞書。ポップアップでも検索できる。",
   "version": "1.0",
+  "homepage_url": "https://dbmx.net/dict/",
   "background": {
     "scripts": ["background.js"],
     "persistent": false
@@ -13,6 +14,7 @@
   },
   "content_scripts": [{
     "matches": ["http://*/*", "https://*/*"],
+    "all_frames": true,
     "js": ["union_dict_pane.js", "content_script.js"],
     "css": ["union_dict_pane.css"]
   }],

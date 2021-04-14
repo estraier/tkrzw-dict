@@ -364,6 +364,8 @@ def main():
   query = query.strip()
   if index_mode == "auto" and len(query) > 48:
     index_mode = "annot"
+  if index_mode != "annot":
+    query = tkrzw_dict.NormalizeWord(query)
   searcher = tkrzw_union_searcher.UnionSearcher(data_prefix)
   is_reverse = False
   if index_mode == "auto":
@@ -1285,6 +1287,8 @@ def main_cgi():
   index_mode = params.get("i") or "auto"
   if index_mode == "auto" and len(query) > 48:
     index_mode = "annot"
+  if index_mode != "annot":
+    query = tkrzw_dict.NormalizeWord(query)
   search_mode = params.get("s") or "auto"
   view_mode = params.get("v") or "auto"
   if index_mode == "grade":
@@ -1597,7 +1601,7 @@ Access-Control-Allow-Origin: *
 """, end="")
   searcher = tkrzw_union_searcher.UnionSearcher(CGI_DATA_PREFIX)
   out_records = []
-  query = query.strip()
+  query = tkrzw_dict.NormalizeWord(query)
   if not query:
     pass
   elif tkrzw_dict.PredictLanguage(query) == "en":
