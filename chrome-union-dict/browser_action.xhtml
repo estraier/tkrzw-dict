@@ -4,48 +4,39 @@
 <head>
 <title>English-Japanese Union Dictionary</title>
 <style>/*<![CDATA[*/
-* {
-    font-size: 100%;
-}
 html {
     font-size: 11pt;
-    width: 32ex;
+    margin: 0ex;
+    padding: 0ex;
+    width: 500px;
+    height: 400px;
     background: #ffffff;
 }
-h1 {
+body {
     margin: 0ex;
+    padding: 0ex;
 }
-#search_word_input {
-    font-size: 105%;
-    width: 24ex;
-    padding: 0.4ex 0.5ex;
-    border: 1px solid #888888;
-    border-radius: 0.2ex;
-}
-#search_submit {
-    font-size: 105%;
-    padding: 0.2ex 0.6ex;
-    border: 1px solid #888888;
-    border-radius: 0.5ex;
-}
-form {
-    margin: 0.5ex;
-    padding: 0.8ex;
+#config_form {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 100;
+    margin: 0ex;
+    padding: 0.8ex 1.2ex;
     background: #eeeeee;
-    border-radius: 0.5ex;
+    text-align: right;
+}
+#search_frame {
+    margin: 0ex;
+    padding: 0ex;
+    width: 500px;
+    height: 400px;
+    background: #eeeeee;
+    border: none;
 }
 /*]]>*/</style>
 </head>
 <body>
-
-<h1>英和統合辞書</h1>
-
-<form name="search_form" action="https://dbmx.net/dict/search_union.cgi" target="_blank" id="search_form">
-<div class="form_row">
-<input type="text" name="q" value="" id="search_word_input"/>
-<input type="submit" value="検索" id="search_submit"/>
-</div>
-</form>
 
 <form name="config_form" action="#" id="config_form">
 <div class="form_row">ポップアップ検索:
@@ -53,6 +44,8 @@ form {
 <input type="radio" name="popup_enable" value="off" id="popup_enable_off"/><label for="popup_enable_off">無効</label>
 </div>
 </form>
+
+<iframe src="https://dbmx.net/dict/search_union.cgi" id="search_frame"></iframe>
 
 <script src="browser_action.js"></script>
 </body>

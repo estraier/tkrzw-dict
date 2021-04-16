@@ -1115,10 +1115,17 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
   display: inline-block; border: solid 1px #999999; border-radius: 0.5ex;
   font-size: 65%; min-width: 3.5ex; text-align: center;
   margin-right: -0.3ex; color: #333333; }}
+body.slim article {{ width: 576px; zoom: 85%; }}
+body.slim .attr {{ margin-left: 1ex; }}
+body.slim .item_text1 {{ margin-left: 1ex; }}
+body.slim .item_text2 {{ margin-left: 3ex; }}
+body.slim .item_text3 {{ margin-left: 5ex; }}
+body.slim .item_text4 {{ margin-left: 7ex; }}
+body.slim .item_text_n {{ font-size: 90%; }}
 @media (max-device-width:720px) {{
   html {{ background: #eeeeee; font-size: 32pt; }}
   body {{ padding: 0; }}
-  h1 {{ padding: 5ex 0 0 8ex; }}
+  h1 {{ padding: 0; text-align: center; }}
   article {{ width: 100%; overflow-x: hidden; }}
   #query_line,#annot_navi_line {{ font-size: 12pt; zoom: 250%; }}
   .search_form,.entry_view,.list_view,.annot_view,.message_view,.license {{
@@ -1151,6 +1158,9 @@ function startup() {{
   let annot_navi_form = document.forms["annot_navi_form"];
   if (annot_navi_form) {{
     toggle_rubies();
+  }}
+  if (window.innerWidth <= 500) {{
+    document.body.className = "slim";
   }}
 }}
 function check_search_form() {{
@@ -1231,7 +1241,7 @@ function is_touchable() {{
 }}
 /*]]>*/</script>
 </head>
-<body onload="startup()">
+<body onload="startup()" class="normal">
 <article>
 """.format(esc(page_title)), end="", file=file)
 

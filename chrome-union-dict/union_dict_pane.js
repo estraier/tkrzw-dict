@@ -63,10 +63,10 @@ function union_dict_toggle_popup(dom_check) {
     return;
   }
   if (dom_check) {
-    let is_form_input = false;
     if (selection.focusNode) {
       for (let elem of selection.focusNode.childNodes) {
-        if (elem.nodeName == "input" || elem.nodeName == "textarea") {
+        let node_name = elem.nodeName.toLowerCase();
+        if (node_name == "input" || node_name == "textarea") {
           return;
         }
       }
@@ -153,6 +153,7 @@ function union_dict_fill_entry(entry, max_items) {
   header.className = "union_dict_header";
   let header_link = document.createElement("a");
   header_link.href = union_dict_search_url + "?q=" + encodeURI(entry.word);
+  header_link.target = "_blank";
   header_link.textContent = entry.word;
   header.appendChild(header_link);
   if (entry.pronunciation) {
