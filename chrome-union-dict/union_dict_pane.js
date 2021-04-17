@@ -32,7 +32,7 @@ let mark_labels = new Map([
 
 let union_dict_pane = document.createElement("div");
 union_dict_pane.className = "union_dict_pane";
-union_dict_pane.my_query = "";
+union_dict_pane.last_query = "";
 union_dict_pane.addEventListener("mouseup", function(event) {
   event.stopPropagation();
 }, false);
@@ -96,7 +96,7 @@ function union_dict_toggle_popup(dom_check) {
 }
 
 function union_dict_update_pane(query) {
-  if (query == union_dict_pane.my_query) {
+  if (query == union_dict_pane.last_query) {
     return;
   }
   while (union_dict_pane.firstChild) {
@@ -134,7 +134,7 @@ function union_dict_update_pane(query) {
         note.textContent = "No results.";
         article.appendChild(note);
       }
-      union_dict_pane.my_query = query;
+      union_dict_pane.last_query = query;
     } else {
       let note = document.createElement("p");
       note.className = "union_dict_note";

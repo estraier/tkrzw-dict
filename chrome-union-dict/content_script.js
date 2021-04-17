@@ -10,13 +10,6 @@ function update_page_state() {
   });
 }
 
-function entry_word_handler(entry_word) {
-  let message = "search:" + entry_word;
-  chrome.extension.sendMessage(message, function() {
-    chrome.runtime.lastError;
-  });
-}
-
 chrome.extension.onMessage.addListener(function(request, sender, send_response) {
   if (request == "union_dict_update_config") {
     update_page_state();
