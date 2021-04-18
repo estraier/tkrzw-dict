@@ -82,7 +82,6 @@ function union_dict_toggle_popup(dom_check) {
   if (text.length == 0 || text.length > 50) {
     return;
   }
-  union_dict_pane.style.display = "block";
   let pane_left = Math.min(rect.left, window.innerWidth - union_dict_pane.offsetWidth - 8);
   pane_left += window.pageXOffset;
   union_dict_pane.style.left = pane_left + "px";
@@ -92,6 +91,7 @@ function union_dict_toggle_popup(dom_check) {
   }
   pane_top += window.pageYOffset;
   union_dict_pane.style.top = pane_top + "px";
+  union_dict_pane.style.display = "block";
   union_dict_update_pane(text);
 }
 
