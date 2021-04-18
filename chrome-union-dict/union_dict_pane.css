@@ -1,4 +1,4 @@
-.union_dict_pane {
+#union_dict_pane {
     all: initial;
     font-size: 11pt;
     display: none;
@@ -20,13 +20,13 @@
     z-index: 2147483647;
 }
 
-.union_dict_pane * {
+#union_dict_pane * {
     font-size: 100%;
     margin: 0ex;
     padding: 0ex;
 }
 
-.union_dict_pane p, .union_dict_pane h2 {
+#union_dict_pane p, #union_dict_pane h2 {
     all: initial;
     display: block;
     font-size: 100%;
@@ -38,47 +38,53 @@
     text-align: left;
 }
 
-.union_dict_pane p {
+#union_dict_pane p {
     padding-left: 0.6ex;
     text-indent: -0.3ex;
 }
 
-.union_dict_pane a, .union_dict_pane a:link {
+#union_dict_pane a, #union_dict_pane a:link {
     color: unset;
     text-decoration: none;
 }
 
-.union_dict_pane a:hover {
+#union_dict_pane a:hover {
     text-decoration: underline;
 }
 
-.union_dict_article {
+#union_dict_pane div.union_dict_article {
     margin: 0.5ex 0.5ex 0.4ex 0.8ex;
 }
 
-.union_dict_header a, .union_dict_header a:link {
+#union_dict_pane h2.union_dict_header a, #union_dict_pane h2.union_dict_header a:link {
     color: #002266;
     font-weight: bold;
 }
 
-.union_dict_pron {
+#union_dict_pane p.union_dict_message {
+    font-size: 90%;
+    padding-left: 2ex;
+    opacity: 0.8;
+}
+
+#union_dict_pane span.union_dict_pron {
     font-size: 85%;
     padding-left: 1ex;
     color: #444444;
     font-weight: normal;
 }
 
-.union_dict_pron:before, .union_dict_pron:after {
+#union_dict_pane span.union_dict_pron:before, #union_dict_pane span.union_dict_pron:after {
     content: "/";
     font-size: 90%;
     color: #999999;
 }
 
-.union_dict_tran_word {
+span.union_dict_tran_word {
     color: #111111;
 }
 
-.union_dict_item_label, .union_dict_item_pos, .union_dict_item_mark {
+#union_dict_pane span.union_dict_item_label, #union_dict_pane span.union_dict_item_pos, #union_dict_pane span.union_dict_item_mark {
     font-size: 65%;
     display: inline-block;
     border: solid 1px #999999;
@@ -91,40 +97,40 @@
     opacity: 0.9;
     transform: scaleX(0.9);
 }
-.union_dict_item_label {
+#union_dict_pane span.union_dict_item_label {
     margin-right: 0ex;
     transform: scaleX(0.8);
     opacity: 0.65;
 }
-.union_dict_item_label_xa { background: #eeeeee; }
-.union_dict_item_label_xz { background: #eeeeee; }
-.union_dict_item_label_wn { background: #eeffdd; }
-.union_dict_item_label_we { background: #ffddee; }
-.union_dict_item_label_wj { background: #ddeeff; }
+#union_dict_pane span.union_dict_item_label_xa { background: #eeeeee; }
+#union_dict_pane span.union_dict_item_label_xz { background: #eeeeee; }
+#union_dict_pane span.union_dict_item_label_wn { background: #eeffdd; }
+#union_dict_pane span.union_dict_item_label_we { background: #ffddee; }
+#union_dict_pane span.union_dict_item_label_wj { background: #ddeeff; }
 
-.union_dict_item_note {
+#union_dict_pane span.union_dict_item_note {
     font-size: 90%;
     margin-right: 0.5ex;
     color: #333333;
 }
-.union_dict_item_note:before {
+#union_dict_pane span.union_dict_item_note:before {
     content: "(";
 }
-.union_dict_item_note:after {
+#union_dict_pane span.union_dict_item_note:after {
     content: ")";
 }
 
-.union_dict_item_text {
+#union_dict_pane span.union_dict_item_text {
     margin-left: 0.2ex;
     color: #111111;
 }
 
-.union_dict_item_omit_link:hover {
+#union_dict_pane span.union_dict_item_omit_link:hover {
     text-decoration: underline;
     cursor: pointer;
 }
 
-.union_dict_close_button {
+#union_dict_pane div.union_dict_close_button {
     font-size: 80%;
     position: absolute;
     top: 0.5ex;

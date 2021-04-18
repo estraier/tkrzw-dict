@@ -31,7 +31,7 @@ let mark_labels = new Map([
 ]);
 
 let union_dict_pane = document.createElement("div");
-union_dict_pane.className = "union_dict_pane";
+union_dict_pane.id = "union_dict_pane";
 union_dict_pane.last_query = "";
 union_dict_pane.addEventListener("mouseup", function(event) {
   event.stopPropagation();
@@ -77,11 +77,12 @@ function union_dict_toggle_popup(dom_check) {
   let left = rect.x;
   let top = rect.y + rect.height;
   let text = selection.toString();
-  text = text.replaceAll(/[^-'\p{Script=Latin}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}ー]+/gu, " ");
+  text = text.replaceAll(/[^-'\d\p{Script=Latin}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}ー]+/gu, " ");
   text = text.trim();
   if (text.length == 0 || text.length > 50) {
     return;
   }
+  union_dict_pane.style.display = "block";
   let pane_left = Math.min(rect.left, window.innerWidth - union_dict_pane.offsetWidth - 8);
   pane_left += window.pageXOffset;
   union_dict_pane.style.left = pane_left + "px";
@@ -91,7 +92,6 @@ function union_dict_toggle_popup(dom_check) {
   }
   pane_top += window.pageYOffset;
   union_dict_pane.style.top = pane_top + "px";
-  union_dict_pane.style.display = "block";
   union_dict_update_pane(text);
 }
 
@@ -108,10 +108,24 @@ function union_dict_update_pane(query) {
   header.textContent = query;
   header.className = "union_dict_header";
   article.appendChild(header);
+  let message = document.createElement("p");
+  message.className = "union_dict_message";
+  article.appendChild(message);
   union_dict_pane.appendChild(article);
   let url = union_dict_search_url + "?x=popup&q=" + encodeURI(query);
   let xhr = new XMLHttpRequest();
-  xhr.open('GET', url);
+  let reporter = function() {
+    if (xhr.readyState == 1) {
+      message.textContent = "connecting";
+    }
+    if (xhr.readyState == 2) {
+      message.textContent = "header received";
+    }
+    if (xhr.readyState == 3) {
+      message.textContent = "loading";
+    }
+  };
+  xhr.addEventListener("readystatechange", reporter, false);
   let renderer = function() {
     if (xhr.status == 200) {
       let result = JSON.parse(xhr.responseText);
@@ -143,6 +157,7 @@ function union_dict_update_pane(query) {
     }
   };
   xhr.addEventListener('load', renderer, false);
+  xhr.open('GET', url);
   xhr.send(null);
 }
 
