@@ -4,7 +4,6 @@
 <head>
 <meta charset="UTF-8"/>
 <title>Tkrzw-Dict: 統合英和辞書検索システム</title>
-<link href="prism.css" rel="stylesheet"/>
 <link href="tk-icon.png" rel="icon" type="image/png" sizes="144x144"/>
 <style>/*<![CDATA[*/
 html,body,article,p,pre,code,li,dt,dd,td,th,div { font-size: 12pt; }
@@ -28,8 +27,8 @@ td { font-size: 11pt; }
 td.num { text-align: right; }
 th { font-size: 10pt; font-weight: normal; background: #eeeeee; }
 a { color: #004488; }
-div.logo { text-align: center; }
-div.logo img { max-width: 30ex; }
+div.screen { text-align: center; }
+div.screen img { max-width: 80%; }
 div.dbstructure { text-align: center; }
 div.dbstructure img { max-width: 70ex; }
 h2 a.headanc, h3 a.headanc {
@@ -56,9 +55,17 @@ h2:hover a.headanc, h3:hover a.headanc {
 
 <p>まずは<a href="https://dbmx.net/dict/search_union.cgi">デモサイト</a>を利用されたい。検索窓に英単語を入力し、「検索」ボタンを押せば、その英単語の語義が表示される。検索窓に日本語を入力して検索すれば、その日本語を語義に含む英単語のリストが表示される。すなわち、本システムは英和辞書としても和英辞書としても利用できる。単語だけでなく、複数語からなるフレーズでも検索できる。さらに、スペルミスを吸収するための曖昧一致検索や、関連語を検索するための類語検索も実装されている。語の変化形で検索できる屈折索引も利用できる。英文読解の際には英和辞書検索機能が頻繁に用いられるが、その際には曖昧一致検索や屈折索引が自動的に機能し、検索語を入力し直す手間を大幅に削減してくれる。英作文の際には、和英辞書検索機能が頻繁に用いられるが、その際には類語検索を利用すると、所望の英単語を探す手間を大幅に削減できる。英語学習を補助する機能として、覚えるべき語句をレベル別に一覧できる等級一覧機能や、任意の英文中の全ての語句にルビを振って和訳を表示する注釈機能もある。</p>
 
+<div class="screen">
+<img src="screen-main.png"/>
+</div>
+
 <p>EPUB形式の電子辞書として使いたい場合には、この<a href="https://dbmx.net/dict/union-dict.epub">EPUBファイル</a>をダウンロードして、任意のEPUBリーダにインストールすればよい。</p>
 
 <p>Chromeブラウザの拡張機能をインストールしてブラウザ上でポップアップ検索を行うこともできる。この<a href="https://dbmx.net/dict/chrome-union-dict.zip">ZIPファイル</a>をダウンロードして、展開したディレクトリを拡張機能のディベロッパーモードでインストールすればよい。</p>
+
+<div class="screen">
+<img src="screen-popup.png"/>
+</div>
 
 <p>辞書データを使って英語の語彙力の診断を行うツールもある。<a href="https://dbmx.net/dict/quiz_aoa.cgi">こちらのデモサイト</a>を利用されたい。質問に答えていくと、回答者の語彙力がネイティブスピーカの何歳に相当するのかがわかる。</p>
 

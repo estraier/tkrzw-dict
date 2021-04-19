@@ -24,5 +24,18 @@
   ],
   "icons": {
     "128": "icon128.png"
+  },
+  "commands": {
+    "_execute_browser_action": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+L"
+      }
+    },
+    "union_dict_popup": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+K"
+      },
+      "description": "Force to show the popup"
+    }
   }
 }

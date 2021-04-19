@@ -33,3 +33,20 @@ chrome.contextMenus.onClicked.addListener(function(info, tab) {
     break;
   }
 });
+
+chrome.commands.onCommand.addListener(function(command) {
+  switch (command) {
+  case "union_dict_popup":
+    chrome.tabs.query({active: true}, function(tabs) {
+      for (let tab of tabs) {
+        if ((tab.url.startsWith("http://") || tab.url.startsWith("https://")) &&
+            tab.status == 'complete') {
+          chrome.tabs.sendMessage(tab.id, "union_dict_popup", function(response) {
+            chrome.runtime.lastError;
+          });
+        }
+      }
+    });
+    break;
+  }
+});
