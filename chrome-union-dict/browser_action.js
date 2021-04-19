@@ -3,9 +3,10 @@
 let config_form = document.getElementById("config_form");
 
 function update_config(notify) {
-  chrome.storage.local.set({"popup_enable": config_form.popup_enable.value}, function(value) {});
-  chrome.runtime.getBackgroundPage(function(background_page) {
-    background_page.update_config();
+  chrome.storage.local.set({"popup_enable": config_form.popup_enable.value}, function(value) {
+    chrome.runtime.getBackgroundPage(function(background_page) {
+      background_page.update_config();
+    });
   });
 }
 
