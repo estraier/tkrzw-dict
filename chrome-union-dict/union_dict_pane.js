@@ -65,10 +65,25 @@ function union_dict_toggle_popup(dom_check) {
   if (dom_check) {
     if (selection.focusNode) {
       for (let elem of selection.focusNode.childNodes) {
+        let editable = elem.contentEditable;
+        if (editable == "true") {
+          return;
+        }
         let node_name = elem.nodeName.toLowerCase();
         if (node_name == "input" || node_name == "textarea") {
           return;
         }
+      }
+      let elem = selection.focusNode.parentNode;
+      while (elem != undefined) {
+        let editable = elem.contentEditable;
+        if (editable == "true") {
+          return;
+        }
+        if (editable == "false") {
+          break;
+        }
+        elem = elem.parentNode;
       }
     }
   }
