@@ -48,7 +48,7 @@ function union_dict_deactivate() {
   union_dict_hide_popup();
 }
 
-function union_dict_mouseup() {
+function union_dict_mouseup(event) {
   union_dict_toggle_popup(true);
 }
 
@@ -129,7 +129,7 @@ function union_dict_update_pane(query) {
   union_dict_pane.appendChild(article);
   let url = union_dict_search_url + "?x=popup&q=" + encodeURI(query);
   let xhr = new XMLHttpRequest();
-  let reporter = function() {
+  let reporter = function(event) {
     if (xhr.readyState == 1) {
       message.textContent = "connecting";
     }
@@ -141,7 +141,7 @@ function union_dict_update_pane(query) {
     }
   };
   xhr.addEventListener("readystatechange", reporter, false);
-  let renderer = function() {
+  let renderer = function(event) {
     if (xhr.status == 200) {
       let result = JSON.parse(xhr.responseText);
       if (result.length > 0) {
@@ -309,6 +309,6 @@ function union_dict_fill_entry(entry, max_items) {
   union_dict_pane.appendChild(close_button);
 }
 
-function union_dict_hide_popup() {
+function union_dict_hide_popup(event) {
   union_dict_pane.style.display = "none";
 }
