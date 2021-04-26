@@ -539,7 +539,7 @@ def OutputAnnotHTML(searcher, output_prefix, doc_title, meta_lines, pages):
       P('<form name="annot_navi_form">')
       P('<div id="annot_navi_line">')
       P('注釈想定年齢:')
-      P('<select name="min_aoa" onchange="toggle_rubies(parseInt(this.value))">')
+      P('<select name="min_aoa" onchange="toggle_rubies()">')
       for min_aoa in range(3, 21):
         P('<option value="{}"', min_aoa, end="")
         if min_aoa == 12:
@@ -622,13 +622,34 @@ def PrintResultCGI(script_name, entries, query, details):
     P('<div class="entry_view">')
     word = entry["word"]
     pron = entry.get("pronunciation")
+    translations = entry.get("translation")
+    hint = ""
+    if translations:
+      for tran in translations:
+        if len(hint) >= 40: break
+        if hint:
+          hint += ", "
+        hint += tran
+    else:
+      for item in entry["item"]:
+        text = regex.sub(r" \[-.*", "", item["text"])
+        text = regex.sub(r"\(.*?\)", "", text)
+        text = regex.sub(r"（.*?）", "", text)
+        text = regex.sub(r"\s+", " ", text).strip()
+        if len(text) > 70:
+          text = text[:70] + "..."
+        hint = text
+        break
+    P('<div class="entry_navi">')
+    P('<span class="entry_icon star_icon" data-word="{}" data-hint="{}"' +
+      ' onclick="toggle_star(this, -1)">&#x2605;</span>', word, hint)
+    P('</div>')
     word_url = "{}?q={}".format(script_name, urllib.parse.quote(word))
     P('<h2 class="entry_word">', end="")
     P('<a href="{}">{}</a>', word_url, word, end="")
     if not details and pron:
       P(' <span class="title_pron">{}</span>', pron, end="")
     P('</h2>')
-    translations = entry.get("translation")
     if translations:
       if tkrzw_dict.PredictLanguage(query) != "en":
         translations = tkrzw_dict.TwiddleWords(translations, query)
@@ -1012,19 +1033,23 @@ a:hover {{ color: #0011ee; text-decoration: underline; }}
 h1 a,h2 a {{ color: #000000; text-decoration: none; }}
 h1 {{ font-size: 110%; margin: 1ex 0ex 0ex 0ex; }}
 h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
-.search_form,.entry_view,.list_view,.annot_view,.message_view,.license {{
+.search_form,.entry_view,.list_view,.annot_view,.message_view,.help {{
   border: 1px solid #dddddd; border-radius: 0.5ex;
   margin: 1ex 0ex; padding: 0.8ex 1ex 1.3ex 1ex; background: #ffffff; position: relative; }}
 #query_line,#annot_navi_line {{ color: #333333; }}
-#query_input {{ zoom: 120%; color: #111111; width: 32ex; }}
+#query_input {{ zoom: 125%; color: #111111; width: 32ex; }}
 #query_input_annot {{ color: #111111; width: 99%; height: 30ex; }}
 #index_mode_box,#search_mode_box,#view_mode_box {{ color: #111111; width: 14ex; }}
 #submit_button {{ color: #111111; width: 10ex; }}
 #submit_button_annot {{ color: #111111; width: 20ex; }}
 #clear_button_annot {{ color: #111111; width: 8ex; }}
-.license {{ opacity: 0.7; font-size: 90%; padding: 2ex 3ex; }}
-.license a {{ color: #001166; }}
-.license ul {{ font-size: 90%; }}
+.help {{ opacity: 0.7; font-size: 90%; padding: 0.5ex 2ex; }}
+.help a {{ color: #001166; }}
+.help ul {{ font-size: 90%; }}
+a.navi_link {{ display: inline-block; margin: 0.5ex 0.2ex; padding: 0.1ex 1ex;
+   border: 1px solid #666666; border-radius: 0.5ex; background: #eeeeee;
+   color: #000000; opacity: 0.8; text-decoration: none; }}
+a.navi_link:hover {{ background: #dddddd; opacity: 1; }}
 .message_view {{ position: relative; opacity: 0.9; font-size: 90%; padding: 1ex 2ex; }}
 .message_view p {{ margin: 0; padding: 0; }}
 .pagenavi {{ float: right; }}
@@ -1034,14 +1059,13 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
 .attr,.item {{ color: #999999; }}
 .attr a,.item a {{ color: #111111; }}
 .attr a:hover,.item a:hover {{ color: #0011ee; }}
-.attr {{ margin-left: 3ex; }}
-.item_text1 {{ margin-left: 3ex; }}
-.item_text2 {{ margin-left: 7ex; }}
-.item_text3 {{ margin-left: 10ex; }}
-.item_text4 {{ margin-left: 13ex; }}
+.attr {{ margin-left: 3ex; margin-right: 1ex; }}
+.item_text1 {{ margin-left: 3ex; margin-right: 1ex; }}
+.item_text2 {{ margin-left: 6ex; margin-right: 1ex; }}
+.item_text3 {{ margin-left: 9ex; margin-right: 1ex; }}
+.item_text4 {{ margin-left: 12ex; margin-right: 1ex; }}
 .item_text_n {{ font-size: 90%; }}
-.item_omit {{ margin-left: 4ex; opacity: 0.6; font-size: 90%; }}
-.attr_prob {{ margin-left: 3ex; font-size: 95%; }}
+.item_omit {{ margin-left: 3.5ex; opacity: 0.6; font-size: 90%; }}
 .attr_label,.label,.pos,.subattr_label {{
   display: inline-block; border: solid 1px #999999; border-radius: 0.5ex;
   font-size: 65%; min-width: 3.5ex; text-align: center; margin-right: -0.5ex;
@@ -1054,6 +1078,16 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
 .tran {{ color: #000000; }}
 .attr_value {{ margin-left: 0.3ex; color: #111111; }}
 .text {{ margin-left: 0.3ex; color: #111111; }}
+.entry_navi {{ position: absolute; top: 0.7ex; right: 0.5ex; font-size: 95%; }}
+.entry_icon {{ display: inline-block; width: 3ex; text-align: center;
+  color: #cccccc; opacity: 0.8; }}
+.entry_icon:hover {{ opacity: 1; cursor: pointer; }}
+#star_list div {{ white-space: nowrap; overflow: hidden; }}
+.star_icon_on {{ color: #ff8800; }}
+a.star_word {{ display: inline-block; min-width: 10ex; padding: 0ex 0.5ex;
+  color: #000000; font-weight: bold; }}
+.star_hint:before {{ content: " -- "; font-size: 90%; color: #888888; }}
+.star_hint {{ font-size: 90%; color: #222222; }}
 .annot {{ font-size: 80%; color: #555555; }}
 .item_text_n .text {{ color: #333333; }}
 .list_view {{ padding: 1.2ex 1ex 1.5ex 1.8ex; }}
@@ -1116,19 +1150,20 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
   font-size: 65%; min-width: 3.5ex; text-align: center;
   margin-right: -0.3ex; color: #333333; }}
 body.slim article {{ width: 576px; zoom: 85%; }}
-body.slim .attr {{ margin-left: 1ex; }}
-body.slim .item_text1 {{ margin-left: 1ex; }}
-body.slim .item_text2 {{ margin-left: 3ex; }}
-body.slim .item_text3 {{ margin-left: 5ex; }}
-body.slim .item_text4 {{ margin-left: 7ex; }}
+body.slim .attr {{ margin-left: 1ex; margin-right: 0.4ex; }}
+body.slim .item_text1 {{ margin-left: 1ex; margin-right: 0.4ex; }}
+body.slim .item_text2 {{ margin-left: 3ex; margin-right: 0.4ex; }}
+body.slim .item_text3 {{ margin-left: 5ex; margin-right: 0.4ex; }}
+body.slim .item_text4 {{ margin-left: 7ex; margin-right: 0.4ex; }}
 body.slim .item_text_n {{ font-size: 90%; }}
+body.slim .help {{ padding: 0.3ex 0.7ex; }}
 @media (max-device-width:720px) {{
   html {{ background: #eeeeee; font-size: 32pt; }}
   body {{ padding: 0; }}
   h1 {{ padding: 0; text-align: center; }}
   article {{ width: 100%; overflow-x: hidden; }}
   #query_line,#annot_navi_line {{ font-size: 12pt; zoom: 250%; }}
-  .search_form,.entry_view,.list_view,.annot_view,.message_view,.license {{
+  .search_form,.entry_view,.list_view,.annot_view,.message_view,.help {{
     padding: 0.8ex 0.8ex; }}
   .attr {{ margin-left: 1ex; }}
   .item_text1 {{ margin-left: 1ex; }}
@@ -1148,7 +1183,7 @@ body.slim .item_text_n {{ font-size: 90%; }}
 <script>/*<![CDATA[*/
 'use strict';
 function startup() {{
-  let search_form = document.forms['search_form'];
+  let search_form = document.forms["search_form"];
   if (search_form) {{
     let query_input = search_form.elements['q'];
     if (query_input) {{
@@ -1162,6 +1197,16 @@ function startup() {{
   if (window.innerWidth <= 500) {{
     document.body.className = "slim";
   }}
+  document.addEventListener("keydown", function(event) {{
+    if (event.isComposing || event.keyCode === 229) {{
+      return;
+    }}
+    if (event.keyCode == 27) {{
+      clear_query();
+    }}
+  }}, false);
+  mark_stars();
+  list_stars();
 }}
 function check_search_form() {{
   let search_form = document.forms["search_form"];
@@ -1175,7 +1220,108 @@ function check_search_form() {{
 function clear_query() {{
   let search_form = document.forms["search_form"];
   if (!search_form) return;
-  search_form.q.value = "";
+  let query_input = search_form.elements['q'];
+  if (query_input) {{
+    query_input.value = "";
+    query_input.focus();
+  }}
+}}
+let storage_key_stars = "union_dict_stars";
+function mark_stars() {{
+  let stars = load_stars();
+  for (let elem of document.getElementsByClassName("star_icon")) {{
+    if (find_star(stars, elem.dataset.word)) {{
+      elem.classList.add("star_icon_on");
+    }}
+  }}
+}}
+function list_stars() {{
+  let star_list = document.getElementById("star_list");
+  if (!star_list) return;
+  let stars = load_stars();
+  if (stars.length < 1) return;
+  while (star_list.firstChild) {{
+    star_list.removeChild(star_list.firstChild);
+  }}
+  for (let i = stars.length - 1; i >= 0; i--) {{
+    let star = stars[i]
+    let star_div = document.createElement("div");
+    let star_icon = document.createElement("span");
+    star_icon.className = "entry_icon star_icon star_icon_on";
+    star_icon.textContent = "★"
+    star_icon.dataset.word = star.w;;
+    star_icon.dataset.hint = star.h;;
+    star_icon.addEventListener('click', function(event) {{
+      toggle_star(event.target, i);
+    }}, false);
+    star_div.appendChild(star_icon);
+    let word_link = document.createElement("a");
+    word_link.className = "star_word";
+    word_link.textContent = star.w;
+    word_link.href = "?q=" + encodeURIComponent(star.w);
+    star_div.appendChild(word_link);
+    let hint_span = document.createElement("span");
+    hint_span.className = "star_hint";
+    hint_span.textContent = star.h;
+    star_div.appendChild(hint_span);
+    star_list.appendChild(star_div);
+  }}
+}}
+function toggle_star(elem, position) {{
+  let word = elem.dataset.word;
+  let hint = elem.dataset.hint;
+  let stars = load_stars();
+  let star = find_star(stars, word);
+  if (star) {{
+    set_star(stars, word, null, position);
+    elem.classList.remove("star_icon_on");
+  }} else {{
+    set_star(stars, word, hint, position);
+    elem.classList.add("star_icon_on");
+  }}
+  save_stars(stars);
+}}
+function load_stars() {{
+  if (!localStorage) return [];
+  let stars = localStorage.getItem(storage_key_stars);
+  if (stars == null) {{
+    stars = [];
+  }} else {{
+    stars = JSON.parse(stars);
+  }}
+  return stars;
+}}
+function save_stars(stars) {{
+  if (!localStorage) return;
+  localStorage.setItem(storage_key_stars, JSON.stringify(stars));
+}}
+function find_star(stars, word) {{
+  for (let star of stars) {{
+    if (star.w == word) {{
+      return star;
+    }}
+  }}
+  return null;
+}}
+function set_star(stars, word, hint, position) {{
+  for (let i = 0; i < stars.length; i++) {{
+    let star = stars[i];
+    if (star.w == word) {{
+      stars.splice(i, 1);
+      break;
+    }}
+  }}
+  if (hint) {{
+    if (stars.length >= 1000) {{
+      stars.shift();
+    }}
+    let star = {{w: word, h: hint}};
+    if (position >= 0) {{
+      stars.splice(position, 0, star);
+    }} else {{
+      stars.push(star);
+    }}
+  }}
 }}
 function toggle_rubies() {{
   let annot_navi_form = document.forms["annot_navi_form"];
@@ -1265,8 +1411,8 @@ def main_cgi():
     else:
       params[key] = value.value
   query = (params.get("q") or "").strip()
-  api_mode = (params.get("x") or "").strip()
-  if api_mode == "popup":
+  extra_mode = (params.get("x") or "").strip()
+  if extra_mode == "popup":
     ProcessPopUp(query)
     return
   error_notes = []
@@ -1580,14 +1726,14 @@ def main_cgi():
       if edit_result:
         PrintResultCGIList(script_name, edit_result, "")
   elif index_mode == "annot":
-    print("""<div class="license">
+    print("""<div class="help">
 <p>これは、英文の自動注釈付与機能です。入力欄に英文を入れて、「注釈」ボタンを押してください。入力された英文の中に現れる全ての語句を英和辞書で調べ、その語義をルビと付箋で表示します。結果に現れた語句が難しそうな場合、その和訳がルビとして振られます。「注釈想定年齢」を変更すると、ルビを振る基準となる難易度が変更されます。</p>
 <p>英文中の語句にポインタを合わせると、より詳しい語義が書いてある付箋が表示されます。語句をクリックすると付箋が固定されるので、その付箋の中をスクロールしたり、見出し語をクリックしたりできます。見出し語をクリックすると、その見出し語で英和辞書の検索が行われます。付箋の範囲からポインタを外すと付箋は消えます。</p>
 <p>入力欄にURLを指定すると、そのURLのWebページの内容を対象として処理を行います。HTMLとプレーンテキストに対応し、一度に{}KBまでのデータを処理することができます。</p>
 </div>""".format(int(CGI_MAX_QUERY_LENGTH / 1024)))
-  else:
-    print("""<div class="license">
-<p>デフォルトでは、英語の検索語が入力されると英和の索引が検索され、日本語の検索語が入力されると和英の索引が検索されます。オプションで索引を明示的に指定できます。英和屈折は、単語の過去形などの屈折形を吸収した検索を行います。等級は、検索語を無視して全ての見出し語を重要度順に表示します。注釈は、英文を和訳の注釈付きの形式に整形します。</p>
+  elif extra_mode == "help":
+    print("""<div class="help">
+<p>検索窓に検索語を入れて、「検索」ボタンを押してください。デフォルトでは、英語の検索語が入力されると英和の索引が検索され、日本語の検索語が入力されると和英の索引が検索されます。オプションで索引を明示的に指定できます。英和屈折は、単語の過去形などの屈折形を吸収した検索を行います。等級は、検索語を無視して全ての見出し語を重要度順に表示します。注釈は、英文を和訳の注釈付きの形式に整形します。</p>
 <p>検索条件のデフォルトは、完全一致です。つまり、入力語そのものを見出しに含む語が表示されます。ただし、該当がない場合には自動的に曖昧検索が行われて、綴りが似た語が表示されます。オプションで検索条件を以下のものから明示的に選択できます。</p>
 <ul>
 <li>完全一致 : 見出し語が検索語と完全一致するものが該当する。</li>
@@ -1598,8 +1744,19 @@ def main_cgi():
 <li>曖昧一致 : 見出し語の綴りが検索語の綴りと似ているものが該当する。</li>
 <li>類語展開 : 見出し語が検索語と完全一致するものとその類語が該当する。</li>
 </ul>
-<p>デフォルトでは、表示形式は自動的に設定されます。ヒット件数が1件の場合にはその語の語義が詳細に表示され、ヒット件数が5以下の場合には主要語義のみが表示され、ヒット件数がそれ以上の場合には翻訳語のみがリスト表示されます。結果の見出し語を選択すると詳細表示が見られます。</p>
+<p>デフォルトでは、表示形式は自動的に設定されます。ヒット件数が1件の場合にはその語の語義が詳細に表示され、ヒット件数が5以下の場合には主要語義のみが表示され、ヒット件数がそれ以上の場合には翻訳語のみがリスト表示されます。結果の見出し語を選択すると詳細表示が見られます。右上にある星アイコンをクリックすると、その見出し語に星印がつけられます。</p>
+<p>トップ画面で「<a href="?x=help">&#xFF1F;</a>」をクリックすると、このヘルプ画面が表示されます。トップ画面で「<a href="?x=stars">&#x2606;</a>」をクリックすると、星印をつけた見出し語の一蘭が表示されます。</p>
+<p>Escボタンを押すと、検索窓の語句を消去できます。</p>
 <p>このサイトはオープンな英和辞書検索のデモです。辞書データは<a href="https://wordnet.princeton.edu/">WordNet</a>と<a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">日本語WordNet</a>と<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>と<a href="https://en.wiktionary.org/">Wiktionary英語版</a>を統合したものです。検索システムは高性能データベースライブラリ<a href="https://dbmx.net/tkrzw/">Tkrzw</a>を用いて実装されています。<a href="https://github.com/estraier/tkrzw-dict">コードベース</a>はGitHubにて公開されています。</p>
+</div>""")
+  elif extra_mode == "stars":
+    print("""<div class="help">
+<div id="star_list">&#x2605;付きの見出し語一覧</div>
+</div>""")
+  else:
+    print("""<div class="help">
+<a href="?x=help" class="navi_link">&#xFF1F;</a>
+<a href="?x=stars" class="navi_link">&#x2606;</a>
 </div>""")
   PrintCGIFooter()
 
