@@ -1156,7 +1156,7 @@ body.slim .item_text2 {{ margin-left: 3ex; margin-right: 0.4ex; }}
 body.slim .item_text3 {{ margin-left: 5ex; margin-right: 0.4ex; }}
 body.slim .item_text4 {{ margin-left: 7ex; margin-right: 0.4ex; }}
 body.slim .item_text_n {{ font-size: 90%; }}
-body.slim .help {{ padding: 0.3ex 0.7ex; }}
+body.slim .list_view, body.slim .help {{ padding: 0.3ex 0.7ex; }}
 @media (max-device-width:720px) {{
   html {{ background: #eeeeee; font-size: 32pt; }}
   body {{ padding: 0; }}
@@ -1750,7 +1750,7 @@ def main_cgi():
 <p>このサイトはオープンな英和辞書検索のデモです。辞書データは<a href="https://wordnet.princeton.edu/">WordNet</a>と<a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">日本語WordNet</a>と<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>と<a href="https://en.wiktionary.org/">Wiktionary英語版</a>を統合したものです。検索システムは高性能データベースライブラリ<a href="https://dbmx.net/tkrzw/">Tkrzw</a>を用いて実装されています。<a href="https://github.com/estraier/tkrzw-dict">コードベース</a>はGitHubにて公開されています。</p>
 </div>""")
   elif extra_mode == "stars":
-    print("""<div class="help">
+    print("""<div class="list_view">
 <div id="star_list">&#x2605;付きの見出し語一覧</div>
 </div>""")
   else:
