@@ -69,7 +69,7 @@
 
 #union_dict_pane span.union_dict_pron {
     font-size: 85%;
-    padding-left: 1ex;
+    margin-left: 1ex;
     color: #444444;
     font-weight: normal;
 }

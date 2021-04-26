@@ -54,6 +54,9 @@ function union_dict_mouseup(event) {
 
 function union_dict_toggle_popup(dom_check) {
   if (!document.has_union_dict) {
+    if (document.location.href.startsWith(union_dict_search_url)) {
+      return;
+    }
     document.body.appendChild(union_dict_pane);
     document.body.has_union_dict = true;
   }
