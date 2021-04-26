@@ -1201,8 +1201,9 @@ function startup() {{
     if (event.isComposing || event.keyCode === 229) {{
       return;
     }}
-    if (event.keyCode == 27) {{
+    if (event.keyCode == 9) {{
       clear_query();
+      event.preventDefault();
     }}
   }}, false);
   mark_stars();
@@ -1746,7 +1747,7 @@ def main_cgi():
 </ul>
 <p>デフォルトでは、表示形式は自動的に設定されます。ヒット件数が1件の場合にはその語の語義が詳細に表示され、ヒット件数が5以下の場合には主要語義のみが表示され、ヒット件数がそれ以上の場合には翻訳語のみがリスト表示されます。結果の見出し語を選択すると詳細表示が見られます。右上にある星アイコンをクリックすると、その見出し語に星印がつけられます。</p>
 <p>トップ画面で「<a href="?x=help">&#xFF1F;</a>」をクリックすると、このヘルプ画面が表示されます。トップ画面で「<a href="?x=stars">&#x2606;</a>」をクリックすると、星印をつけた見出し語の一蘭が表示されます。</p>
-<p>Escボタンを押すと、検索窓の語句を消去できます。</p>
+<p>タブボタンを押すと、検索窓の語句を消去して、フォーカスをが検索窓に移動します。つまり、素早く再検索するにはタブボタンを使うと便利です。</p>
 <p>このサイトはオープンな英和辞書検索のデモです。辞書データは<a href="https://wordnet.princeton.edu/">WordNet</a>と<a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">日本語WordNet</a>と<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>と<a href="https://en.wiktionary.org/">Wiktionary英語版</a>を統合したものです。検索システムは高性能データベースライブラリ<a href="https://dbmx.net/tkrzw/">Tkrzw</a>を用いて実装されています。<a href="https://github.com/estraier/tkrzw-dict">コードベース</a>はGitHubにて公開されています。</p>
 </div>""")
   elif extra_mode == "stars":
