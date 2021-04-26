@@ -1053,7 +1053,10 @@ a.navi_link:hover {{ background: #dddddd; opacity: 1; }}
 .message_view {{ position: relative; opacity: 0.9; font-size: 90%; padding: 1ex 2ex; }}
 .message_view p {{ margin: 0; padding: 0; }}
 .pagenavi {{ float: right; }}
-.pagenavi a {{ min-width: 3ex; color: #002244; padding-left: 0.5ex; }}
+.page_icon {{ display: inline-block; width: 3ex; text-align: center;
+ border: 1px solid #dddddd; border-radius: 0.5ex; background: #eeeeee;
+ color: #111111; padding-left: 0.5ex; text-decoration: none; opacity: 0.5; }}
+.page_icon:hover {{ color: #000000; text-decoration: underline; opacity: 1; cursor: pointer; }}
 .title_pron {{ margin-left: 1.5ex; font-size: 85%; font-weight: normal; color: #444444; }}
 .title_pron:before,.title_pron:after {{ content: "/"; font-size: 90%; color: #999999; }}
 .attr,.item {{ color: #999999; }}
@@ -1194,9 +1197,6 @@ function startup() {{
   if (annot_navi_form) {{
     toggle_rubies();
   }}
-  if (window.innerWidth <= 500) {{
-    document.body.className = "slim";
-  }}
   document.addEventListener("keydown", function(event) {{
     if (event.isComposing || event.keyCode === 229) {{
       return;
@@ -1207,14 +1207,14 @@ function startup() {{
     }}
   }}, false);
   mark_stars();
-  list_stars();
+  list_stars(false);
 }}
 function check_search_form() {{
   let search_form = document.forms["search_form"];
   if (!search_form) return;
   let query = search_form.q.value.trim();
   let re_url = new RegExp("^https?://");
-  if (re_url.test(query) || query.length > 2000) {{
+  if (query.match(/^https?:\/\//) || query.length > 2000) {{
     search_form.method = "post";
   }}
 }}
@@ -1236,20 +1236,44 @@ function mark_stars() {{
     }}
   }}
 }}
-function list_stars() {{
+function reorder_stars() {{
   let star_list = document.getElementById("star_list");
   if (!star_list) return;
-  let stars = load_stars();
-  if (stars.length < 1) return;
+  list_stars(!star_list.forward);
+}}
+function clear_stars() {{
+  if (!confirm("Do you really delete all stars?")) {{
+    return;
+  }}
+  if (localStorage) {{
+    localStorage.removeItem(storage_key_stars);
+  }}
+  let star_list = document.getElementById("star_list");
+  star_list.parentNode.style.display = "none";
+  let star_count = document.getElementById("star_count");
+  star_count.textContent = 0;
+}}
+function list_stars(forward) {{
+  let star_list = document.getElementById("star_list");
+  if (!star_list) return;
   while (star_list.firstChild) {{
     star_list.removeChild(star_list.firstChild);
   }}
-  for (let i = stars.length - 1; i >= 0; i--) {{
-    let star = stars[i]
+  let stars = load_stars();
+  let star_count = document.getElementById("star_count");
+  star_count.textContent = stars.length;
+  if (stars.length < 1) {{
+    star_list.parentNode.style.display = "none";
+    return;
+  }}
+  star_list.parentNode.style.display = "block";
+  let star_divs = [];
+  for (let i = 0; i < stars.length; i++) {{
+    let star = stars[i];
     let star_div = document.createElement("div");
     let star_icon = document.createElement("span");
     star_icon.className = "entry_icon star_icon star_icon_on";
-    star_icon.textContent = "★"
+    star_icon.textContent = String.fromCodePoint(0x2605);
     star_icon.dataset.word = star.w;;
     star_icon.dataset.hint = star.h;;
     star_icon.addEventListener('click', function(event) {{
@@ -1265,6 +1289,13 @@ function list_stars() {{
     hint_span.className = "star_hint";
     hint_span.textContent = star.h;
     star_div.appendChild(hint_span);
+    star_divs.push(star_div);
+  }}
+  if (!forward) {{
+    star_divs = star_divs.reverse();
+  }}
+  star_list.forward = forward;
+  for (let star_div of star_divs) {{
     star_list.appendChild(star_div);
   }}
 }}
@@ -1389,6 +1420,11 @@ function is_touchable() {{
 /*]]>*/</script>
 </head>
 <body onload="startup()" class="normal">
+<script>/*<![CDATA[*/
+if (window.innerWidth <= 500) {{
+  document.body.className = "slim";
+}}
+/*]]>*/</script>
 <article>
 """.format(esc(page_title)), end="", file=file)
 
@@ -1582,9 +1618,9 @@ def main_cgi():
       P('<div class="pagenavi">')
       if page > 1:
         prev_url = "{}?i=grade&q={}".format(script_name, page - 1)
-        P('<a href="{}">&#x2B05;</a>', prev_url)
+        P('<a href="{}" class="page_icon">&#x2B05;</a>', prev_url)
       next_url = "{}?i=grade&q={}".format(script_name, page + 1)
-      P('<a href="{}">&#x2B95;</a>', next_url)
+      P('<a href="{}" class="page_icon">&#x2B95;</a>', next_url)
       P('</div>')
       P('<p>等級順: <strong>{}</strong></p>', page)
       P('</div>')
@@ -1751,8 +1787,15 @@ def main_cgi():
 <p>このサイトはオープンな英和辞書検索のデモです。辞書データは<a href="https://wordnet.princeton.edu/">WordNet</a>と<a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">日本語WordNet</a>と<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>と<a href="https://en.wiktionary.org/">Wiktionary英語版</a>を統合したものです。検索システムは高性能データベースライブラリ<a href="https://dbmx.net/tkrzw/">Tkrzw</a>を用いて実装されています。<a href="https://github.com/estraier/tkrzw-dict">コードベース</a>はGitHubにて公開されています。</p>
 </div>""")
   elif extra_mode == "stars":
-    print("""<div class="list_view">
-<div id="star_list">&#x2605;付きの見出し語一覧</div>
+    print("""<div id="star_info" class="message_view">
+<div class="pagenavi">
+<span class="page_icon" onclick="reorder_stars()">&#x2B83;</span>
+<span class="page_icon" onclick="clear_stars()">&#x2604;</span>
+</div>
+<p>星印付きの見出し語一覧（<span id="star_count">0</span>語）</p>
+</div>
+<div class="list_view">
+<div id="star_list"></div>
 </div>""")
   else:
     print("""<div class="help">
