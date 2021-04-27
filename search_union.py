@@ -1017,7 +1017,7 @@ def ReadHTTPQuery(url, error_notes):
   return None, None
 
 
-def PrintCGIHeader(page_title, file=sys.stdout):
+def PrintCGIHeader(page_title, extra_mode="", file=sys.stdout):
   print("""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" lang="ja">
@@ -1086,6 +1086,8 @@ a.navi_link:hover {{ background: #dddddd; opacity: 1; }}
   color: #cccccc; opacity: 0.8; }}
 .entry_icon:hover {{ opacity: 1; cursor: pointer; }}
 #star_list div {{ white-space: nowrap; overflow: hidden; }}
+.star_hint {{ display: none; }}
+#star_list div:hover .star_hint {{ display: unset; }}
 .star_icon_on {{ color: #ff8800; }}
 a.star_word {{ display: inline-block; min-width: 10ex; padding: 0ex 0.5ex;
   color: #000000; font-weight: bold; }}
@@ -1152,7 +1154,11 @@ a.star_word {{ display: inline-block; min-width: 10ex; padding: 0ex 0.5ex;
   display: inline-block; border: solid 1px #999999; border-radius: 0.5ex;
   font-size: 65%; min-width: 3.5ex; text-align: center;
   margin-right: -0.3ex; color: #333333; }}
-body.slim article {{ width: 576px; zoom: 85%; }}
+body.slim article {{ width: 98%; zoom: 85%; padding-bottom: 0.1ex; }}
+body.slim .entry_view, body.slim .list_view,
+body.slim .annot_view, body.slim .message_view, body.slim .help {{
+  border: none;
+  margin: 0.5ex 0ex; padding: 0.3ex 0.3ex 0.6ex 0.3ex; }}
 body.slim .attr {{ margin-left: 1ex; margin-right: 0.4ex; }}
 body.slim .item_text1 {{ margin-left: 1ex; margin-right: 0.4ex; }}
 body.slim .item_text2 {{ margin-left: 3ex; margin-right: 0.4ex; }}
@@ -1160,6 +1166,7 @@ body.slim .item_text3 {{ margin-left: 5ex; margin-right: 0.4ex; }}
 body.slim .item_text4 {{ margin-left: 7ex; margin-right: 0.4ex; }}
 body.slim .item_text_n {{ font-size: 90%; }}
 body.slim .list_view, body.slim .help {{ padding: 0.3ex 0.7ex; }}
+body.slim .item_omit {{ margin-left: 1.5ex; }}
 @media (max-device-width:720px) {{
   html {{ background: #eeeeee; font-size: 32pt; }}
   body {{ padding: 0; }}
@@ -1236,13 +1243,24 @@ function mark_stars() {{
     }}
   }}
 }}
+function toggle_star_hints() {{
+  let star_list = document.getElementById("star_list");
+  if (!star_list) return;
+  star_list.hint_shown = !star_list.hint_shown;
+  for (let sheet of document.styleSheets) {{
+    for (let rule of sheet.cssRules) {{
+      if (rule.selectorText != ".star_hint") continue;
+      rule.style.display = star_list.hint_shown ? "inline" : "none";
+    }}
+  }}
+}}
 function reorder_stars() {{
   let star_list = document.getElementById("star_list");
   if (!star_list) return;
   list_stars(!star_list.forward);
 }}
 function clear_stars() {{
-  if (!confirm("Do you really delete all stars?")) {{
+  if (!confirm("全ての星印を消しますか？")) {{
     return;
   }}
   if (localStorage) {{
@@ -1449,8 +1467,8 @@ def main_cgi():
       params[key] = value.value
   query = (params.get("q") or "").strip()
   extra_mode = (params.get("x") or "").strip()
-  if extra_mode == "popup":
-    ProcessPopUp(query)
+  if extra_mode == "json":
+    ProcessJSON(query)
     return
   error_notes = []
   is_http_query = False
@@ -1492,8 +1510,9 @@ def main_cgi():
   print("""Content-Type: application/xhtml+xml
 
 """, end="")
-  PrintCGIHeader(page_title)
-  P('<h1><a href="{}">統合英和辞書検索</a></h1>', script_name)
+  PrintCGIHeader(page_title, extra_mode)
+  if extra_mode != "popup":
+    P('<h1><a href="{}">統合英和辞書検索</a></h1>', script_name)
   if index_mode == "annot":
     if not is_http_query:
       P('<div class="search_form">')
@@ -1508,7 +1527,7 @@ def main_cgi():
       P('</div>')
       P('</form>')
       P('</div>')
-  else:
+  elif extra_mode != "popup":
     P('<div class="search_form">')
     P('<form method="get" name="search_form" onsubmit="check_search_form()">')
     P('<div id="query_line">')
@@ -1580,6 +1599,21 @@ def main_cgi():
         result = searcher.SearchExactReverse(query, CGI_CAPACITY)
       else:
         result = searcher.SearchExact(query, CGI_CAPACITY)
+      if not result and extra_mode == "popup":
+        infl_result = None
+        lemmas = searcher.SearchInflections(query)
+        if lemmas:
+          infl_query = ",".join(lemmas)
+          infl_result = searcher.SearchExact(infl_query, CGI_CAPACITY)
+        if infl_result:
+          result.extend(infl_result)
+        else:
+          if is_reverse:
+            edit_result = searcher.SearchPatternMatchReverse("edit", query, CGI_CAPACITY)
+          else:
+            edit_result = searcher.SearchPatternMatch("edit", query, CGI_CAPACITY)
+          if edit_result:
+            result.extend(edit_result)
     elif search_mode == "prefix":
       if is_reverse:
         result = searcher.SearchPatternMatchReverse("begin", query, CGI_CAPACITY)
@@ -1639,14 +1673,14 @@ def main_cgi():
     if result:
       if view_mode == "auto":
         keys = searcher.GetResultKeys(result)
-        if len(keys) < 2:
+        if len(keys) < 2 and extra_mode != "popup":
           PrintResultCGI(script_name, result, query, True)
         elif len(keys) < 6:
           PrintResultCGI(script_name, result, query, False)
         else:
           PrintResultCGIList(script_name, result, query)
         if not is_reverse and index_mode == "auto":
-          lemmas =set()
+          lemmas = set()
           for lemma in searcher.SearchInflections(query):
             if lemma in keys: continue
             lemmas.add(lemma)
@@ -1737,16 +1771,16 @@ def main_cgi():
     else:
       infl_result = None
       edit_result = None
-      if search_mode == "auto":
-        if is_reverse:
-          edit_result = searcher.SearchPatternMatchReverse("edit", query, CGI_CAPACITY)
-        else:
-          edit_result = searcher.SearchPatternMatch("edit", query, CGI_CAPACITY)
+      if search_mode == "auto" and extra_mode != "popup":
         if index_mode in ("auto", "normal"):
           lemmas = searcher.SearchInflections(query)
           if lemmas:
             infl_query = ",".join(lemmas)
             infl_result = searcher.SearchExact(infl_query, CGI_CAPACITY)
+        if is_reverse:
+          edit_result = searcher.SearchPatternMatchReverse("edit", query, CGI_CAPACITY)
+        else:
+          edit_result = searcher.SearchPatternMatch("edit", query, CGI_CAPACITY)
       subactions = []
       if infl_result:
         subactions.append("屈折検索")
@@ -1789,6 +1823,7 @@ def main_cgi():
   elif extra_mode == "stars":
     print("""<div id="star_info" class="message_view">
 <div class="pagenavi">
+<span class="page_icon" onclick="toggle_star_hints()">&#x263C;</span>
 <span class="page_icon" onclick="reorder_stars()">&#x2B83;</span>
 <span class="page_icon" onclick="clear_stars()">&#x2604;</span>
 </div>
@@ -1805,7 +1840,7 @@ def main_cgi():
   PrintCGIFooter()
 
 
-def ProcessPopUp(query):
+def ProcessJSON(query):
   print("""Content-Type: application/json
 Access-Control-Allow-Origin: *
 
