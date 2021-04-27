@@ -646,7 +646,7 @@ def PrintResultCGI(script_name, entries, query, details):
     P('</div>')
     word_url = "{}?q={}".format(script_name, urllib.parse.quote(word))
     P('<h2 class="entry_word">', end="")
-    P('<a href="{}">{}</a>', word_url, word, end="")
+    P('<a href="{}" class="word_link">{}</a>', word_url, word, end="")
     if not details and pron:
       P(' <span class="title_pron">{}</span>', pron, end="")
     P('</h2>')
@@ -681,7 +681,7 @@ def PrintResultCGI(script_name, entries, query, details):
     for num_items, item in enumerate(entry["item"]):
       if not details and num_items >= 8:
         P('<div class="item item_omit">', label)
-        P('<a href="{}">... ...</a>', word_url)
+        P('<a href="{}" class="omit_link">... ...</a>', word_url)
         P('</div>')
         break
       label = item.get("label") or "misc"
@@ -1154,19 +1154,20 @@ a.star_word {{ display: inline-block; min-width: 10ex; padding: 0ex 0.5ex;
   display: inline-block; border: solid 1px #999999; border-radius: 0.5ex;
   font-size: 65%; min-width: 3.5ex; text-align: center;
   margin-right: -0.3ex; color: #333333; }}
-body.slim article {{ width: 98%; zoom: 85%; padding-bottom: 0.1ex; }}
-body.slim .entry_view, body.slim .list_view,
-body.slim .annot_view, body.slim .message_view, body.slim .help {{
-  border: none;
-  margin: 0.5ex 0ex; padding: 0.3ex 0.3ex 0.6ex 0.3ex; }}
-body.slim .attr {{ margin-left: 1ex; margin-right: 0.4ex; }}
-body.slim .item_text1 {{ margin-left: 1ex; margin-right: 0.4ex; }}
-body.slim .item_text2 {{ margin-left: 3ex; margin-right: 0.4ex; }}
-body.slim .item_text3 {{ margin-left: 5ex; margin-right: 0.4ex; }}
-body.slim .item_text4 {{ margin-left: 7ex; margin-right: 0.4ex; }}
-body.slim .item_text_n {{ font-size: 90%; }}
-body.slim .list_view, body.slim .help {{ padding: 0.3ex 0.7ex; }}
-body.slim .item_omit {{ margin-left: 1.5ex; }}
+@media (max-width:500px) {{
+  article {{ width: 98%; zoom: 85%; padding-bottom: 0.1ex; }}
+  .entry_view, .list_view, .annot_view, .message_view, .help {{
+    border: none;
+    margin: 0.5ex 0ex; padding: 0.3ex 0.3ex 0.6ex 0.3ex; }}
+  .attr {{ margin-left: 1ex; margin-right: 0.4ex; }}
+  .item_text1 {{ margin-left: 1ex; margin-right: 0.4ex; }}
+  .item_text2 {{ margin-left: 3ex; margin-right: 0.4ex; }}
+  .item_text3 {{ margin-left: 5ex; margin-right: 0.4ex; }}
+  .item_text4 {{ margin-left: 7ex; margin-right: 0.4ex; }}
+  .item_text_n {{ font-size: 90%; }}
+  .list_view, .help {{ padding: 0.3ex 0.7ex; }}
+  .item_omit {{ margin-left: 1.5ex; }}
+}}
 @media (max-device-width:720px) {{
   html {{ background: #eeeeee; font-size: 32pt; }}
   body {{ padding: 0; }}
@@ -1213,6 +1214,7 @@ function startup() {{
       event.preventDefault();
     }}
   }}, false);
+  modify_urls();
   mark_stars();
   list_stars(false);
 }}
@@ -1232,6 +1234,27 @@ function clear_query() {{
   if (query_input) {{
     query_input.value = "";
     query_input.focus();
+  }}
+}}
+function modify_urls() {{
+  let base_url = new URL(document.location.href);
+  if (base_url.search && base_url.search.match(/[&?]x=popup(&|$)/)) {{
+    let base_prefix = base_url.origin + base_url.pathname;
+    let links = document.getElementsByTagName("a");
+    for (let link of links) {{
+      if (!link.href) continue;
+      let link_url = new URL(link.href);
+      let link_prefix = link_url.origin + link_url.pathname;
+      if (link_prefix != base_prefix) continue;
+      let new_link_url = link_prefix + "?x=popup"
+      if (link.search) {{
+        new_link_url += link.search.replace("?", "&");
+      }}
+      if (link.className == "word_link" || link.className == "omit_link") {{
+        new_link_url += "&v=full";
+      }}
+      link.href = new_link_url;
+    }}
   }}
 }}
 let storage_key_stars = "union_dict_stars";
@@ -1438,11 +1461,6 @@ function is_touchable() {{
 /*]]>*/</script>
 </head>
 <body onload="startup()" class="normal">
-<script>/*<![CDATA[*/
-if (window.innerWidth <= 500) {{
-  document.body.className = "slim";
-}}
-/*]]>*/</script>
 <article>
 """.format(esc(page_title)), end="", file=file)
 
