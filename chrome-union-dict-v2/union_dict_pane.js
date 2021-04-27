@@ -1,7 +1,6 @@
 'use strict';
 
-//let union_dict_search_url = "https://dbmx.net/dict/search_union.cgi"
-let union_dict_search_url = "https://dbmx.net/dev/tkrzw-dict/search_union.cgi"
+let union_dict_search_url = "https://dbmx.net/dict/search_union.cgi"
 let pos_labels = new Map([
   ["noun", "名"],
   ["verb", "動"],
