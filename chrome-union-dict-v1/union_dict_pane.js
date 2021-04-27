@@ -130,7 +130,7 @@ function union_dict_update_pane(query) {
   message.className = "union_dict_message";
   article.appendChild(message);
   union_dict_pane.appendChild(article);
-  let url = union_dict_search_url + "?x=popup&q=" + encodeURI(query);
+  let url = union_dict_search_url + "?x=json&q=" + encodeURI(query);
   let xhr = new XMLHttpRequest();
   let reporter = function(event) {
     if (xhr.readyState == 1) {
