@@ -1168,6 +1168,9 @@ a.star_word {{ display: inline-block; min-width: 10ex; padding: 0ex 0.5ex;
   .list_view, .help {{ padding: 0.3ex 0.7ex; }}
   .item_omit {{ margin-left: 1.5ex; }}
 }}
+@media (max-width:400px) {{
+  article {{ zoom: 80%; }}
+}}
 @media (max-device-width:720px) {{
   html {{ background: #eeeeee; font-size: 32pt; }}
   body {{ padding: 0; }}

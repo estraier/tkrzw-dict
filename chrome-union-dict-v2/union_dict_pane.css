@@ -14,8 +14,7 @@
     border-radius: 0.8ex;
     box-shadow: 2px 2px 2px rgba(0,0,0,0.2);
     text-align: left;
-    overflow-x: hidden;
-    overflow-y: scroll;
+    overflow: hidden;
     opacity: 0.98;
     z-index: 2147483647;
 }

@@ -21,3 +21,11 @@ chrome.storage.local.get(["popup_enable"], function(value) {
     config_form.popup_enable.value = "on";
   }
 });
+
+let root = document.documentElement;
+if (root.clientWidth < 500) {
+  document.documentElement.style.width = (root.clientWidth - 1) + "px";
+}
+if (root.clientWidth < 400) {
+  document.documentElement.style.height = (root.clientHeight - 1) + "px";
+}
