@@ -1237,6 +1237,7 @@ function clear_query() {{
   if (query_input) {{
     query_input.value = "";
     query_input.focus();
+    window.scrollTo(0, 0);
   }}
 }}
 function modify_urls() {{
