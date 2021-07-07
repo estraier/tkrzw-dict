@@ -36,11 +36,11 @@ class UnionSearcher:
     self.infl_index_dbm = tkrzw.DBM()
     self.infl_index_dbm.Open(infl_index_path, False, dbm="HashDBM").OrDie()
     keys_path = data_prefix + "-keys.txt"
-    self.keys_file = tkrzw.TextFile()
-    self.keys_file.Open(keys_path).OrDie()
+    self.keys_file = tkrzw.File()
+    self.keys_file.Open(keys_path, False).OrDie()
     tran_keys_path = data_prefix + "-tran-keys.txt"
-    self.tran_keys_file = tkrzw.TextFile()
-    self.tran_keys_file.Open(tran_keys_path).OrDie()
+    self.tran_keys_file = tkrzw.File()
+    self.tran_keys_file.Open(tran_keys_path, False).OrDie()
 
   def __del__(self):
     self.tran_index_dbm.Close().OrDie()
