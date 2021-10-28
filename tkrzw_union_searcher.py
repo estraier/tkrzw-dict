@@ -304,7 +304,7 @@ class UnionSearcher:
 
   def SearchPatternMatch(self, mode, text, capacity):
     text = tkrzw_dict.NormalizeWord(text)
-    keys = self.keys_file.Search(mode, text, capacity, True)
+    keys = self.keys_file.Search(mode, text, capacity)
     result = []
     for key in keys:
       if len(result) >= capacity: break
@@ -314,7 +314,7 @@ class UnionSearcher:
 
   def SearchPatternMatchReverse(self, mode, text, capacity):
     text = tkrzw_dict.NormalizeWord(text)
-    keys = self.tran_keys_file.Search(mode, text, capacity, True)
+    keys = self.tran_keys_file.Search(mode, text, capacity)
     result = []
     uniq_words = set()
     for key in keys:
@@ -328,7 +328,7 @@ class UnionSearcher:
     return result
 
   def SearchByGrade(self, capacity, page, first_only):
-    keys = self.keys_file.Search("begin", "", capacity * page, False)
+    keys = self.keys_file.Search("begin", "", capacity * page)
     if page > 1:
       skip = capacity * (page - 1)
       keys = keys[skip:]
