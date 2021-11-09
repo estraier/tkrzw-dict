@@ -232,9 +232,11 @@ def GetKeyPrefix(key):
 
 
 class GenerateUnionEPUBBatch:
-  def __init__(self, input_path, output_path):
+  def __init__(self, input_path, output_path, min_prob, multi_min_prob):
     self.input_path = input_path
     self.output_path = output_path
+    self.min_prob = min_prob
+    self.multi_min_prob = multi_min_prob
 
   def Run(self):
     start_time = time.time()
@@ -282,15 +284,17 @@ class GenerateUnionEPUBBatch:
 
   def IsGoodEntry(self, entry):
     word = entry["word"]
+    prob = float(entry.get("probability") or "0")    
+    if prob < self.min_prob:
+      return False
     labels = set()
     for item in entry["item"]:
       if item["text"].startswith("[translation]:"): continue
       labels.add(item["label"])
     if "wj" in labels: return True
-    prob = float(entry.get("probability") or "0")
     if (regex.search(r"(^| )[\p{Lu}\p{P}\p{S}\d]", word) and "we" not in labels):
       return False
-    if prob < 0.00002 and (regex.search(r" ", word) or len(labels) == 1):
+    if prob < self.multi_min_prob and (regex.search(r" ", word) or len(labels) == 1):
       return False
     return True
 
@@ -497,11 +501,13 @@ def main():
   args = sys.argv[1:]
   input_path = tkrzw_dict.GetCommandFlag(args, "--input", 1) or "union-body.tkh"
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-dict-epub"
+  min_prob = float(tkrzw_dict.GetCommandFlag(args, "--min_prob", 1) or 0)
+  multi_min_prob = float(tkrzw_dict.GetCommandFlag(args, "--multi_min_prob", 1) or 0.00002)
   if not input_path:
     raise RuntimeError("an input path is required")
   if not output_path:
     raise RuntimeError("an output path is required")
-  GenerateUnionEPUBBatch(input_path, output_path).Run()
+  GenerateUnionEPUBBatch(input_path, output_path, min_prob, multi_min_prob).Run()
 
 
 if __name__=="__main__":
