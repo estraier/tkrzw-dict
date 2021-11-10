@@ -335,7 +335,6 @@ class GenerateUnionEPUBBatch:
       if not serialized: continue
       entries = json.loads(serialized)
       for entry in entries:
-        #if entry["word"] not in words: continue
         self.MakeMainEntry(out_file, entry, input_dbm)
     for key_prefix, out_file in out_files.items():
       print(MAIN_FOOTER_TEXT, file=out_file, end="")
@@ -386,7 +385,10 @@ class GenerateUnionEPUBBatch:
     for pos, values in infl_groups.items():
       P('<idx:infl inflgrp="{}">', pos)
       for kind, value, label in values:
-        P('<idx:iform name="{}" value="{}"/>', kind, value)
+        for infl in value.split(","):
+          infl = infl.strip()
+          if not infl: continue
+          P('<idx:iform name="{}" value="{}"/>', kind, infl)
       P('</idx:infl>', pos)
     P('</idx:orth>')
     P('</span>')
