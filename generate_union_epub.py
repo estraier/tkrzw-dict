@@ -284,7 +284,7 @@ class GenerateUnionEPUBBatch:
 
   def IsGoodEntry(self, entry):
     word = entry["word"]
-    prob = float(entry.get("probability") or "0")    
+    prob = float(entry.get("probability") or "0")
     if prob < self.min_prob:
       return False
     labels = set()
