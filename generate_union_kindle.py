@@ -132,8 +132,6 @@ PACKAGE_FOOTER_TEXT = """</spine>
 STYLE_TEXT = """html,body { margin: 0; padding: 0; background: #fff; color: #000; font-size: 12pt; }
 span.word { font-weight: bold; }
 span.pron { font-size: 90%; color: #444; }
-div.tran,div.item,div.infl { margin-left: 1ex; }
-span.col { padding-right: 1ex; }
 span.pos,span.attr { font-size: 80%; color: #555; }
 """
 NAVIGATION_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
@@ -168,6 +166,7 @@ OVERVIEW_TEXT = """
 <h2>Overview</h2>
 <p>This dictionary is made from data sources published as open-source data.  It uses <a href="https://wordnet.princeton.edu/">WordNet</a>, <a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">Japanese WordNet</a>, <a href="https://ja.wiktionary.org/">Japanese Wiktionary</a>, and <a href="https://en.wiktionary.org/">English Wiktionary</a>.  See <a href="https://dbmx.net/dict/">the homepage</a> for details to organize the data.  Using and/or redistributing this data should be done according to the license of each data source.</p>
 <p>In each word entry, the title word is shown in bold.  Some words have a pronounciation expression in the IPA format, bracketed as "/.../".  A list of translation can come next.  Then, definitions of the word come in English or Japanese.  Each definition is led by a part of speech label.  Additional information such as inflections and varints can come next.</p>
+<p>The number of words is {}.  The number of definition items is {}.</p>
 </article>
 </body>
 </html>
@@ -224,6 +223,8 @@ class GenerateUnionEPUBBatch:
     self.output_path = output_path
     self.min_prob = min_prob
     self.multi_min_prob = multi_min_prob
+    self.num_words = 0
+    self.num_items = 0
 
   def Run(self):
     start_time = time.time()
@@ -238,11 +239,11 @@ class GenerateUnionEPUBBatch:
     for key in keys:
       key_prefixes.add(GetKeyPrefix(key))
     key_prefixes = sorted(list(key_prefixes))
-    self.MakePackage(key_prefixes)
-    self.MakeStyle()
+    self.MakeMain(input_dbm, keys, words)
     self.MakeNavigation(key_prefixes)
     self.MakeOverview()
-    self.MakeMain(input_dbm, keys, words)
+    self.MakeStyle()
+    self.MakePackage(key_prefixes)
     input_dbm.Close().OrDie()
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
@@ -256,7 +257,7 @@ class GenerateUnionEPUBBatch:
       if rec == None: break
       entries = json.loads(rec[1])
       for entry in entries:
-        if not self.IsGoodEntry(entry): continue
+        if not self.IsGoodEntry(entry, input_dbm): continue
         word = entry["word"]
         prob = float(entry.get("probability") or "0")
         words[word] = max(words.get(word) or 0.0, prob)
@@ -264,7 +265,7 @@ class GenerateUnionEPUBBatch:
     logger.info("Checking words done: {}".format(len(words)))
     return words
 
-  def IsGoodEntry(self, entry):
+  def IsGoodEntry(self, entry, input_dbm):
     word = entry["word"]
     prob = float(entry.get("probability") or "0")
     if prob < self.min_prob:
@@ -274,51 +275,28 @@ class GenerateUnionEPUBBatch:
       if item["text"].startswith("[translation]:"): continue
       labels.add(item["label"])
     if "wj" in labels: return True
+    has_parent = False
+    parents = entry.get("parent")
+    if parents:
+      for parent in parents:
+        parent_entry = input_dbm.Get(parent)
+        if not parent_entry: return
+        parent_entries = json.loads(parent_entry)
+        for parent_entry in parent_entries:
+          match_infl = False
+          if float(parent_entry.get("probability") or "0") < 0.0001: continue
+          for attr_list in INFLECTIONS:
+            for name, label in attr_list:
+              value = parent_entry.get(name)
+              if value and value == word:
+                match_infl = True
+          if not match_infl:
+            return True
     if (regex.search(r"(^| )[\p{Lu}\p{P}\p{S}\d]", word) and "we" not in labels):
       return False
     if prob < self.multi_min_prob and (regex.search(r" ", word) or len(labels) == 1):
       return False
     return True
-
-  def MakePackage(self, key_prefixes):
-    out_path = os.path.join(self.output_path, "package.opf")
-    logger.info("Creating: {}".format(out_path))
-    with open(out_path, "w") as out_file:
-      print(PACKAGE_HEADER_TEXT, file=out_file, end="")
-      main_ids = []
-      for key_prefix in key_prefixes:
-        main_path = "main-{}.xhtml".format(key_prefix)
-        main_id = "main_" + key_prefix
-        print('<item id="{}" href="{}" media-type="application/xhtml+xml"/>'.format(
-          main_id, main_path), file=out_file)
-        main_ids.append(main_id)
-      print(PACKAGE_MIDDLE_TEXT, file=out_file, end="")
-      for main_id in main_ids:
-        print('<itemref idref="{}"/>'.format(main_id), file=out_file)
-      print(PACKAGE_FOOTER_TEXT, file=out_file, end="")
-
-  def MakeStyle(self):
-    out_path = os.path.join(self.output_path, "style.css")
-    logger.info("Creating: {}".format(out_path))
-    with open(out_path, "w") as out_file:
-      print(STYLE_TEXT, file=out_file, end="")
-
-  def MakeNavigation(self, key_prefixes):
-    out_path = os.path.join(self.output_path, "nav.xhtml")
-    logger.info("Creating: {}".format(out_path))
-    with open(out_path, "w") as out_file:
-      print(NAVIGATION_HEADER_TEXT, file=out_file, end="")
-      for key_prefix in key_prefixes:
-        main_path = "main-{}.xhtml".format(key_prefix)
-        print('<li><a href="{}">Word: {}</a></li>'.format(main_path, key_prefix),
-              file=out_file)
-      print(NAVIGATION_FOOTER_TEXT, file=out_file, end="")
-
-  def MakeOverview(self):
-    out_path = os.path.join(self.output_path, "overview.xhtml")
-    logger.info("Creating: {}".format(out_path))
-    with open(out_path, "w") as out_file:
-      print(OVERVIEW_TEXT, file=out_file, end="")
 
   def MakeMain(self, input_dbm, keys, words):
     out_files = {}
@@ -378,7 +356,8 @@ class GenerateUnionEPUBBatch:
       else:
         first_label = label
       items.append(item)
-    P('<idx:entry>')
+    self.num_words += 1
+    P('<idx:entry name="en" scriptable="yes" spell="yes">')
     P('<div class="head">')
     P('<span class="word">')
     P('<idx:orth>{}', word)
@@ -398,6 +377,7 @@ class GenerateUnionEPUBBatch:
     if translations:
       P('<div class="tran">{}</div>', ", ".join(translations[:6]))
     for item in items[:10]:
+      self.num_items += 1
       self.MakeMainEntryItem(P, item, False)
     parents = entry.get("parent")
     if parents:
@@ -443,13 +423,61 @@ class GenerateUnionEPUBBatch:
     parent_entry = input_dbm.Get(parent)
     if not parent_entry: return
     entries = json.loads(parent_entry)
+    num = 0
     for entry in entries:
+      if num > 0 and float(entry.get("share") or "0") < 0.25: break
       translations = entry.get("translation")
       if translations:
+        text = ", ".join(translations[:4])
+      else:
+        text = entry["item"][0]["text"]
+        text = regex.sub(r" \[-+\] .*", "", text).strip()
+      if text:
         P('<div class="item">')
         P('<span class="attr">[語幹]</span>')
-        P('<span class="text">{} : {}</span>', parent, ", ".join(translations[:4]))
+        P('<span class="text">{} : {}</span>', entry["word"], text)
         P('</div>')
+      num += 1
+
+  def MakeNavigation(self, key_prefixes):
+    out_path = os.path.join(self.output_path, "nav.xhtml")
+    logger.info("Creating: {}".format(out_path))
+    with open(out_path, "w") as out_file:
+      print(NAVIGATION_HEADER_TEXT, file=out_file, end="")
+      for key_prefix in key_prefixes:
+        main_path = "main-{}.xhtml".format(key_prefix)
+        print('<li><a href="{}">Word: {}</a></li>'.format(main_path, key_prefix),
+              file=out_file)
+      print(NAVIGATION_FOOTER_TEXT, file=out_file, end="")
+
+  def MakeOverview(self):
+    out_path = os.path.join(self.output_path, "overview.xhtml")
+    logger.info("Creating: {}".format(out_path))
+    with open(out_path, "w") as out_file:
+      print(OVERVIEW_TEXT.format(self.num_words, self.num_items), file=out_file, end="")
+
+  def MakeStyle(self):
+    out_path = os.path.join(self.output_path, "style.css")
+    logger.info("Creating: {}".format(out_path))
+    with open(out_path, "w") as out_file:
+      print(STYLE_TEXT, file=out_file, end="")
+
+  def MakePackage(self, key_prefixes):
+    out_path = os.path.join(self.output_path, "package.opf")
+    logger.info("Creating: {}".format(out_path))
+    with open(out_path, "w") as out_file:
+      print(PACKAGE_HEADER_TEXT, file=out_file, end="")
+      main_ids = []
+      for key_prefix in key_prefixes:
+        main_path = "main-{}.xhtml".format(key_prefix)
+        main_id = "main_" + key_prefix
+        print('<item id="{}" href="{}" media-type="application/xhtml+xml"/>'.format(
+          main_id, main_path), file=out_file)
+        main_ids.append(main_id)
+      print(PACKAGE_MIDDLE_TEXT, file=out_file, end="")
+      for main_id in main_ids:
+        print('<itemref idref="{}"/>'.format(main_id), file=out_file)
+      print(PACKAGE_FOOTER_TEXT, file=out_file, end="")
 
 
 def main():
@@ -457,7 +485,7 @@ def main():
   input_path = tkrzw_dict.GetCommandFlag(args, "--input", 1) or "union-body.tkh"
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-dict-epub"
   min_prob = float(tkrzw_dict.GetCommandFlag(args, "--min_prob", 1) or 0)
-  multi_min_prob = float(tkrzw_dict.GetCommandFlag(args, "--multi_min_prob", 1) or 0.00002)
+  multi_min_prob = float(tkrzw_dict.GetCommandFlag(args, "--multi_min_prob", 1) or 0.00001)
   if not input_path:
     raise RuntimeError("an input path is required")
   if not output_path:
