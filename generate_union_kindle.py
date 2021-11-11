@@ -270,11 +270,16 @@ class GenerateUnionEPUBBatch:
     prob = float(entry.get("probability") or "0")
     if prob < self.min_prob:
       return False
+    poses = set()
     labels = set()
     for item in entry["item"]:
+      poses.add(item["pos"])
       if item["text"].startswith("[translation]:"): continue
       labels.add(item["label"])
     if "wj" in labels: return True
+    translations = entry.get("translation")
+    if ("verb" in poses or "adjective" in poses or "adverb" in poses) and translations:
+      return True
     has_parent = False
     parents = entry.get("parent")
     if parents:
@@ -284,7 +289,7 @@ class GenerateUnionEPUBBatch:
         parent_entries = json.loads(parent_entry)
         for parent_entry in parent_entries:
           match_infl = False
-          if float(parent_entry.get("probability") or "0") < 0.0001: continue
+          if float(parent_entry.get("probability") or "0") < 0.00005: continue
           for attr_list in INFLECTIONS:
             for name, label in attr_list:
               value = parent_entry.get(name)
