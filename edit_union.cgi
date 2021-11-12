@@ -83,7 +83,7 @@ def PrintBody(script_name, request_method, params):
   posting = False
   if op == "edit" and word and request_method == "POST":
     posting = True
-    ok = True
+    ok = False
     if data:
       try:
         entries = json.loads(data)
@@ -116,17 +116,19 @@ def PrintBody(script_name, request_method, params):
               if not translation:
                 raise ValueError("a translation is empty")
         data = json.dumps(entries, separators=(",", ":"), ensure_ascii=False)
+        ok = True
       except json.JSONDecodeError as e:
         messages.append("JSON Error: " + str(e))
-        ok = False
       except ValueError as e:
         messages.append("Format Error: " + str(e))
-        ok = False
+    else:
+      ok = True
     if ok:
       dbm.Open(DICT_PATH, True, dbm="HashDBM").OrDie()
       if data:
         dbm.Set(word, data).OrDie()
         messages.append("The entry has been modified.")
+        data = json.dumps(json.loads(data), ensure_ascii=False, indent=2)
       else:
         dbm.Remove(word).OrDie()
         messages.append("The entry has been removed.")
@@ -136,17 +138,17 @@ def PrintBody(script_name, request_method, params):
   if word:
     if not posting:
       data = dbm.GetStr(word) or ""
-    if data:
-      data = json.dumps(json.loads(data), ensure_ascii=False, indent=2)
-    else:
-      entry = {
-        "word": word,
-        "item": [{"label": "xa", "pos": "noun", "text": ""}],
-        "probability": ".000000",
-        "translation": [""],
-      }
-      data = json.dumps([entry], ensure_ascii=False, indent=2)
-      messages.append("the word is missing so a template is shown.")
+      if data:
+        data = json.dumps(json.loads(data), ensure_ascii=False, indent=2)
+      else:
+        entry = {
+          "word": word,
+          "item": [{"label": "xa", "pos": "noun", "text": ""}],
+          "probability": ".000000",
+          "translation": [""],
+        }
+        data = json.dumps([entry], ensure_ascii=False, indent=2)
+        messages.append("the word is missing so a template is shown.")
     P('<div>Key: <strong>{}</strong></div>', word)
     P('<div>')
     P('<textarea name="d" cols="120" rows="30">{}</textarea>', data)
