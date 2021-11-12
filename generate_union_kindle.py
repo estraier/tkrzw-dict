@@ -166,7 +166,7 @@ OVERVIEW_TEXT = """
 <h2>Overview</h2>
 <p>This dictionary is made from data sources published as open-source data.  It uses <a href="https://wordnet.princeton.edu/">WordNet</a>, <a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">Japanese WordNet</a>, <a href="https://ja.wiktionary.org/">Japanese Wiktionary</a>, and <a href="https://en.wiktionary.org/">English Wiktionary</a>.  See <a href="https://dbmx.net/dict/">the homepage</a> for details to organize the data.  Using and/or redistributing this data should be done according to the license of each data source.</p>
 <p>In each word entry, the title word is shown in bold.  Some words have a pronounciation expression in the IPA format, bracketed as "/.../".  A list of translation can come next.  Then, definitions of the word come in English or Japanese.  Each definition is led by a part of speech label.  Additional information such as inflections and varints can come next.</p>
-<p>The number of words is {}.  The number of definition items is {}.</p>
+<p>The number of words is {}.  The number of words with translations is {}.  The number of definition items is {}.</p>
 </article>
 </body>
 </html>
@@ -224,6 +224,7 @@ class GenerateUnionEPUBBatch:
     self.min_prob = min_prob
     self.multi_min_prob = multi_min_prob
     self.num_words = 0
+    self.num_trans = 0
     self.num_items = 0
 
   def Run(self):
@@ -380,6 +381,7 @@ class GenerateUnionEPUBBatch:
       P('&#x2003;<span class="pron">/{}/</span>', pronunciation)
     P('</div>')
     if translations:
+      self.num_trans += 1
       P('<div class="tran">{}</div>', ", ".join(translations[:6]))
     for item in items[:10]:
       self.num_items += 1
@@ -459,7 +461,8 @@ class GenerateUnionEPUBBatch:
     out_path = os.path.join(self.output_path, "overview.xhtml")
     logger.info("Creating: {}".format(out_path))
     with open(out_path, "w") as out_file:
-      print(OVERVIEW_TEXT.format(self.num_words, self.num_items), file=out_file, end="")
+      print(OVERVIEW_TEXT.format(self.num_words, self.num_trans, self.num_items),
+            file=out_file, end="")
 
   def MakeStyle(self):
     out_path = os.path.join(self.output_path, "style.css")
