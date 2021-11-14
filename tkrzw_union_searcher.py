@@ -344,8 +344,8 @@ class UnionSearcher:
   infl_names = (
     "noun_plural", "verb_singular", "verb_present_participle",
     "verb_past", "verb_past_participle",
-    "adjective_comparative", "adjective_superative",
-    "adverb_comparative", "adverb_superative")
+    "adjective_comparative", "adjective_superlative",
+    "adverb_comparative", "adverb_superlative")
   re_latin_word = regex.compile(r"[\p{Latin}\d][-_'’\p{Latin}\d]*")
   re_aux_contraction = regex.compile(r"(.+)['’](s|ve|d|ll|m|re|em)$", regex.IGNORECASE)
   re_not_contraction = regex.compile(r"([a-z]{2,})n['’]t$", regex.IGNORECASE)

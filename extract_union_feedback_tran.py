@@ -4,7 +4,7 @@
 # Script to extract translations from the union dictionary
 #
 # Usage:
-#   extract_union_feedback_tran.py input_db
+#   extract_union_feedback_tran.py input_db [--synset]
 #
 # Example
 #   ./extract_union_feedback_tran.py union-body.tkh
@@ -27,9 +27,16 @@ import tkrzw
 
 def main():
   args = sys.argv[1:]
-  if len(args) != 1:
+  if len(args) < 1:
     raise ValueError("invalid arguments")
   input_path = args[0]
+  is_synset = False
+  for arg in args[1:]:
+    if arg == "--synset":
+      is_synset = True
+    else:
+      raise ValueError("invalid arguments")
+  
   dbm = tkrzw.DBM()
   dbm.Open(input_path, False).OrDie()
   it = dbm.MakeIterator()
@@ -41,18 +48,20 @@ def main():
     entries = json.loads(data)
     for entry in entries:
       word = entry["word"]
-      translations = entry.get("translation")
-      if translations:
-        print("{}\t{}".format(word, "\t".join(translations)))
-      for item in entry["item"]:
-        text = item["text"]
-        syn_match = regex.search(r"\[synset\]: ([-0-9a-z]+)", text)
-        tran_match = regex.search(r"\[translation\]: ([^\[]+)", text)
-        if syn_match and tran_match:
-          syn = syn_match.group(1)
-          tran = tran_match.group(1)
-          syn_trans = [x.strip() for x in tran.split(",")]
-          print("{}:{}\t{}".format(word, syn, "\t".join(syn_trans)))
+      if is_synset:
+        for item in entry["item"]:
+          text = item["text"]
+          syn_match = regex.search(r"\[synset\]: ([-0-9a-z]+)", text)
+          tran_match = regex.search(r"\[translation\]: ([^\[]+)", text)
+          if syn_match and tran_match:
+            syn = syn_match.group(1)
+            tran = tran_match.group(1)
+            syn_trans = [x.strip() for x in tran.split(",")]
+            print("{}:{}\t{}".format(word, syn, "\t".join(syn_trans)))
+      else:
+        translations = entry.get("translation")
+        if translations:
+          print("{}\t{}".format(word, "\t".join(translations)))
     it.Next()
   dbm.Close().OrDie()
 

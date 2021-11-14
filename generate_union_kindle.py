@@ -60,9 +60,9 @@ INFLECTIONS = [
    ("verb_past", "過去"),
    ("verb_past_participle", "過分")],
   [("adjective_comparative", "形比"),
-   ("adjective_superative", "形最")],
+   ("adjective_superlative", "形最")],
   [("adverb_comparative", "副比"),
-   ("adverb_superative", "副最")]]
+   ("adverb_superlative", "副最")]]
 WORDNET_ATTRS = {
   "translation": "翻訳",
   "synonym": "同義",

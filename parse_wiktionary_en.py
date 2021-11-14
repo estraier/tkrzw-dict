@@ -121,9 +121,9 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     verb_past = ""
     verb_past_participle = ""
     adjective_comparative = ""
-    adjective_superative = ""
+    adjective_superlative = ""
     adverb_comparative = ""
-    adverb_superative = ""
+    adverb_superlative = ""
     infl_modes = set()
     is_eng = False
     mode = ""
@@ -415,52 +415,52 @@ class XMLHandler(xml.sax.handler.ContentHandler):
             stop = True
         if not stop:
           adjective_comparative = None
-          adjective_superative = None
+          adjective_superlative = None
           stem = title
           stem = regex.sub(r"e$", "", stem)
           stem = regex.sub(r"([^aeiou])y$", r"\1i", stem)
           if len(values) == 1 and values[0] == "er":
             adjective_comparative = stem + "er"
-            adjective_superative = stem + "est"
+            adjective_superlative = stem + "est"
           elif len(values) == 1 and values[0].endswith("er"):
             adjective_comparative = values[0]
-            adjective_superative = values[0][:-2] + "est"
+            adjective_superlative = values[0][:-2] + "est"
           elif len(values) == 2 and values[0] == "er":
             adjective_comparative = stem + "er"
-            adjective_superative = stem + "est"
+            adjective_superlative = stem + "est"
           elif len(values) == 2 and values[1] == "er":
             if values[0] in ("-", "more"):
               adjective_comparative = stem + "er"
-              adjective_superative = stem + "est"
+              adjective_superlative = stem + "est"
             else:
               adjective_comparative = values[0] + "er"
-              adjective_superative = values[0] + "est"
+              adjective_superlative = values[0] + "est"
           elif len(values) == 2 and values[0] in ("-", "~") and values[1] in "more":
             pass
           elif len(values) == 2 and values[0] == "more" and values[1] in ("-", "~"):
             pass
           elif len(values) == 2 and values[0] == "r" and values[1] == "more":
             adjective_comparative = title + "r"
-            adjective_superative = ""
+            adjective_superlative = ""
           elif len(values) == 2 and values[0] == "er" and values[1] == "more":
             adjective_comparative = stem + "er"
-            adjective_superative = stem + "est"
+            adjective_superlative = stem + "est"
           elif len(values) == 2 and values[0] == "more" and values[1] != "most":
             adjective_comparative = values[1]
-            adjective_superative = regex.sub("er$", "est", values[1])
+            adjective_superlative = regex.sub("er$", "est", values[1])
           elif len(values) == 2:
             adjective_comparative = values[0]
-            adjective_superative = values[1]
+            adjective_superlative = values[1]
           if adjective_comparative == "-":
             adjective_comparative = ""
-          if adjective_superative == "-":
-            adjective_superative = ""
-          if adjective_superative == "more":
-            adjective_superative = regex.sub("er$", "est", adjective_comparative)
+          if adjective_superlative == "-":
+            adjective_superlative = ""
+          if adjective_superlative == "more":
+            adjective_superlative = regex.sub("er$", "est", adjective_comparative)
           if adjective_comparative and adjective_comparative.startswith("more "):
             adjective_comparative = ""
-          if adjective_superative and adjective_superative.startswith("most "):
-            adjective_superative = ""
+          if adjective_superlative and adjective_superlative.startswith("most "):
+            adjective_superlative = ""
       if regex.search(r"\{\{en-adv\|?([^\}]*)\}\}", line):
         if "adverb" in infl_modes: continue
         infl_modes.add("adverb")
@@ -478,49 +478,49 @@ class XMLHandler(xml.sax.handler.ContentHandler):
             stop = True
         if not stop:
           adverb_comparative = None
-          adverb_superative = None
+          adverb_superlative = None
           stem = title
           stem = regex.sub(r"e$", "", stem)
           stem = regex.sub(r"([^aeiou])y$", r"\1i", stem)
           if len(values) == 1 and values[0] == "er":
             adverb_comparative = stem + "er"
-            adverb_superative = stem + "est"
+            adverb_superlative = stem + "est"
           elif len(values) == 1 and values[0].endswith("er"):
             adverb_comparative = values[0]
-            adverb_superative = values[0][:-2] + "est"
+            adverb_superlative = values[0][:-2] + "est"
           elif len(values) == 2 and values[1] == "er":
             if values[0] in ("-", "more"):
               adverb_comparative = stem + "er"
-              adverb_superative = stem + "est"
+              adverb_superlative = stem + "est"
             else:
               adverb_comparative = values[0] + "er"
-              adverb_superative = values[0] + "est"
+              adverb_superlative = values[0] + "est"
           elif len(values) == 2 and values[0] in ("-", "~") and values[1] == "more":
             pass
           elif len(values) == 2 and values[0] == "more" and values[1] in ("-", "~"):
             pass
           elif len(values) == 2 and values[0] == "r" and values[1] == "more":
             adverb_comparative = title + "r"
-            adverb_superative = ""
+            adverb_superlative = ""
           elif len(values) == 2 and values[0] == "er" and values[1] == "more":
             adverb_comparative = stem + "er"
-            adverb_superative = stem + "est"
+            adverb_superlative = stem + "est"
           elif len(values) == 2 and values[0] == "more" and values[1] != "most":
             adverb_comparative = values[1]
-            adverb_superative = regex.sub("er$", "est", values[1])
+            adverb_superlative = regex.sub("er$", "est", values[1])
           elif len(values) == 2:
             adverb_comparative = values[0]
-            adverb_superative = values[1]
+            adverb_superlative = values[1]
           if adverb_comparative == "-":
             adverb_comparative = ""
-          if adverb_superative == "-":
-            adverb_superative = ""
-          if adverb_superative == "more":
-            adverb_superative = regex.sub("er$", "est", adverb_comparative)
+          if adverb_superlative == "-":
+            adverb_superlative = ""
+          if adverb_superlative == "more":
+            adverb_superlative = regex.sub("er$", "est", adverb_comparative)
           if adverb_comparative and adverb_comparative.startswith("more "):
             adverb_comparative = ""
-          if adverb_superative and adverb_superative.startswith("most "):
-            adverb_superative = ""
+          if adverb_superlative and adverb_superlative.startswith("most "):
+            adverb_superlative = ""
     ipa = ipa_us or ipa_misc
     if ipa and ipa not in ("...", "?"):
       output.append("pronunciation_ipa={}".format(ipa))
@@ -536,12 +536,12 @@ class XMLHandler(xml.sax.handler.ContentHandler):
       output.append("inflection_verb_past_participle={}".format(verb_past_participle))
     if self.IsGoodInflection(adjective_comparative):
       output.append("inflection_adjective_comparative={}".format(adjective_comparative))
-    if self.IsGoodInflection(adjective_superative):
-      output.append("inflection_adjective_superative={}".format(adjective_superative))
+    if self.IsGoodInflection(adjective_superlative):
+      output.append("inflection_adjective_superlative={}".format(adjective_superlative))
     if self.IsGoodInflection(adverb_comparative):
       output.append("inflection_adverb_comparative={}".format(adverb_comparative))
-    if self.IsGoodInflection(adverb_superative):
-      output.append("inflection_adverb_superative={}".format(adverb_superative))
+    if self.IsGoodInflection(adverb_superlative):
+      output.append("inflection_adverb_superlative={}".format(adverb_superlative))
     if etym_prefix:
       output.append("etymology_prefix={}".format(etym_prefix))
     if etym_core:

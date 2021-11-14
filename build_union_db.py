@@ -50,8 +50,8 @@ poses = ("noun", "verb", "adjective", "adverb",
          "prefix", "suffix", "abbreviation")
 inflection_names = ("noun_plural","verb_singular", "verb_present_participle",
                    "verb_past", "verb_past_participle",
-                   "adjective_comparative", "adjective_superative",
-                   "adverb_comparative", "adverb_superative")
+                   "adjective_comparative", "adjective_superlative",
+                   "adverb_comparative", "adverb_superlative")
 etymology_names = ("etymology_prefix", "etymology_core", "etymology_suffix")
 top_names = ("pronunciation",) + inflection_names + etymology_names
 rel_weights = {"synonym": 1.0,
@@ -355,7 +355,7 @@ class BuildUnionDBBatch:
               entry["base_child"] = list(children)
           if word in adj_words:
             children = set()
-            for part_name in ("adjective_comparative", "adjective_superative"):
+            for part_name in ("adjective_comparative", "adjective_superlative"):
               part = entry.get(part_name)
               if part and (part in noun_words or part in adj_words):
                 base_index[part].append(word)

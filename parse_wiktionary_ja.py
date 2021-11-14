@@ -428,32 +428,32 @@ class XMLHandler(xml.sax.handler.ContentHandler):
                 stop = True
             if not stop:
               comparative = None
-              superative = None
+              superlative = None
               if len(values) == 1 and values[0] == "er":
                 stem = title
                 stem = regex.sub(r"e$", "", stem)
                 stem = regex.sub(r"([^aeiou])y$", r"\1i", stem)
                 comparative = stem + "er"
-                superative = stem + "est"
+                superlative = stem + "est"
               elif len(values) == 1 and values[0].endswith("er"):
                 comparative = values[0]
-                superative = values[0][:-2] + "est"
+                superlative = values[0][:-2] + "est"
               elif len(values) == 2 and values[1] == "er":
                 comparative = values[0] + "er"
-                superative = values[0] + "est"
+                superlative = values[0] + "est"
               elif len(values) == 2 and values[0] == "r" and values[1] == "more":
                 comparative = title + "r"
-                superative = ""
+                superlative = ""
               elif len(values) == 2 and values[0] == "er" and values[1] == "more":
                 comparative = title + "er"
-                superative = ""
+                superlative = ""
               elif len(values) == 2:
                 comparative = values[0]
-                superative = values[1]
+                superlative = values[1]
               if self.IsGoodInflection(comparative):
                 output.append("inflection_adjective_comparative={}".format(comparative))
-              if self.IsGoodInflection(superative):
-                output.append("inflection_adjective_superative={}".format(superative))
+              if self.IsGoodInflection(superlative):
+                output.append("inflection_adjective_superlative={}".format(superlative))
           if regex.search(r"\{\{en-adv\|?([^\}]*)\}\}", line):
             if "adverb" in infl_modes: continue
             infl_modes.add("adverb")
@@ -470,32 +470,32 @@ class XMLHandler(xml.sax.handler.ContentHandler):
                 stop = True
             if not stop:
               comparative = None
-              superative = None
+              superlative = None
               if len(values) == 1 and values[0] == "er":
                 stem = title
                 stem = regex.sub(r"e$", "", stem)
                 stem = regex.sub(r"([^aeiou])y]$", r"\1i", stem)
                 comparative = stem + "er"
-                superative = stem + "est"
+                superlative = stem + "est"
               elif len(values) == 2 and values[1] == "er":
                 comparative = values[0] + "er"
-                superative = values[0] + "est"
+                superlative = values[0] + "est"
               elif len(values) == 1 and values[0].endswith("er"):
                 comparative = values[0]
-                superative = values[0][:-2] + "est"
+                superlative = values[0][:-2] + "est"
               elif len(values) == 2 and values[0] == "r" and values[1] == "more":
                 comparative = title + "r"
-                superative = ""
+                superlative = ""
               elif len(values) == 2 and values[0] == "er" and values[1] == "more":
                 comparative = title + "er"
-                superative = ""
+                superlative = ""
               elif len(values) == 2:
                 comparative = values[0]
-                superative = values[1]
+                superlative = values[1]
               if self.IsGoodInflection(comparative):
                 output.append("inflection_adverb_comparative={}".format(comparative))
-              if self.IsGoodInflection(superative):
-                output.append("inflection_adverb_superative={}".format(superative))
+              if self.IsGoodInflection(superlative):
+                output.append("inflection_adverb_superlative={}".format(superlative))
           if mode == "noun":
             if regex.search(r"\{\{p\}\} *:.*\[\[([a-zA-Z ]+)\]\]", line):
               value = regex.sub(r".*\{\{p\}\} *:.*\[\[([a-zA-Z ]+)\]\].*", r"\1", line)
@@ -510,7 +510,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
               if (len(values) == 2 and
                   self.IsGoodInflection(values[0]) and self.IsGoodInflection(values[1])):
                 output.append("inflection_{}_comparative={}".format(mode, values[0]))
-                output.append("inflection_{}_superative={}".format(mode, values[1]))
+                output.append("inflection_{}_superlative={}".format(mode, values[1]))
           if not regex.search(r"^[#\*:]", line):
             last_level = 0
             continue
@@ -645,7 +645,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     text = regex.sub(r"\{\{(en-)?past participle of(\|en)?\|([^|}]+)\}\}", r"\3の過去分詞", text)
     text = regex.sub(r"\{\{(en-)?comparative of(\|en)?\|([^|}]+)\}\}", r"\3の複数形", text)
     text = regex.sub(r"\{\{(en-)?comparative of(\|en)?\|([^|}]+)\}\}", r"\3の比較級", text)
-    text = regex.sub(r"\{\{(en-)?superative of(\|en)?\|([^|}]+)\}\}", r"\3の最上級", text)
+    text = regex.sub(r"\{\{(en-)?superlative of(\|en)?\|([^|}]+)\}\}", r"\3の最上級", text)
     text = regex.sub(r"\{\{(m|ux|l)\|[a-z]+\|([^\|\}]+)(\|[^\}\|]+)*\}\}", r"\2", text)
     text = regex.sub(r"\{\{(n-g|non-gloss definition)\|([^\|\}]+)(\|[^\}\|]+)*\}\}", r"\2", text)
     text = regex.sub(r"\{\{&lit\|en\|(.*?)\|(.*?)\|(.*?)(\|.*?)*?\}\}", r"cf. \1, \2, \3 ", text)

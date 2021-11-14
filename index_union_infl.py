@@ -53,8 +53,8 @@ class ExtractKeysBatch:
     infl_names = ("noun_plural",
              "verb_singular", "verb_present_participle",
              "verb_past", "verb_past_participle",
-             "adjective_comparative", "adjective_superative",
-             "adverb_comparative", "adverb_superative")
+             "adjective_comparative", "adjective_superlative",
+             "adverb_comparative", "adverb_superlative")
     while True:
       record = it.GetStr()
       if not record: break
