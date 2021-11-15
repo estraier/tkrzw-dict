@@ -148,6 +148,16 @@ def GetEntryPoses(entry):
   return poses
 
 
+def GetEntryTranslation(entry):
+  translations = entry.get("translation")
+  if translations:
+    text = ", ".join(translations[:4])
+  else:
+    text = entry["item"][0]["text"]
+    text = regex.sub(r" \[-+\] .*", "", text).strip()
+  return text
+
+
 def PrintWrappedText(text, indent):
   sys.stdout.write(" " * indent)
   width = indent
@@ -163,7 +173,7 @@ def PrintWrappedText(text, indent):
   print("")
 
 
-def PrintResult(entries, mode, query):
+def PrintResult(entries, mode, query, searcher):
   for entry in entries:
     if mode != "list":
       print()
@@ -240,8 +250,19 @@ def PrintResult(entries, mode, query):
       if mode == "full":
         parents = entry.get("parent")
         if parents:
-          text = "[語幹] {}".format(", ".join(parents[:8]))
-          PrintWrappedText(text, 4)
+          for parent in parents:
+            parent_entries = searcher.SearchExact(parent, 1)
+            if parent_entries:              
+              for parent_entry in parent_entries:
+                parent_word = parent_entry["word"]
+                parent_share = parent_entry.get("share")
+                min_share = 0.5 if regex.search("[A-Z]", parent_word) else 0.25
+                if parent_share and float(parent_share) < min_share: break
+                text = GetEntryTranslation(parent_entry)
+                if text:
+                  text = "[語幹] {} : {}".format(parent_word, text)
+                  PrintWrappedText(text, 4)
+        parents = entry.get("parent")
         children = entry.get("child")
         if children:
           text = "[派生] {}".format(", ".join(children[:8]))
@@ -279,6 +300,11 @@ def PrintResult(entries, mode, query):
         aoa = entry.get("aoa") or entry.get("aoa_concept") or entry.get("aoa_base")
         if aoa:
           text = "[年齢] {:.2f}".format(float(aoa))
+          PrintWrappedText(text, 4)
+      if mode == "simple":
+        parents = entry.get("parent")
+        if parents:
+          text = "[語幹] {}".format(", ".join(parents[:8]))
           PrintWrappedText(text, 4)
   if mode != "list":
     print()
@@ -501,13 +527,13 @@ def main():
     elif view_mode == "auto":
       keys = searcher.GetResultKeys(result)
       if len(keys) < 2:
-        PrintResult(result, "full", query)
+        PrintResult(result, "full", query, searcher)
       elif len(keys) < 6:
-        PrintResult(result, "simple", query)
+        PrintResult(result, "simple", query, searcher)
       else:
-        PrintResult(result, "list", query)
+        PrintResult(result, "list", query, searcher)
     else:
-      PrintResult(result, view_mode, query)
+      PrintResult(result, view_mode, query, searcher)
   else:
     print("No result.")
 
@@ -617,7 +643,7 @@ def P(*args, end="\n", file=sys.stdout):
   print(args[0].format(*esc_args), end=end, file=file)
 
 
-def PrintResultCGI(script_name, entries, query, details):
+def PrintResultCGI(script_name, entries, query, searcher, details):
   for entry in entries:
     P('<div class="entry_view">')
     word = entry["word"]
@@ -781,22 +807,45 @@ def PrintResultCGI(script_name, entries, query, details):
               P('</div>')
       P('</div>')
     if details:
-      for rel_name, rel_label in (
-          ("parent", "語幹"), ("child", "派生"), ("idiom", "熟語"),
-          ("related", "関連"), ("cooccurrence", "共起")):
-        related = entry.get(rel_name)
-        if related:
-          P('<div class="attr attr_{}">', rel_name)
-          P('<span class="attr_label">{}</span>', rel_label)
-          P('<span class="text">')
-          fields = []
-          for subword in related[:8]:
-            subword_url = "{}?q={}".format(script_name, urllib.parse.quote(subword))
-            fields.append('<a href="{}" class="subword">{}</a>'.format(
-              esc(subword_url), esc(subword)))
-          print(", ".join(fields), end="")
-          P('</span>')
-          P('</div>')
+      parents = entry.get("parent")
+      if parents:
+        for parent in parents:
+          parent_entries = searcher.SearchExact(parent, 1)
+          if parent_entries:              
+            for parent_entry in parent_entries:
+              parent_word = parent_entry["word"]
+            parent_share = parent_entry.get("share")
+            min_share = 0.5 if regex.search("[A-Z]", parent_word) else 0.25
+            if parent_share and float(parent_share) < min_share: break
+            text = GetEntryTranslation(parent_entry)
+            if text:
+              P('<div class="attr attr_parent">')
+              P('<span class="attr_label">語幹</span>')
+              P('<span class="text">')
+              P('<a href="{}?q={}">{}</a> : {}',
+                script_name, urllib.parse.quote(parent_word), parent_word, text)
+              P('</span>')
+              P('</div>')
+    if details:
+      rel_name_labels = (("child", "派生"), ("idiom", "熟語"),
+                         ("related", "関連"), ("cooccurrence", "共起"))
+    else:
+      rel_name_labels = (("parent", "語幹"), ("child", "派生"))
+    for rel_name, rel_label in rel_name_labels:
+      related = entry.get(rel_name)
+      if related:
+        P('<div class="attr attr_{}">', rel_name)
+        P('<span class="attr_label">{}</span>', rel_label)
+        P('<span class="text">')
+        fields = []
+        for subword in related[:8]:
+          subword_url = "{}?q={}".format(script_name, urllib.parse.quote(subword))
+          fields.append('<a href="{}" class="subword">{}</a>'.format(
+            esc(subword_url), esc(subword)))
+        print(", ".join(fields), end="")
+        P('</span>')
+        P('</div>')
+    if details:
       etym_fields = []
       etym_prefix = entry.get("etymology_prefix")
       if etym_prefix:
@@ -1696,9 +1745,9 @@ def main_cgi():
       if view_mode == "auto":
         keys = searcher.GetResultKeys(result)
         if len(keys) < 2 and extra_mode != "popup":
-          PrintResultCGI(script_name, result, query, True)
+          PrintResultCGI(script_name, result, query, searcher, True)
         elif len(keys) < 6:
-          PrintResultCGI(script_name, result, query, False)
+          PrintResultCGI(script_name, result, query, searcher, False)
         else:
           PrintResultCGIList(script_name, result, query)
         if not is_reverse and index_mode == "auto":
@@ -1716,9 +1765,9 @@ def main_cgi():
             if infl_result:
               PrintResultCGIList(script_name, infl_result, "")
       elif view_mode == "full":
-        PrintResultCGI(script_name, result, query, True)
+        PrintResultCGI(script_name, result, query, searcher, True)
       elif view_mode == "simple":
-        PrintResultCGI(script_name, result, query, False)
+        PrintResultCGI(script_name, result, query, searcher, False)
       elif view_mode == "list":
         PrintResultCGIList(script_name, result, query)
       elif view_mode == "annot":

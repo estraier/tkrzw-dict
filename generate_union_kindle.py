@@ -444,9 +444,11 @@ class GenerateUnionEPUBBatch:
     parent_entry = input_dbm.Get(parent)
     if not parent_entry: return
     entries = json.loads(parent_entry)
-    num = 0
     for entry in entries:
-      if num > 0 and float(entry.get("share") or "0") < 0.25: break
+      word = entry["word"]
+      share = entry.get("share")
+      min_share = 0.5 if regex.search("[A-Z]", word) else 0.25
+      if share and float(share) < min_share: break
       translations = entry.get("translation")
       if translations:
         text = ", ".join(translations[:4])
@@ -456,9 +458,8 @@ class GenerateUnionEPUBBatch:
       if text:
         P('<div class="item">')
         P('<span class="attr">[語幹]</span>')
-        P('<span class="text">{} : {}</span>', entry["word"], text)
+        P('<span class="text">{} : {}</span>', word, text)
         P('</div>')
-      num += 1
 
   def MakeNavigation(self, key_prefixes):
     out_path = os.path.join(self.output_path, "nav.xhtml")
