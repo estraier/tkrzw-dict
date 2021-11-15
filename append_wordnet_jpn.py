@@ -44,12 +44,13 @@ logger = tkrzw_dict.GetLogger()
 
 
 class AppendWordnetJPNBatch:
-  def __init__(self, input_path, output_path, wnjpn_path,
+  def __init__(self, input_path, output_path, wnjpn_path, feedback_path,
                phrase_prob_path, rev_prob_path, tran_prob_path,
                tran_aux_paths, tran_subaux_paths):
     self.input_path = input_path
     self.output_path = output_path
     self.wnjpn_path = wnjpn_path
+    self.feedback_path = feedback_path
     self.phrase_prob_path = phrase_prob_path
     self.rev_prob_path = rev_prob_path
     self.tran_prob_path = tran_prob_path
@@ -62,9 +63,13 @@ class AppendWordnetJPNBatch:
     logger.info("Process started: input_path={}, output_path={}, wnjpn_path={}".format(
                   self.input_path, self.output_path, self.wnjpn_path))
     wnjpn_trans = self.ReadTranslations()
+    if self.feedback_path:
+      feedback_trans = self.ReadFeedbackTranslations()
+    else:
+      feedback_trans = None
     aux_trans, subaux_trans = self.ReadAuxTranslations()
     synset_index = self.ReadSynsetIndex()
-    self.AppendTranslations(wnjpn_trans, aux_trans, subaux_trans, synset_index)
+    self.AppendTranslations(wnjpn_trans, feedback_trans, aux_trans, subaux_trans, synset_index)
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
   def ReadTranslations(self):
@@ -87,6 +92,33 @@ class AppendWordnetJPNBatch:
     logger.info(
       "Reading translations done: synsets={}, translations={}, elapsed_time={:.2f}s".format(
         len(trans), num_trans, time.time() - start_time))
+    return trans
+
+  def ReadFeedbackTranslations(self):
+    start_time = time.time()
+    logger.info("Reading feadback translations: path={}".format(self.feedback_path))
+    trans = {}
+    num_trans = 0
+    with open(self.feedback_path) as input_file:
+      for line in input_file:
+        line = line.strip()
+        fields = line.split("\t")
+        if len(fields) < 2: continue
+        key = unicodedata.normalize('NFKC', fields[0])
+        translations = []
+        for text in fields[1:]:
+          text = unicodedata.normalize('NFKC', text)
+          if text:
+            translations.append(text)
+        if key and translations:
+          trans[key] = translations
+        num_trans += 1
+        if num_trans % 10000 == 0:
+          logger.info("Reading translations: synsets={}, word_entries={}".format(
+            len(trans), num_trans))
+    logger.info(
+      "Reading feedback translations done: synsets={}, translations={}, elapsed_time={:.2f}s"
+      .format(len(trans), num_trans, time.time() - start_time))
     return trans
 
   def ReadAuxTranslations(self):
@@ -148,7 +180,8 @@ class AppendWordnetJPNBatch:
     logger.info("Reading synset index done: records={}".format(len(synset_index)))
     return synset_index
 
-  def AppendTranslations(self, wnjpn_trans, aux_trans, subaux_trans, synset_index):
+  def AppendTranslations(self, wnjpn_trans, feedback_trans,
+                         aux_trans, subaux_trans, synset_index):
     start_time = time.time()
     logger.info("Appending translations: input_path={}, output_path={}".format(
       self.input_path, self.output_path))
@@ -233,6 +266,10 @@ class AppendWordnetJPNBatch:
           item_trans.append(tran)
           if src == "hand":
             hand_trans.add(tran)
+        if feedback_trans:
+          item_fb_trans = feedback_trans.get(word + ":" + synset) or []
+          if item_fb_trans:
+            item_trans.extend(item_fb_trans)
         self.NormalizeTranslationList(tokenizer, pos, item_trans)
         num_items += 1
         bare = not item_trans
@@ -337,7 +374,7 @@ class AppendWordnetJPNBatch:
       serialized = json.dumps(entry, separators=(",", ":"), ensure_ascii=False)
       output_dbm.Set(key, serialized).OrDie()
       num_words += 1
-      if num_words % 10000 == 0:
+      if num_words % 1000 == 0:
         logger.info("Saving words: words={}".format(num_words))
       it.Next()
     output_dbm.Close().OrDie()
@@ -524,7 +561,14 @@ class AppendWordnetJPNBatch:
     pure_translation_scores = sorted(
       pure_translation_scores, key=operator.itemgetter(1), reverse=True)
     mean_score = (max_score * sum_score) ** 0.5 + 0.00001
-    return ([x[0] for x in scored_trans], mean_score ** score_bias, pure_translation_scores)
+    uniq_scores = set()
+    dedup_scores = []
+    for tran, score in scored_trans:
+      norm_tran = tran.lower()
+      if norm_tran in uniq_scores: continue
+      dedup_scores.append(tran)
+      uniq_scores.add(norm_tran)
+    return (dedup_scores, mean_score ** score_bias, pure_translation_scores)
 
   def IsValidPosTran(self, tokenizer, pos, tran):
     tran_surface, tran_pos, tran_subpos, tran_lemma = tokenizer.GetJaLastPos(tran)
@@ -558,6 +602,7 @@ def main():
   input_path = tkrzw_dict.GetCommandFlag(args, "--input", 1) or "wordnet.thk"
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "wordnet-body.tkh"
   wnjpn_path = tkrzw_dict.GetCommandFlag(args, "--wnjpn", 1) or "wnjpn-ok.tab"
+  feedback_path = tkrzw_dict.GetCommandFlag(args, "--feedback", 1) or ""
   phrase_prob_path = tkrzw_dict.GetCommandFlag(args, "--phrase_prob", 1) or ""
   rev_prob_path = tkrzw_dict.GetCommandFlag(args, "--rev_prob", 1) or ""
   tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
@@ -568,7 +613,7 @@ def main():
   if args:
     raise RuntimeError("unknown arguments: {}".format(str(args)))
   AppendWordnetJPNBatch(
-    input_path, output_path, wnjpn_path,
+    input_path, output_path, wnjpn_path, feedback_path,
     phrase_prob_path, rev_prob_path, tran_prob_path, tran_aux_paths, tran_subaux_paths).Run()
 
 

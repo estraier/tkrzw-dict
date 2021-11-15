@@ -216,6 +216,8 @@ class Tokenizer:
       fields = token.split("\t")
       if len(fields) != 4: continue
       tokens.append(fields)
+    if len(tokens) < 2:
+      return word
     last = tokens[-1]
     if (last[0] == "た" and last[1] == "助動詞" and len(tokens) > 1 and
         tokens[-2][1] == "動詞" and word.endswith(last[0])):

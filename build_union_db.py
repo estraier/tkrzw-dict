@@ -1425,7 +1425,8 @@ class BuildUnionDBBatch:
           top_exprs.append((expr, pos, is_first))
     top_words = []
     for expr, pos, is_first in top_exprs:
-      manner_match = regex.search(r"^in +([-\p{Latin}].*?) +(manner|fashion|way)$", expr, regex.IGNORECASE)
+      manner_match = regex.search(r"^in +([-\p{Latin}].*?) +(manner|fashion|way)$",
+                                  expr, regex.IGNORECASE)
       preps = ["of", "in", "at", "from", "by", "part of", "out of", "inside",
                "relating to", "related to", "associated with",
                "characterized by", "pertaining to", "derived from"]
@@ -1455,46 +1456,47 @@ class BuildUnionDBBatch:
     etym_prefix = entry.get("etymology_prefix")
     etym_core = entry.get("etymology_core")
     etym_suffix = entry.get("etymology_suffix")
-    if "noun" in poses and not etym_prefix and etym_core and etym_suffix in ("ness", "cy", "ity"):
-      print("ETYM_ADV_NOUN", word, etym_core, etym_suffix)
+    if ("noun" in poses and not etym_prefix and etym_core and
+        etym_suffix in ("ness", "cy", "ity")):
       top_words.append((etym_core, "adjective", "noun", True))
-    if "noun" in poses and not etym_prefix and etym_core and etym_suffix in ("ment", "tion", "sion"):
-      print("ETYM_VERB_NOUN", word, etym_core, etym_suffix)
+    if ("noun" in poses and not etym_prefix and etym_core and
+        etym_suffix in ("ment", "tion", "sion")):
       top_words.append((etym_core, "verb", "noun", True))
-    if "verb" in poses and not etym_prefix and etym_core and etym_suffix in ("ise", "ize"):
-      print("ETYM_ADJ_VERB", word, etym_core, etym_suffix)
+    if ("verb" in poses and not etym_prefix and etym_core and
+        etym_suffix in ("ise", "ize")):
       top_words.append((etym_core, "adjective", "verb", True))
-    if "adjective" in poses and not etym_prefix and etym_core and etym_suffix in ("ic", "ical", "ish", "ly"):
-      print("ETYM_NOUN_ADJ", word, etym_core, etym_suffix)
+    if ("adjective" in poses and not etym_prefix and etym_core
+        and etym_suffix in ("ic", "ical", "ish", "ly")):
       top_words.append((etym_core, "noun", "adjective", True))
-    if "adverb" in poses and not etym_prefix and etym_core and etym_suffix == "ly":
-      print("ETYM_ADJ_ADV", word, etym_core, etym_suffix)
+    if ("adverb" in poses and not etym_prefix and etym_core and
+        etym_suffix == "ly"):
       top_words.append((etym_core, "adjective", "adverb", True))
     parents = entry.get("parent")
     if parents:
       for parent in parents:
         if len(parent) < 5: continue
-        if "noun" in poses and (word.endswith("ness") or word.endswith("cy") or word.endswith("ity")):
-          print("PARENT_ADV_NOUN", word, parent)
+        if ("noun" in poses and
+            (word.endswith("ness") or word.endswith("cy") or word.endswith("ity"))):
           top_words.append((parent, "adjective", "noun", True))
-        if "noun" in poses and (word.endswith("ment") or word.endswith("tion") or word.endswith("sion")):
-          print("PARENT_VERB_NOUN", word, parent)
+        if ("noun" in poses and
+            (word.endswith("ment") or word.endswith("tion") or word.endswith("sion"))):
           top_words.append((parent, "verb", "noun", True))
-        if "verb" in poses and (word.endswith("ise") or word.endswith("tze")):
-          print("PARENT_ADJ_VERB", word, parent)
+        if ("verb" in poses and
+            (word.endswith("ise") or word.endswith("tze"))):
           top_words.append((parent, "adjective", "verb", True))
-        if "adjective" in poses and (word.endswith("ic") or word.endswith("ical") or word.endswith("ish")):
-          print("PARENT_NOUN_ADJ", word, parent)
+        if ("adjective" in poses and
+            (word.endswith("ic") or word.endswith("ical") or word.endswith("ish"))):
           top_words.append((parent, "noun", "adjective", True))
-        if "adverb" in poses and word.endswith("ly"):
-          print("PARENT_ADJ_ADV", word, parent)
+        if ("adverb" in poses and
+            word.endswith("ly")):
           top_words.append((parent, "adjective", "adverb", True))
     for synonym, pos in synonyms:
       top_words.append((synonym, pos, "", False))
     trans = []
     tran_sources = set()
     for expr, pos, conversion, trustable in top_words:
-      expr = regex.sub(r"^([-\p{Latin}]+), ([-\p{Latin}]+),? +or +([-\p{Latin}]+)$", r"\1; \2; \3", expr)
+      expr = regex.sub(r"^([-\p{Latin}]+), ([-\p{Latin}]+),? +or +([-\p{Latin}]+)$",
+                       r"\1; \2; \3", expr)
       expr = regex.sub(r"^([-\p{Latin}]+) +or +([-\p{Latin}]+)$", r"\1; \2", expr)
       expr = regex.sub(r"^([-\p{Latin}]+), +([-\p{Latin}]+)$", r"\1; \2", expr)
       for rel_word in expr.split(";"):
@@ -1570,12 +1572,8 @@ class BuildUnionDBBatch:
       score = max_weight * count_score * rank_score
       scored_trans.append((tran, score, prob_hit))
     scored_trans = sorted(scored_trans, key=lambda x: x[1], reverse=True)
-    if scored_trans:
-      print("SCORE", word, scored_trans)
     rec_aux_trans = aux_last_trans.get(word)
     if rec_aux_trans:
-      if len(old_trans) + len(scored_trans) < 2:
-        print("AUX", word, rec_aux_trans)
       for aux_tran in rec_aux_trans:
         scored_trans.append((aux_tran, 0, False))
     final_trans = []
