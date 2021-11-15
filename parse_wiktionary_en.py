@@ -272,7 +272,10 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           if value.startswith("head="):
             stop = True
         if not stop:
-          noun_plural = title + "s"
+          if title.endswith("s"):
+            noun_plural = title + "es"
+          else:
+            noun_plural = title + "s"
           if len(values) == 1 and values[0] == "es":
             noun_plural = title + "es"
           elif len(values) == 1 and values[0] == "~":
@@ -281,6 +284,8 @@ class XMLHandler(xml.sax.handler.ContentHandler):
             noun_plural = None
           elif len(values) == 1:
             noun_plural = values[0]
+          elif len(values) == 2 and values[0] == "+":
+            pass
           elif (len(values) == 2 and values[0] in ("-", "~") and
                 values[1] != "s" and values[1] != "es" and values[1] != "?"):
             noun_plural = values[1]
@@ -317,9 +322,17 @@ class XMLHandler(xml.sax.handler.ContentHandler):
             stop = True
         if not stop:
           verb_singular = title + "s"
+          if title.endswith("s"):
+            verb_singular = title + "es"
+          else:
+            verb_singular = title + "s"
           verb_present_participle = title + "ing"
-          verb_past = title + "ed"
-          verb_past_participle = title + "ed"
+          if title.endswith("e"):
+            verb_past = title + "d"
+            verb_past_participle = title + "d"
+          else:
+            verb_past = title + "ed"
+            verb_past_participle = title + "ed"
           if len(values) == 1 and values[0] == "es":
             verb_singular = title + "es"
           elif len(values) == 1 and values[0] == "d":
