@@ -218,11 +218,12 @@ def GetKeyPrefix(key):
 
 
 class GenerateUnionEPUBBatch:
-  def __init__(self, input_path, output_path, min_prob, multi_min_prob):
+  def __init__(self, input_path, output_path, keyword_path, min_prob, sufficient_prob):
     self.input_path = input_path
     self.output_path = output_path
+    self.keyword_path = keyword_path
     self.min_prob = min_prob
-    self.multi_min_prob = multi_min_prob
+    self.sufficient_prob = sufficient_prob
     self.num_words = 0
     self.num_trans = 0
     self.num_items = 0
@@ -250,6 +251,13 @@ class GenerateUnionEPUBBatch:
 
   def ListUpWords(self, input_dbm):
     logger.info("Checking words")
+    keywords = set()
+    if self.keyword_path:
+      with open(self.keyword_path) as input_file:
+        for line in input_file:
+          line = line.strip()
+          if line:
+            keywords.add(line)
     words = {}
     it = input_dbm.MakeIterator()
     it.First()
@@ -258,7 +266,7 @@ class GenerateUnionEPUBBatch:
       if rec == None: break
       entries = json.loads(rec[1])
       for entry in entries:
-        if not self.IsGoodEntry(entry, input_dbm): continue
+        if not self.IsGoodEntry(entry, input_dbm, keywords): continue
         word = entry["word"]
         prob = float(entry.get("probability") or "0")
         words[word] = max(words.get(word) or 0.0, prob)
@@ -266,11 +274,15 @@ class GenerateUnionEPUBBatch:
     logger.info("Checking words done: {}".format(len(words)))
     return words
 
-  def IsGoodEntry(self, entry, input_dbm):
+  def IsGoodEntry(self, entry, input_dbm, keywords):
     word = entry["word"]
     prob = float(entry.get("probability") or "0")
+    if word in keywords:
+      return True
     if prob < self.min_prob:
       return False
+    if prob >= self.sufficient_prob:
+      return True
     poses = set()
     labels = set()
     for item in entry["item"]:
@@ -300,7 +312,9 @@ class GenerateUnionEPUBBatch:
             return True
     if (regex.search(r"(^| )[\p{Lu}\p{P}\p{S}\d]", word) and "we" not in labels):
       return False
-    if prob < self.multi_min_prob and (regex.search(r" ", word) or len(labels) == 1):
+    if regex.search(r" ", word):
+      return False
+    if len(labels) == 1:
       return False
     return True
 
@@ -491,14 +505,15 @@ class GenerateUnionEPUBBatch:
 def main():
   args = sys.argv[1:]
   input_path = tkrzw_dict.GetCommandFlag(args, "--input", 1) or "union-body.tkh"
-  output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-dict-epub"
+  output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-dict-kindle"
+  keyword_path = tkrzw_dict.GetCommandFlag(args, "--keyword", 1) or ""
   min_prob = float(tkrzw_dict.GetCommandFlag(args, "--min_prob", 1) or 0)
-  multi_min_prob = float(tkrzw_dict.GetCommandFlag(args, "--multi_min_prob", 1) or 0.00001)
+  sufficient_prob = float(tkrzw_dict.GetCommandFlag(args, "--sufficient_prob", 1) or 0.00001)
   if not input_path:
     raise RuntimeError("an input path is required")
   if not output_path:
     raise RuntimeError("an output path is required")
-  GenerateUnionEPUBBatch(input_path, output_path, min_prob, multi_min_prob).Run()
+  GenerateUnionEPUBBatch(input_path, output_path, keyword_path, min_prob, sufficient_prob).Run()
 
 
 if __name__=="__main__":
