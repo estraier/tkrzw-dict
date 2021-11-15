@@ -806,45 +806,42 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
               PrintItemTextCGI(subsubsubsection)
               P('</div>')
       P('</div>')
-    if details:
-      parents = entry.get("parent")
-      if parents:
-        for parent in parents:
-          parent_entries = searcher.SearchExact(parent, 1)
-          if parent_entries:              
-            for parent_entry in parent_entries:
-              parent_word = parent_entry["word"]
-            parent_share = parent_entry.get("share")
-            min_share = 0.5 if regex.search("[A-Z]", parent_word) else 0.25
-            if parent_share and float(parent_share) < min_share: break
-            text = GetEntryTranslation(parent_entry)
-            if text:
-              P('<div class="attr attr_parent">')
-              P('<span class="attr_label">語幹</span>')
-              P('<span class="text">')
-              P('<a href="{}?q={}">{}</a> : {}',
-                script_name, urllib.parse.quote(parent_word), parent_word, text)
-              P('</span>')
-              P('</div>')
+    parents = entry.get("parent")
+    if parents:
+      for parent in parents:
+        parent_entries = searcher.SearchExact(parent, 1)
+        if parent_entries:              
+          for parent_entry in parent_entries:
+            parent_word = parent_entry["word"]
+          parent_share = parent_entry.get("share")
+          min_share = 0.5 if regex.search("[A-Z]", parent_word) else 0.25
+          if parent_share and float(parent_share) < min_share: break
+          text = GetEntryTranslation(parent_entry)
+          if text:
+            P('<div class="attr attr_parent">')
+            P('<span class="attr_label">語幹</span>')
+            P('<span class="text">')
+            P('<a href="{}?q={}">{}</a> : {}',
+              script_name, urllib.parse.quote(parent_word), parent_word, text)
+            P('</span>')
+            P('</div>')
     if details:
       rel_name_labels = (("child", "派生"), ("idiom", "熟語"),
                          ("related", "関連"), ("cooccurrence", "共起"))
-    else:
-      rel_name_labels = (("parent", "語幹"), ("child", "派生"))
-    for rel_name, rel_label in rel_name_labels:
-      related = entry.get(rel_name)
-      if related:
-        P('<div class="attr attr_{}">', rel_name)
-        P('<span class="attr_label">{}</span>', rel_label)
-        P('<span class="text">')
-        fields = []
-        for subword in related[:8]:
-          subword_url = "{}?q={}".format(script_name, urllib.parse.quote(subword))
-          fields.append('<a href="{}" class="subword">{}</a>'.format(
-            esc(subword_url), esc(subword)))
-        print(", ".join(fields), end="")
-        P('</span>')
-        P('</div>')
+      for rel_name, rel_label in rel_name_labels:
+        related = entry.get(rel_name)
+        if related:
+          P('<div class="attr attr_{}">', rel_name)
+          P('<span class="attr_label">{}</span>', rel_label)
+          P('<span class="text">')
+          fields = []
+          for subword in related[:8]:
+            subword_url = "{}?q={}".format(script_name, urllib.parse.quote(subword))
+            fields.append('<a href="{}" class="subword">{}</a>'.format(
+              esc(subword_url), esc(subword)))
+          print(", ".join(fields), end="")
+          P('</span>')
+          P('</div>')
     if details:
       etym_fields = []
       etym_prefix = entry.get("etymology_prefix")
