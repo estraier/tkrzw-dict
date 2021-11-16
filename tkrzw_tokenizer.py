@@ -190,6 +190,24 @@ class Tokenizer:
       return True
     return False
 
+  def IsJaWordAdjvNounOnly(self, word):
+    self.InitMecab()
+    word += "の"
+    tokens = []
+    for token in self.tagger_mecab.parse(word).split("\n"):
+      fields = token.split("\t")
+      if len(fields) != 4: continue
+      tokens.append(fields)
+    if len(tokens) < 2:
+      return False
+    stem = tokens[-2]
+    suffix = tokens[-1]
+    if stem[1] == "名詞" and stem[2] == "形容動詞語幹":
+      return True
+    if stem[0] == "的" and stem[1] == "名詞" and stem[2] == "接尾":
+      return True
+    return False
+  
   def RestoreJaWordAdjSaNoun(self, word):
     self.InitMecab()
     if not regex.search(r"[\p{Han}\p{Hiragana}]さ$", word):
@@ -266,4 +284,61 @@ class Tokenizer:
       fields = token.split("\t")
       if len(fields) != 4: continue
       return fields
-    return ["", "", "", ""]
+    return ["", "", "", "", ""]
+
+  def NormalizeJaWordForPos(self, pos, tran):
+    if pos in ("verb", "adjective", "adverb"):
+      tran = self.CutJaWordNounThing(tran)
+    if pos == "noun":
+      stem = regex.sub(
+        r"を(する|される|行う|実行する|実施する|挙行する|遂行する)", "", tran)
+      if stem != tran and len(stem) >= 2:
+        return stem
+      if self.IsJaWordSahenVerb(tran):
+        return regex.sub(r"する$", "", tran)
+      if tran and tran[-1] in ("な", "に"):
+        stem = tran[:-1]
+        if self.IsJaWordAdjvNoun(stem):
+          return stem
+      if tran.endswith("い"):
+        pos = self.GetJaLastPos(tran)
+        if pos and pos[1] == "形容詞":
+          return tran[:-1] + "さ"
+    if pos == "verb":
+      if not tran.endswith("な"):
+        restored = self.ConvertJaWordBaseForm(tran)
+        if restored != tran:
+          return restored
+      if self.IsJaWordSahenNoun(tran):
+        return tran + "する"
+    if pos == "adjective":
+      restored = self.RestoreJaWordAdjSaNoun(tran)
+      if restored != tran:
+        return restored
+      if len(tran) >= 2 and tran.endswith("さ"):
+        restored = tran[:-1]
+        if self.IsJaWordAdjvNoun(restored):
+          return restored + "な"
+        restored = tran[:-1] + "い"
+        pos = self.GetJaLastPos(restored)
+        if pos and pos[1] == "形容詞":
+          return restored
+      if tran.endswith("である"):
+        tran = tran[:-3]
+      if self.IsJaWordAdjvNoun(tran):
+        restored_na = tran + "な"
+        restored_no = tran + "の"
+        if tran.endswith("か") or tran.endswith("的") or self.IsJaWordAdjvNounOnly(tran):
+          return restored_na
+        return restored_no
+      if (tran.endswith("の") and self.IsJaWordAdjvNoun(tran[:-1]) and
+          self.IsJaWordAdjvNounOnly(tran[:-1])):
+        return tran[:-1] + "な"
+      if self.IsJaWordNoun(tran) and not tran.endswith("の"):
+        return tran + "の"
+      if tran.endswith("く"):
+        tran = self.ConvertJaWordBaseForm(tran)
+    if pos == "adverb":
+      if self.IsJaWordAdjvNoun(tran):
+        return tran + "に"
+    return tran

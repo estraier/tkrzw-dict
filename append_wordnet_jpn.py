@@ -410,59 +410,9 @@ class AppendWordnetJPNBatch:
       return True
     return False
 
-  def NormalizeTranslation(self, tokenizer, pos, tran):
-    if pos in ("verb", "adjective", "adverb"):
-      tran = tokenizer.CutJaWordNounThing(tran)
-    if pos == "noun":
-      stem = regex.sub(
-        r"を(する|される|行う|実行する|実施する|挙行する|遂行する)", "", tran)
-      if stem != tran and len(stem) >= 2:
-        return stem
-      if tokenizer.IsJaWordSahenVerb(tran):
-        return regex.sub(r"する$", "", tran)
-      if tran and tran[-1] in ("な", "に", "さ"):
-        stem = tran[:-1]
-        if tokenizer.IsJaWordAdjvNoun(stem):
-          return stem
-      if tran.endswith("い"):
-        pos = tokenizer.GetJaLastPos(tran)
-        if pos and pos[1] == "形容詞":
-          return tran[:-1] + "さ"
-    if pos == "verb":
-      if not tran.endswith("な"):
-        restored = tokenizer.ConvertJaWordBaseForm(tran)
-        if restored != tran:
-          return restored
-      if tokenizer.IsJaWordSahenNoun(tran):
-        return tran + "する"
-    if pos == "adjective":
-      restored = tokenizer.RestoreJaWordAdjSaNoun(tran)
-      if restored != tran:
-        return restored
-      if len(tran) >= 2 and tran.endswith("さ"):
-        restored = tran[:-1]
-        if tokenizer.IsJaWordAdjvNoun(restored):
-          return restored + "な"
-        restored = tran[:-1] + "い"
-        pos = tokenizer.GetJaLastPos(restored)
-        if pos and pos[1] == "形容詞":
-          return restored
-      if tran.endswith("である"):
-        tran = tran[:-3]
-      if tokenizer.IsJaWordAdjvNoun(tran):
-        return tran + "な"
-      if tokenizer.IsJaWordNoun(tran):
-        return tran + "の"
-      if tran.endswith("く"):
-        tran = tokenizer.ConvertJaWordBaseForm(tran)
-    if pos == "adverb":
-      if tokenizer.IsJaWordAdjvNoun(tran):
-        return tran + "に"
-    return tran
-
   def NormalizeTranslationList(self, tokenizer, pos, item_trans):
     for i, tran in enumerate(item_trans):
-      restored = self.NormalizeTranslation(tokenizer, pos, tran)
+      restored = tokenizer.NormalizeJaWordForPos(pos, tran)
       if restored != tran:
         item_trans[i] = restored
 

@@ -23,6 +23,7 @@ import json
 import regex
 import sys
 import tkrzw
+import tkrzw_tokenizer
 
 
 def main():
@@ -36,7 +37,7 @@ def main():
       is_synset = True
     else:
       raise ValueError("invalid arguments")
-  
+  tokenizer = tkrzw_tokenizer.Tokenizer()
   dbm = tkrzw.DBM()
   dbm.Open(input_path, False).OrDie()
   it = dbm.MakeIterator()
@@ -50,18 +51,39 @@ def main():
       word = entry["word"]
       if is_synset:
         for item in entry["item"]:
+          pos = item["pos"]
           text = item["text"]
           syn_match = regex.search(r"\[synset\]: ([-0-9a-z]+)", text)
           tran_match = regex.search(r"\[translation\]: ([^\[]+)", text)
           if syn_match and tran_match:
             syn = syn_match.group(1)
             tran = tran_match.group(1)
-            syn_trans = [x.strip() for x in tran.split(",")]
-            print("{}:{}\t{}".format(word, syn, "\t".join(syn_trans)))
+            norm_trans = []
+            uniq_trans = set()
+            for syn_tran in tran.split(","):
+              norm_tran = tokenizer.NormalizeJaWordForPos(pos, syn_tran.strip())
+              if norm_tran and norm_tran not in uniq_trans:
+                norm_trans.append(norm_tran)
+                uniq_trans.add(norm_tran)
+            if norm_trans:
+              print("{}:{}\t{}".format(word, syn, "\t".join(norm_trans)))
       else:
+        poses = set()
+        for item in entry["item"]:
+          poses.add(item["pos"])
+        only_pos = list(poses)[0] if len(poses) == 1 else None
         translations = entry.get("translation")
         if translations:
-          print("{}\t{}".format(word, "\t".join(translations)))
+          norm_trans = []
+          uniq_trans = set()
+          if only_pos:
+            for tran in translations:
+              norm_tran = tokenizer.NormalizeJaWordForPos(only_pos, tran) if only_pos else tran
+              if norm_tran and norm_tran not in uniq_trans:
+                norm_trans.append(norm_tran)
+                uniq_trans.add(norm_tran)
+          if norm_trans:
+            print("{}\t{}".format(word, "\t".join(norm_trans)))
     it.Next()
   dbm.Close().OrDie()
 
