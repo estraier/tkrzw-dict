@@ -1630,6 +1630,7 @@ class BuildUnionDBBatch:
   def MakeTranAdjective(self, tran):
     pos = self.tokenizer.GetJaLastPos(tran)
     stem = self.tokenizer.CutJaWordNounParticle(tran)
+    is_adjv = False
     if tran.endswith("する"):
       tran = tran[:-2]
     elif tran.endswith("される"):
@@ -1640,8 +1641,11 @@ class BuildUnionDBBatch:
       tran = tran[:-3]
     elif self.tokenizer.IsJaWordAdjvNoun(stem):
       tran = stem
+      is_adjv = True
     pos = self.tokenizer.GetJaLastPos(tran)
-    if pos[1] == "名詞":
+    if self.tokenizer.IsJaWordAdjvNounOnly(tran):
+      tran += "な"
+    elif pos[1] == "名詞":
       if tran.endswith("的"):
         tran += "な"
       else:
