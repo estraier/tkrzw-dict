@@ -949,6 +949,7 @@ class BuildUnionDBBatch:
     tran_weight = 0.7
     for item in entry["item"]:
       label = item["label"]
+      pos = item["pos"]
       sections = item["text"].split(" [-] ")
       text = sections[0]
       text = regex.sub(r"。 *(また|または|又は)、.*?。", r"。", text)
@@ -1004,16 +1005,29 @@ class BuildUnionDBBatch:
           if not trans: continue
           weight = tran_weight
           tran_weight *= 0.9
+          uniq_trans = set()
           for tran in trans:
-            Vote(tran, weight, label)
-            weight *= 0.85
-    poses = set()
+            norm_tran = self.tokenizer.NormalizeJaWordForPos(pos, tran)
+            if norm_tran and norm_tran not in uniq_trans:
+              Vote(norm_tran, weight, label)
+              weight *= 0.85
+              uniq_trans.add(norm_tran)
+    pos_scores = {}
+    pos_base_score = 1.0
     for item in entry["item"]:
-      poses.add(item["pos"])
-    pure_noun = len(poses) == 1 and "noun" in poses
-    pure_verb = len(poses) == 1 and "verb" in poses
-    pure_adjective = len(poses) == 1 and "adjective" in poses
-    pure_adverb = len(poses) == 1 and "adverb" in poses
+      pos = item["pos"]
+      score = pos_base_score
+      if item["label"] not in self.core_labels:
+        score *= 0.75
+      pos_scores[pos] = (pos_scores.get(pos) or 0.0) + score
+      pos_base_score *= 0.9
+    pos_sum_score = 0.001
+    for pos, score in pos_scores.items():
+      pos_sum_score += score
+    pure_noun = (pos_scores.get("noun") or 0.0) / pos_sum_score >= 0.9
+    pure_verb = (pos_scores.get("verb") or 0.0) / pos_sum_score >= 0.9
+    pure_adjective = (pos_scores.get("adjective") or 0.0) / pos_sum_score >= 0.9
+    pure_adverb = (pos_scores.get("adverb") or 0.0) / pos_sum_score >= 0.9
     bonus_translations = []
     scored_translations = set()
     for tran, score in translations.items():
