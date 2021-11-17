@@ -971,7 +971,7 @@ class BuildUnionDBBatch:
           continue
         if regex.search(r"の(直接法|直説法|仮定法)(現在|過去)", text):
           continue
-        if regex.search(r"の(動名詞|異綴|異体|古語|略|省略|短縮|頭字語)", text):
+        if regex.search(r"の(動名詞|異綴|異体|異形|古語|略|省略|短縮|頭字語)", text):
           continue
         if regex.search(r"その他、[^。、]{12,}", text):
           continue
