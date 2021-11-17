@@ -58,6 +58,7 @@ def main():
           if syn_match and tran_match:
             syn = syn_match.group(1)
             tran = tran_match.group(1)
+            tran = regex.sub(r"\([^)]+\)", "", tran)
             norm_trans = []
             uniq_trans = set()
             for syn_tran in tran.split(","):
@@ -69,19 +70,32 @@ def main():
               print("{}:{}\t{}".format(word, syn, "\t".join(norm_trans)))
       else:
         poses = set()
+        tran_poses = {}
         for item in entry["item"]:
-          poses.add(item["pos"])
+          pos = item["pos"]
+          text = item["text"]
+          poses.add(pos)
+          tran_match = regex.search(r"\[translation\]: ([^\[]+)", text)
+          if tran_match:
+            tran = tran_match.group(1)
+            tran = regex.sub(r"\([^)]+\)", "", tran)
+            for syn_tran in tran.split(","):
+              syn_tran = syn_tran.strip()
+              if syn_tran and syn_tran not in tran_poses:
+                tran_poses[syn_tran] = pos
         only_pos = list(poses)[0] if len(poses) == 1 else None
         translations = entry.get("translation")
         if translations:
           norm_trans = []
           uniq_trans = set()
-          if only_pos:
-            for tran in translations:
-              norm_tran = tokenizer.NormalizeJaWordForPos(only_pos, tran) if only_pos else tran
-              if norm_tran and norm_tran not in uniq_trans:
-                norm_trans.append(norm_tran)
-                uniq_trans.add(norm_tran)
+          for tran in translations:
+            pos = only_pos
+            if not pos:
+              pos = tran_poses.get(tran)
+            norm_tran = tokenizer.NormalizeJaWordForPos(pos, tran) if pos else tran
+            if norm_tran and norm_tran not in uniq_trans:
+              norm_trans.append(norm_tran)
+              uniq_trans.add(norm_tran)
           if norm_trans:
             print("{}\t{}".format(word, "\t".join(norm_trans)))
     it.Next()
