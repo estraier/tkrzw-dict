@@ -321,6 +321,8 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           if value.startswith("head="):
             stop = True
         if not stop:
+          if values == ["++"]:
+            values = []
           verb_singular = title + "s"
           if title.endswith("s"):
             verb_singular = title + "es"
