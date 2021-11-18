@@ -274,6 +274,8 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         if not stop:
           if title.endswith("s"):
             noun_plural = title + "es"
+          elif regex.search(r"([^aeiou])y$", title):
+            noun_plural = title[:-1] + "ies"
           else:
             noun_plural = title + "s"
           if len(values) == 1 and values[0] == "es":
@@ -326,12 +328,17 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           verb_singular = title + "s"
           if title.endswith("s"):
             verb_singular = title + "es"
+          elif regex.search(r"([^aeiou])y$", title):
+            verb_singular = title[:-1] + "ies"
           else:
             verb_singular = title + "s"
           verb_present_participle = title + "ing"
           if title.endswith("e"):
             verb_past = title + "d"
             verb_past_participle = title + "d"
+          elif regex.search(r"([^aeiou])y$", title):
+            verb_past = title[:-1] + "ied"
+            verb_past_participle = title[:-1] + "ied"
           else:
             verb_past = title + "ed"
             verb_past_participle = title + "ed"
