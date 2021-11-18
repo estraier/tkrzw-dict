@@ -291,8 +291,11 @@ class GenerateUnionEPUBBatch:
       labels.add(item["label"])
     if "wj" in labels: return True
     translations = entry.get("translation")
-    if ("verb" in poses or "adjective" in poses or "adverb" in poses) and translations:
-      return True
+    if translations:
+      if "verb" in poses or "adjective" in poses or "adverb" in poses:
+        return True
+      if regex.fullmatch("[a-z]+", word) and "we" in labels:
+        return True
     has_parent = False
     parents = entry.get("parent")
     if parents:
