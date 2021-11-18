@@ -278,7 +278,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
             noun_plural = title + "s"
           if len(values) == 1 and values[0] == "es":
             noun_plural = title + "es"
-          elif len(values) == 1 and values[0] == "~":
+          elif len(values) == 1 and values[0] in ("~", "+"):
             pass
           elif len(values) == 1 and values[0] == "-":
             noun_plural = None
@@ -287,15 +287,15 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           elif len(values) == 2 and values[0] == "+":
             pass
           elif (len(values) == 2 and values[0] in ("-", "~") and
-                values[1] != "s" and values[1] != "es" and values[1] != "?"):
+                values[1] not in ("s", "es", "+", "-", "~","?", "!")):
             noun_plural = values[1]
           elif len(values) == 2 and values[0] == "es":
             noun_plural = title + "es"
           elif len(values) == 2 and values[1] == "es":
-            stem = title if values[0] in ("-", "~") else values[0]
+            stem = title if values[0] in ("+", "-", "~") else values[0]
             noun_plural = stem + "es"
           elif len(values) == 2 and values[1] == "ies":
-            stem = title if values[0] in ("-", "~") else values[0]
+            stem = title if values[0] in ("+", "-", "~") else values[0]
             noun_plural = stem + "ies"
           elif len(values) == 1 and values[0].startswith("pl="):
             noun_plural = regex.sub(".*=", "", values[0])
@@ -303,7 +303,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
             noun_plural = title + "es"
           elif len(values) == 2 and values[0].startswith("sg=") and values[1].startswith("pl="):
             noun_plural = regex.sub(".*=", "", values[1])
-          elif len(values) > 0 and values[0] not in ("s", "es", "ies", "-", "~", "?"):
+          elif len(values) > 0 and values[0] not in ("s", "es", "ies", "+", "-", "~", "?", "!"):
             noun_plural = values[0]
       if regex.search(r"\{\{en-verb\|?([^\}]*)\}\}", line):
         if "verb" in infl_modes: continue
@@ -320,9 +320,9 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         for value in values:
           if value.startswith("head="):
             stop = True
+          if value.find("*") >= 0:
+            stop = True
         if not stop:
-          if values == ["++"]:
-            values = []
           verb_singular = title + "s"
           if title.endswith("s"):
             verb_singular = title + "es"
@@ -335,7 +335,28 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           else:
             verb_past = title + "ed"
             verb_past_participle = title + "ed"
-          if len(values) == 1 and values[0] == "es":
+          if values == ["++"] or values == ["++", "++"] or values == ["++", "++", "~"]:
+            verb_present_participle = title + title[-1] + "ing"
+            verb_past = title + title[-1] + "ed"
+            verb_past_participle = title + title[-1] + "ed"
+            values = []
+          if len(values) > 0 and (values[0] == "+" or values[0].startswith("~")):
+            values[0] = verb_singular
+          if len(values) > 0 and values[0] == "++":
+            values[0] = verb_singular
+          if len(values) > 1 and (values[1] == "+" or values[1].startswith("~")):
+            values[1] = verb_present_participle
+          if len(values) > 1 and values[1] == "++":
+            values[1] = title + title[-1] + "ing"
+          if len(values) > 2 and (values[2] == "+" or values[2].startswith("~")):
+            values[2] = verb_past
+          if len(values) > 2 and values[2] == "++":
+            values[2] = title + title[-1] + "ed"
+          if len(values) > 3 and (values[3] == "+" or values[3].startswith("~")):
+            values[3] = verb_past_participle
+          if len(values) > 3 and values[3] == "++":
+            values[3] = title + title[-1] + "ed"
+          elif len(values) == 1 and values[0] == "es":
             verb_singular = title + "es"
           elif len(values) == 1 and values[0] == "d":
             verb_past = title + "d"
@@ -428,6 +449,8 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         for value in values:
           if value.startswith("head="):
             stop = True
+          if value in ("+", "-", "~", "?", "!"):
+            stop = True
         if not stop:
           adjective_comparative = None
           adjective_superlative = None
@@ -490,6 +513,8 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           values.pop(0)
         for value in values:
           if value.startswith("head="):
+            stop = True
+          if value in ("+", "-", "~", "?", "!"):
             stop = True
         if not stop:
           adverb_comparative = None
