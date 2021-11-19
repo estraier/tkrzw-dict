@@ -332,7 +332,10 @@ class XMLHandler(xml.sax.handler.ContentHandler):
             verb_singular = title[:-1] + "ies"
           else:
             verb_singular = title + "s"
-          verb_present_participle = title + "ing"
+          if title.endswith("e"):
+            verb_present_participle = title[:-1] + "ing"
+          else:
+            verb_present_participle = title + "ing"
           if title.endswith("e"):
             verb_past = title + "d"
             verb_past_participle = title + "d"
