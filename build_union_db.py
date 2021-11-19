@@ -335,10 +335,11 @@ class BuildUnionDBBatch:
       len(core_words), time.time() - start_time))
     start_time = time.time()
     logger.info("Indexing base forms")
-    base_index = collections.defaultdict(list)
-    core_index = collections.defaultdict(list)
+    extra_word_bases = {}
     for label, word_dict in word_dicts:
       if label not in self.top_labels: continue
+      base_index = collections.defaultdict(list)
+      core_index = collections.defaultdict(list)
       for key, entries in word_dict.items():
         for entry in entries:
           word = entry["word"]
@@ -349,6 +350,7 @@ class BuildUnionDBBatch:
               part = entry.get(part_name)
               if part and (part in noun_words or part in adj_words):
                 base_index[part].append(word)
+                extra_word_bases[part] = word
                 children.add(part)
             if children:
               entry["base_child"] = list(children)
@@ -377,8 +379,8 @@ class BuildUnionDBBatch:
           children = core_index.get(word)
           if children:
             entry["core_child"] = list(children)
-    logger.info("Indexing base forms done: num_participles={}, elapsed_time={:.2f}s".format(
-      len(base_index), time.time() - start_time))
+    logger.info("Indexing base forms done: elapsed_time={:.2f}s".format(
+      time.time() - start_time))
     logger.info("Preparing DBMs")
     phrase_prob_dbm = None
     if self.phrase_prob_path:
@@ -438,7 +440,7 @@ class BuildUnionDBBatch:
         self.SetAOA(word_entry, entries, aoa_words, live_words, phrase_prob_dbm)
         self.SetTranslations(word_entry, aux_trans, tran_prob_dbm, rev_prob_dbm)
         self.SetRelations(word_entry, entries, word_dicts, live_words, rev_live_words,
-                          phrase_prob_dbm, tran_prob_dbm, cooc_prob_dbm)
+                          phrase_prob_dbm, tran_prob_dbm, cooc_prob_dbm, extra_word_bases)
         if phrase_prob_dbm and cooc_prob_dbm:
           self.SetCoocurrences(word_entry, entries, word_dicts, phrase_prob_dbm, cooc_prob_dbm)
       num_entries += 1
@@ -1109,7 +1111,7 @@ class BuildUnionDBBatch:
       entry["translation"] = final_translations
 
   def SetRelations(self, word_entry, entries, word_dicts, live_words, rev_live_words,
-                   phrase_prob_dbm, tran_prob_dbm, cooc_prob_dbm):
+                   phrase_prob_dbm, tran_prob_dbm, cooc_prob_dbm, extra_word_bases):
     word = word_entry["word"]
     norm_word = tkrzw_dict.NormalizeWord(word)
     scores = {}
@@ -1171,6 +1173,9 @@ class BuildUnionDBBatch:
                   weight *= rel_weight * base_weight
                   Vote(rel_word, label, weight)
             base_weight *= 0.95
+    extra_word_base = extra_word_bases.get(word)
+    if extra_word_base:
+      parents.add(extra_word_base)
     translations = list(word_entry.get("translation") or [])
     if tran_prob_dbm:
       tsv = tran_prob_dbm.GetStr(norm_word)
