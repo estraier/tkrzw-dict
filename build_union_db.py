@@ -109,7 +109,6 @@ class BuildUnionDBBatch:
     self.min_prob_map = min_prob_map
     self.tokenizer = tkrzw_tokenizer.Tokenizer()
 
-
   def Run(self):
     start_time = time.time()
     logger.info("Process started: input_confs={}, output_path={}".format(
