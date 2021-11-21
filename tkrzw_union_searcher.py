@@ -473,7 +473,8 @@ class UnionSearcher:
               child_score = math.log2((len(children) if children else 0) + 4)
               width_score = (200 if "translation" in entry else 10) ** word.count(" ")
               match_score = 1.0 if match else 0.2
-              score = var_score * prob_score * aoa_score * tran_score * item_score * label_score * child_score * match_score * width_score
+              score = (var_score * prob_score * aoa_score * tran_score * item_score *
+                       label_score * child_score * match_score * width_score)
               annots.append((entry, score))
         elif index == start_index:
           break

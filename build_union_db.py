@@ -75,14 +75,21 @@ adjective_suffixes = [
 adverb_suffixes = [
   "ly",
 ]
-particles = [
+particles = set([
   "about", "above", "across", "after", "against", "along", "amid", "among", "around", "as", "at",
   "before", "behind", "below", "beneath", "between", "beside", "beyond", "by", "despite", "during",
   "down", "except", "for", "from", "in", "inside", "into", "near",
   "of", "off", "on", "onto", "out", "outside", "over",
   "per", "re", "since", "through", "throughout", "till", "to", "toward",
   "under", "until", "up", "upon", "with", "within", "without", "via",
-]
+])
+misc_stop_words = set([
+  "the", "a", "an", "I", "my", "me", "mine", "you", "your", "yours", "he", "his", "him",
+  "she", "her", "hers", "we", "our", "us", "ours", "some", "any", "one", "someone", "something",
+  "who", "whom", "whose", "what", "where", "when", "why", "how", "and", "but", "not", "no",
+  "never", "ever", "time", "place", "people", "person", "this", "that", "other", "another",
+  "back", "much", "many", "more", "most", "good", "well", "better", "best",
+])
 
 
 class BuildUnionDBBatch:
@@ -455,6 +462,7 @@ class BuildUnionDBBatch:
     for key, merged_entry in merged_entries:
       for word_entry in merged_entry:
         self.PropagateTranslations(word_entry, merged_dict, tran_prob_dbm, aux_last_trans)
+        self.CompensateInflections(word_entry, merged_dict, verb_words)
       num_entries += 1
       if num_entries % 1000 == 0:
         logger.info("Finishing entries: num_records={}".format(num_entries))
@@ -649,6 +657,16 @@ class BuildUnionDBBatch:
                     if pos_stem in aux_trans or pos_stem in aoa_words or pos_stem in keywords:
                       is_keyword = True
                       break
+      if not is_keyword and "verb" in poses and regex.fullmatch(r"[a-z ]+", word):
+        tokens = self.tokenizer.Tokenize("en", word, False, False)
+        if len(tokens) >= 2 and tokens[0] in keywords:
+          particle_suffix = True
+          for token in tokens[1:]:
+            if not token in particles:
+              particle_suffix = False
+              break
+          if particle_suffix:
+            is_keyword = True
       is_super_keyword = is_keyword and bool(regex.fullmatch(r"\p{Latin}{3,}", word))
       for label, entry in entries:
         if label not in self.surfeit_labels or is_keyword:
@@ -1702,6 +1720,45 @@ class BuildUnionDBBatch:
     elif pos[1] == "動詞":
       tran = stem + "ように"
     return tran
+
+  def CompensateInflections(self, entry, merged_dict, verb_words):
+    word = entry["word"]
+    root_verb = None
+    ing_value = entry.get("verb_present_participle")
+    if ing_value and ing_value.endswith("<ing"):
+      root_verb = ing_value[:-4]
+    for infl_name in inflection_names:
+      value = entry.get(infl_name)
+      if value and not regex.fullmatch(r"[-\p{Latin}0-9' ]+", value):
+        del entry[infl_name]
+    poses = set()
+    for item in entry["item"]:
+      poses.add(item["pos"])
+    if "verb" in poses and word.find(" ") >= 0 and not regex.search(r"[A-Z]", word):
+      tokens = self.tokenizer.Tokenize("en", word, False, False)
+      if len(tokens) > 1:
+        if not root_verb:
+          for token in tokens:
+            if token not in particles and token not in misc_stop_words and token in verb_words:
+              root_verb = token
+              break
+        if root_verb:
+          root_entry = merged_dict.get(root_verb)
+          if root_entry:
+            for infl_name in inflection_names:
+              if not infl_name.startswith("verb_") or entry.get(infl_name):
+                continue
+              root_infl = root_entry[0].get(infl_name)
+              if not root_infl:
+                continue
+              root_infl_tokens = []
+              for token in tokens:
+                if root_infl and token == root_verb:
+                  root_infl_tokens.append(root_infl)
+                  root_infl = None
+                else:
+                  root_infl_tokens.append(token)
+              entry[infl_name] = " ".join(root_infl_tokens)
 
 
 def main():
