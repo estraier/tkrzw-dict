@@ -94,6 +94,14 @@ TEXT_ATTRS = {
   "intransitive": "vi",
   "transitive": "vt",
 }
+PARTICLES = set([
+  "about", "above", "across", "after", "against", "along", "amid", "among", "around", "as", "at",
+  "before", "behind", "below", "beneath", "between", "beside", "beyond", "by", "despite", "during",
+  "down", "except", "for", "from", "in", "inside", "into", "near",
+  "of", "off", "on", "onto", "out", "outside", "over",
+  "per", "re", "since", "through", "throughout", "till", "to", "toward",
+  "under", "until", "up", "upon", "with", "within", "without", "via",
+])
 CURRENT_UUID = str(uuid.uuid1())
 CURRENT_DATETIME = regex.sub(r"\..*", "Z", datetime.datetime.now(
   datetime.timezone.utc).isoformat())
@@ -290,6 +298,16 @@ class GenerateUnionEPUBBatch:
       if item["text"].startswith("[translation]:"): continue
       labels.add(item["label"])
     if "wj" in labels: return True
+    if "verb" in poses and regex.fullmatch(r"[a-z ]+", word):
+      tokens = word.split(" ")
+      if len(tokens) >= 2 and tokens[0] in keywords:
+        particle_suffix = True
+        for token in tokens[1:]:
+          if not token in PARTICLES:
+            particle_suffix = False
+            break
+        if particle_suffix:
+          return True
     translations = entry.get("translation")
     if translations:
       if "verb" in poses or "adjective" in poses or "adverb" in poses:
