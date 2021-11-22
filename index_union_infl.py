@@ -83,7 +83,7 @@ class ExtractKeysBatch:
             alternative = tkrzw_dict.NormalizeWord(alternative)
             if not regex.search(r"\p{Latin}", infl_value): continue
             if alternative == key: continue
-            index[alternative].append((word, 0.0))
+            index[alternative].append((word, score * 0.1))
       num_entries += 1
       if num_entries % 10000 == 0:
         logger.info("Reading: entries={}".format(num_entries))
@@ -100,7 +100,6 @@ class ExtractKeysBatch:
       words = []
       uniq_words = set()
       for base_word, score in scores:
-        if score == 0 and words: continue
         if base_word in uniq_words: continue
         words.append(base_word)
         uniq_words.add(base_word)
