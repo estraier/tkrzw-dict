@@ -153,7 +153,8 @@ def IsNumericWord(word):
 _regex_stop_word_num = re.compile(r"[0-9]")
 _set_en_stop_words = set(("the", "a", "an", "be", "do", "not", "and", "or", "but",
                           "no", "any", "some", "this", "these", "that", "those",
-                          "i", "my", "me", "mine", "you", "your", "yours", "we", "our", "us", "ours",
+                          "i", "my", "me", "mine", "you", "your", "yours",
+                          "we", "our", "us", "ours",
                           "he", "his", "him", "she", "her", "hers",
                           "it", "its", "they", "them", "their"))
 _regex_stop_word_ja_hiragana = regex.compile(r"^[\p{Hiragana}ー]+$")

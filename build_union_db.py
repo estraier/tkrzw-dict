@@ -159,6 +159,7 @@ class BuildUnionDBBatch:
         texts = []
         inflections = {}
         etymologies = {}
+        alternatives = []
         mode = ""
         rel_words = {}
         for field in line.strip().split("\t"):
@@ -176,6 +177,11 @@ class BuildUnionDBBatch:
             inflections[name] = inflections.get(name) or value
           elif name.startswith("etymology_"):
             etymologies[name] = value
+          elif name == "alternative":
+            for alt_word in value.split(","):
+              alt_word = alt_word.strip()
+              if alt_word:
+                alternatives.append(alt_word)
           elif name in poses:
             if slim:
               value = regex.sub(r" \[-+\] .*", "", value).strip()
@@ -189,7 +195,7 @@ class BuildUnionDBBatch:
           ipa = tkrzw_pron_util.SampaToIPA(sampa)
         if not word or len(word) > 48:
           continue
-        if ipa or texts or inflections or etymologies:
+        if ipa or texts or inflections or etymologies or alternatives:
           key = tkrzw_dict.NormalizeWord(word)
           entry = {"word": word}
           if ipa:
@@ -198,6 +204,8 @@ class BuildUnionDBBatch:
             entry[name] = value
           for name, value in etymologies.items():
             entry[name] = value
+          if alternatives:
+            entry["alternative"] = alternatives
           if texts:
             entry["text"] = texts
           for rel_name, rel_value in rel_words.items():
@@ -767,6 +775,25 @@ class BuildUnionDBBatch:
       share_ratio = share / share_sum
       if share_ratio < 1:
         word_entry["share"] = "{:.3f}".format(share_ratio).replace("0.", ".")
+      uniq_alternatives = set()
+      scored_alternatives = []
+      for label, entry in entries:
+        alternatives = entry.get("alternative")
+        if alternatives:
+          for alternative in alternatives:
+            norm_alt = tkrzw_dict.NormalizeWord(alternative)
+            if norm_alt == key: continue
+            if word != "be":
+              dist = tkrzw.Utility.EditDistanceLev(key, norm_alt)
+              dist_ratio = dist / max(len(key), len(norm_alt))
+              if dist > 4 or dist_ratio > 0.3: continue
+            if alternative not in uniq_alternatives:
+              alt_prob = self.GetPhraseProb(phrase_prob_dbm, "en", alternative)
+              scored_alternatives.append((alternative, alt_prob))
+              uniq_alternatives.add(alternative)
+      if scored_alternatives:
+        scored_alternatives = sorted(scored_alternatives, key=lambda x: x[1], reverse=True)
+        word_entry["alternative"] = [x[0] for x in scored_alternatives]
       merged_entry.append(word_entry)
     return merged_entry
 
@@ -1766,7 +1793,7 @@ def main():
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-body.tkh"
   core_labels = set((tkrzw_dict.GetCommandFlag(args, "--core", 1) or "xa,wn").split(","))
   gross_labels = set((tkrzw_dict.GetCommandFlag(args, "--gross", 1) or "wj").split(","))
-  top_labels = set((tkrzw_dict.GetCommandFlag(args, "--top", 1) or "xa,we,lx").split(","))
+  top_labels = set((tkrzw_dict.GetCommandFlag(args, "--top", 1) or "we,lx,xa").split(","))
   slim_labels = set((tkrzw_dict.GetCommandFlag(args, "--slim", 1) or "we").split(","))
   surfeit_labels = set((tkrzw_dict.GetCommandFlag(args, "--surfeit", 1) or "we").split(","))
   tran_list_labels = set((tkrzw_dict.GetCommandFlag(

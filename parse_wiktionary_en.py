@@ -272,7 +272,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           if value.startswith("head="):
             stop = True
         if not stop:
-          if title.endswith("s"):
+          if regex.search(r"([sx])$", title):
             noun_plural = title + "es"
           elif regex.search(r"([^aeiou])y$", title):
             noun_plural = title[:-1] + "ies"
@@ -319,6 +319,8 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           if values[0][5:] != title:
             stop = True
           values.pop(0)
+        if title.find(" ") >= 0 and len(values) != 4:
+          stop = True
         for value in values:
           if value.startswith("head="):
             stop = True
@@ -326,7 +328,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
             stop = True
         if not stop:
           verb_singular = title + "s"
-          if title.endswith("s"):
+          if regex.search(r"([sx])$", title):
             verb_singular = title + "es"
           elif regex.search(r"([^aeiou])y$", title):
             verb_singular = title[:-1] + "ies"
@@ -456,6 +458,8 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           if values[0][5:] != title:
             stop = True
           values.pop(0)
+        if title.find(" ") >= 0 and len(values) != 2:
+          stop = True
         for value in values:
           if value.startswith("head="):
             stop = True
@@ -521,6 +525,8 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           if values[0][5:] != title:
             stop = True
           values.pop(0)
+        if title.find(" ") >= 0 and len(values) != 2:
+          stop = True
         for value in values:
           if value.startswith("head="):
             stop = True

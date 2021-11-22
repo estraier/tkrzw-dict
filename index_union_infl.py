@@ -73,9 +73,17 @@ class ExtractKeysBatch:
             for infl_value in regex.split(r"[,|]", inflection):
               infl_value = tkrzw_dict.NormalizeWord(infl_value.strip())
               if not regex.search(r"\p{Latin}", infl_value): continue
+              if infl_value == key: continue
               inflections.add(infl_value)
         for inflection in inflections:
           index[inflection].append((word, score))
+        alternatives = word_entry.get("alternative")
+        if alternatives:
+          for alternative in alternatives:
+            alternative = tkrzw_dict.NormalizeWord(alternative)
+            if not regex.search(r"\p{Latin}", infl_value): continue
+            if alternative == key: continue
+            index[alternative].append((word, 0.0))
       num_entries += 1
       if num_entries % 10000 == 0:
         logger.info("Reading: entries={}".format(num_entries))
@@ -89,7 +97,13 @@ class ExtractKeysBatch:
     num_entries = 0
     for inflection, scores in index.items():
       scores = sorted(scores, key=lambda x: x[1], reverse=True)
-      words = [x[0] for x in scores]
+      words = []
+      uniq_words = set()
+      for base_word, score in scores:
+        if score == 0 and words: continue
+        if base_word in uniq_words: continue
+        words.append(base_word)
+        uniq_words.add(base_word)
       output_dbm.Set(inflection, "\t".join(words)).OrDie()
       num_entries += 1
       if num_entries % 10000 == 0:
