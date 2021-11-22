@@ -340,6 +340,19 @@ class GenerateUnionEPUBBatch:
     return True
 
   def MakeMain(self, input_dbm, keys, words):
+    inflections = set()
+    for key in keys:
+      serialized = input_dbm.GetStr(key)
+      if not serialized: continue
+      entries = json.loads(serialized)
+      for entry in entries:
+        for attr_list in INFLECTIONS:
+          for name, label in attr_list:
+            value = entry.get(name)
+            if value:
+              value = tkrzw_dict.NormalizeWord(value)
+              if value:
+                inflections.add(value)
     out_files = {}
     for key in keys:
       key_prefix = GetKeyPrefix(key)
@@ -354,12 +367,12 @@ class GenerateUnionEPUBBatch:
       if not serialized: continue
       entries = json.loads(serialized)
       for entry in entries:
-        self.MakeMainEntry(out_file, entry, input_dbm)
+        self.MakeMainEntry(out_file, entry, input_dbm, keys, inflections)
     for key_prefix, out_file in out_files.items():
       print(MAIN_FOOTER_TEXT, file=out_file, end="")
       out_file.close()
 
-  def MakeMainEntry(self, out_file, entry, input_dbm):
+  def MakeMainEntry(self, out_file, entry, input_dbm, keys, inflections):
     def P(*args, end="\n"):
       esc_args = []
       for arg in args[1:]:
@@ -409,7 +422,20 @@ class GenerateUnionEPUBBatch:
           infl = infl.strip()
           if not infl: continue
           P('<idx:iform name="{}" value="{}"/>', kind, infl)
-      P('</idx:infl>', pos)
+      P('</idx:infl>')
+    alternatives = entry.get("alternative")
+    if alternatives:
+      alt_words = []
+      for alternative in alternatives:
+        alt_norm = tkrzw_dict.NormalizeWord(alternative)
+        if not alt_norm or alt_norm in keys or alt_norm in inflections:
+          continue
+        alt_words.append(alternative)
+      if alt_words:
+        P('<idx:infl inflgrp="common">')
+        for alt_word in alt_words:
+          P('<idx:iform name="alternative" value="{}"/>', alt_word)
+        P('</idx:infl>')
     P('</idx:orth>')
     P('</span>')
     if pronunciation:
