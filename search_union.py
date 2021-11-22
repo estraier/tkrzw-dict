@@ -210,6 +210,10 @@ def PrintResult(entries, mode, query, searcher):
             fields.append("{}: {}".format(label, value))
         if fields:
           PrintWrappedText("  ".join(fields), 4)
+      alternatives = entry.get("alternative")
+      if alternatives:
+        text = "代替: {}".format(", ".join(alternatives))
+        PrintWrappedText(text, 4)
     if mode != "list":
       print()
     if mode in ("simple", "full"):
@@ -704,6 +708,12 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
           P('<div class="attr attr_infl">', end="")
           print(", ".join(fields), end="")
           P('</div>')
+      alternatives = entry.get("alternative")
+      if alternatives:
+        P('<div class="attr attr_infl">', end="")
+        P('<span class="attr_label">代替</span>', end="")
+        P(' <span class="attr_value">{}</span>', ", ".join(alternatives), end="")
+        P('</div>')
     for num_items, item in enumerate(entry["item"]):
       if not details and num_items >= 8:
         P('<div class="item item_omit">', label)
