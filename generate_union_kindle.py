@@ -367,6 +367,10 @@ class GenerateUnionEPUBBatch:
       if not serialized: continue
       entries = json.loads(serialized)
       for entry in entries:
+        word = entry["word"]
+        share = entry.get("share")
+        min_share = 0.3 if regex.search("[A-Z]", word) else 0.2
+        if share and float(share) < min_share: break
         self.MakeMainEntry(out_file, entry, input_dbm, keys, inflections)
     for key_prefix, out_file in out_files.items():
       print(MAIN_FOOTER_TEXT, file=out_file, end="")
