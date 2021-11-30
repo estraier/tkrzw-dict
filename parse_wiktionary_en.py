@@ -336,6 +336,8 @@ class XMLHandler(xml.sax.handler.ContentHandler):
             verb_singular = title + "s"
           if title.endswith("e"):
             verb_present_participle = title[:-1] + "ing"
+          elif regex.fullmatch(r"^[bcdfghklmnpqrstvwxz]+[aeiou][bcdfgklmnpqrstvz]$", title):
+            verb_present_participle = title + title[-1] + "ing"
           else:
             verb_present_participle = title + "ing"
           if title.endswith("e"):
