@@ -455,7 +455,8 @@ class BuildUnionDBBatch:
         self.SetAOA(word_entry, entries, aoa_words, live_words, phrase_prob_dbm)
         self.SetTranslations(word_entry, aux_trans, tran_prob_dbm, rev_prob_dbm)
         self.SetRelations(word_entry, entries, word_dicts, live_words, rev_live_words,
-                          phrase_prob_dbm, tran_prob_dbm, cooc_prob_dbm, extra_word_bases)
+                          phrase_prob_dbm, tran_prob_dbm, cooc_prob_dbm, extra_word_bases,
+                          verb_words, adj_words, adv_words)
         if phrase_prob_dbm and cooc_prob_dbm:
           self.SetCoocurrences(word_entry, entries, word_dicts, phrase_prob_dbm, cooc_prob_dbm)
       num_entries += 1
@@ -1156,7 +1157,8 @@ class BuildUnionDBBatch:
       entry["translation"] = final_translations
 
   def SetRelations(self, word_entry, entries, word_dicts, live_words, rev_live_words,
-                   phrase_prob_dbm, tran_prob_dbm, cooc_prob_dbm, extra_word_bases):
+                   phrase_prob_dbm, tran_prob_dbm, cooc_prob_dbm, extra_word_bases,
+                   verb_words, adj_words, adv_words):
     word = word_entry["word"]
     norm_word = tkrzw_dict.NormalizeWord(word)
     scores = {}
@@ -1338,6 +1340,8 @@ class BuildUnionDBBatch:
               break
           if has_particle:
             cmp_score *= 3.0
+          if cmp_word in verb_words or cmp_word in adj_words or cmp_word in adv_words:
+            cmp_score *= 3.0
           idioms.append((cmp_word, cmp_score))
         it.Next()
       it = rev_live_words.MakeIterator()
@@ -1357,6 +1361,8 @@ class BuildUnionDBBatch:
               has_particle = True
               break
           if has_particle:
+            cmp_score *= 3.0
+          if cmp_word in verb_words or cmp_word in adj_words or cmp_word in adv_words:
             cmp_score *= 3.0
           cmp_score * 0.9
           idioms.append((cmp_word, cmp_score))
