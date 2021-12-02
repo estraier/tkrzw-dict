@@ -252,11 +252,16 @@ def PrintResult(entries, mode, query, searcher):
                 PrintWrappedText(subsubsubsection, 10)
         num_items += 1
       if mode == "full":
+        phrase_trans = entry.get("phrase_translation")
+        if phrase_trans:
+          for phrase, trans in sorted(phrase_trans.items()):
+            text = "[句訳] {} : {}".format(phrase, ", ".join(trans))
+            PrintWrappedText(text, 4)
         parents = entry.get("parent")
         if parents:
           for parent in parents:
             parent_entries = searcher.SearchExact(parent, 1)
-            if parent_entries:              
+            if parent_entries:
               for parent_entry in parent_entries:
                 parent_word = parent_entry["word"]
                 parent_share = parent_entry.get("share")
@@ -816,26 +821,35 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
               PrintItemTextCGI(subsubsubsection)
               P('</div>')
       P('</div>')
-    parents = entry.get("parent")
-    if parents:
-      for parent in parents:
-        parent_entries = searcher.SearchExact(parent, 1)
-        if parent_entries:              
-          for parent_entry in parent_entries:
-            parent_word = parent_entry["word"]
-          parent_share = parent_entry.get("share")
-          min_share = 0.5 if regex.search("[A-Z]", parent_word) else 0.25
-          if parent_share and float(parent_share) < min_share: break
-          text = GetEntryTranslation(parent_entry)
-          if text:
-            P('<div class="attr attr_parent">')
-            P('<span class="attr_label">語幹</span>')
-            P('<span class="text">')
-            P('<a href="{}?q={}">{}</a> : {}',
-              script_name, urllib.parse.quote(parent_word), parent_word, text)
-            P('</span>')
-            P('</div>')
     if details:
+      phrase_trans = entry.get("phrase_translation")
+      if phrase_trans:
+        for phrase, trans in sorted(phrase_trans.items()):
+          P('<div class="attr attr_phrase_tran">')
+          P('<span class="attr_label">句訳</span>')
+          P('<span class="text">')
+          P('{} : {}', phrase, ", ".join(trans))
+          P('</span>')
+          P('</div>')
+      parents = entry.get("parent")
+      if parents:
+        for parent in parents:
+          parent_entries = searcher.SearchExact(parent, 1)
+          if parent_entries:
+            for parent_entry in parent_entries:
+              parent_word = parent_entry["word"]
+            parent_share = parent_entry.get("share")
+            min_share = 0.5 if regex.search("[A-Z]", parent_word) else 0.25
+            if parent_share and float(parent_share) < min_share: break
+            text = GetEntryTranslation(parent_entry)
+            if text:
+              P('<div class="attr attr_parent">')
+              P('<span class="attr_label">語幹</span>')
+              P('<span class="text">')
+              P('<a href="{}?q={}">{}</a> : {}',
+                script_name, urllib.parse.quote(parent_word), parent_word, text)
+              P('</span>')
+              P('</div>')
       rel_name_labels = (("child", "派生"), ("idiom", "熟語"),
                          ("related", "関連"), ("cooccurrence", "共起"))
       for rel_name, rel_label in rel_name_labels:
