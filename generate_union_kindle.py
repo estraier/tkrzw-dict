@@ -95,12 +95,13 @@ TEXT_ATTRS = {
   "transitive": "vt",
 }
 PARTICLES = set([
-  "about", "above", "across", "after", "against", "along", "amid", "among", "around", "as", "at",
-  "before", "behind", "below", "beneath", "between", "beside", "beyond", "by", "despite", "during",
-  "down", "except", "for", "from", "in", "inside", "into", "near",
-  "of", "off", "on", "onto", "out", "outside", "over",
-  "per", "re", "since", "through", "throughout", "till", "to", "toward",
-  "under", "until", "up", "upon", "with", "within", "without", "via",
+  "aback", "about", "above", "abroad", "across", "after", "against", "ahead", "along",
+  "amid", "among", "apart", "around", "as", "at", "away", "back", "before", "behind",
+  "below", "beneath", "between", "beside", "beyond", "by", "despite", "during", "down",
+  "except", "for", "forth", "from", "in", "inside", "into", "near", "of", "off", "on",
+  "onto", "out", "outside", "over", "per", "re", "since", "than", "through", "throughout",
+  "till", "to", "together", "toward", "under", "until", "up", "upon", "with", "within",
+  "without", "via",
 ])
 CURRENT_UUID = str(uuid.uuid1())
 CURRENT_DATETIME = regex.sub(r"\..*", "Z", datetime.datetime.now(

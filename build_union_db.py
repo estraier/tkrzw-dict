@@ -76,12 +76,13 @@ adverb_suffixes = [
   "ly",
 ]
 particles = set([
-  "about", "above", "across", "after", "against", "along", "amid", "among", "around", "as", "at",
-  "before", "behind", "below", "beneath", "between", "beside", "beyond", "by", "despite", "during",
-  "down", "except", "for", "from", "in", "inside", "into", "near",
-  "of", "off", "on", "onto", "out", "outside", "over",
-  "per", "re", "since", "through", "throughout", "till", "to", "toward",
-  "under", "until", "up", "upon", "with", "within", "without", "via",
+  "aback", "about", "above", "abroad", "across", "after", "against", "ahead", "along",
+  "amid", "among", "apart", "around", "as", "at", "away", "back", "before", "behind",
+  "below", "beneath", "between", "beside", "beyond", "by", "despite", "during", "down",
+  "except", "for", "forth", "from", "in", "inside", "into", "near", "of", "off", "on",
+  "onto", "out", "outside", "over", "per", "re", "since", "than", "through", "throughout",
+  "till", "to", "together", "toward", "under", "until", "up", "upon", "with", "within",
+  "without", "via",
 ])
 misc_stop_words = set([
   "the", "a", "an", "I", "my", "me", "mine", "you", "your", "yours", "he", "his", "him",
@@ -454,8 +455,6 @@ class BuildUnionDBBatch:
               entries.append((label, entry))
         self.SetAOA(word_entry, entries, aoa_words, live_words, phrase_prob_dbm)
         self.SetTranslations(word_entry, aux_trans, tran_prob_dbm, rev_prob_dbm)
-        self.SetPhraseTranslations(word_entry, aux_trans, tran_prob_dbm, phrase_prob_dbm,
-                                   verb_words)
         self.SetRelations(word_entry, entries, word_dicts, live_words, rev_live_words,
                           phrase_prob_dbm, tran_prob_dbm, cooc_prob_dbm, extra_word_bases,
                           verb_words, adj_words, adv_words)
@@ -473,6 +472,8 @@ class BuildUnionDBBatch:
     for key, merged_entry in merged_entries:
       for word_entry in merged_entry:
         self.PropagateTranslations(word_entry, merged_dict, tran_prob_dbm, aux_last_trans)
+        self.SetPhraseTranslations(word_entry, merged_dict, aux_trans,
+                                   tran_prob_dbm, phrase_prob_dbm, verb_words)
         self.CompensateInflections(word_entry, merged_dict, verb_words)
       num_entries += 1
       if num_entries % 1000 == 0:
@@ -1158,100 +1159,6 @@ class BuildUnionDBBatch:
     if final_translations:
       entry["translation"] = final_translations
 
-  def SetPhraseTranslations(self, entry, aux_trans, tran_prob_dbm, phrase_prob_dbm, verb_words):
-    if not tran_prob_dbm or not phrase_prob_dbm:
-      return
-    word = entry["word"]
-    if not regex.fullmatch(r"[-\p{Latin}]+", word):
-      return
-    prob = float(phrase_prob_dbm.GetStr(word) or 0.0)
-    if prob < 0.00001:
-      return
-    norm_word = " ".join(self.tokenizer.Tokenize("en", word, True, True))
-    if word != norm_word:
-      return
-    phrases = []
-    for particle in particles:
-      phrase = word + " " + particle
-      phrase_prob = float(phrase_prob_dbm.GetStr(phrase) or 0.0)
-      ratio = phrase_prob / prob
-      if ratio >= 0.05:
-        phrases.append((phrase, ratio))
-    is_verb = word in verb_words
-    verb_prob = 0.0
-    if is_verb:
-      for auxverb in ("not", "will", "shall", "can", "may", "must"):
-        auxverb_prob = float(phrase_prob_dbm.GetStr(auxverb + " " + word) or 0.0)
-        verb_prob += auxverb_prob
-      verb_prob *= 20
-    for particle in particles:
-      phrase = particle + " " + word
-      phrase_prob = float(phrase_prob_dbm.GetStr(phrase) or 0.0)
-      if particle == "to":
-        phrase_prob -= verb_prob
-      ratio = phrase_prob / prob
-      if ratio >= 0.05:
-        phrases.append((phrase, ratio))
-    if not phrases:
-      return
-    orig_trans = {}
-    tsv = tran_prob_dbm.GetStr(word)
-    if tsv:
-      fields = tsv.split("\t")
-      for i in range(0, len(fields), 3):
-        src, trg, prob = fields[i], fields[i + 1], float(fields[i + 2])
-        if src == word and prob >= 0.06:
-          orig_trans[trg] = prob
-    aux_orig_trans = aux_trans.get(word)
-    if aux_orig_trans:
-      for aux_orig_tran in aux_orig_trans:
-        orig_trans[aux_orig_tran] = float(orig_trans.get(aux_orig_tran) or 0) + 0.05
-    final_phrases = {}
-    for phrase, phrase_prob in phrases:
-      phrase_trans = {}
-      tsv = tran_prob_dbm.GetStr(phrase)
-      if tsv:
-        fields = tsv.split("\t")
-        for i in range(0, len(fields), 3):
-          src, trg, prob = fields[i], fields[i + 1], float(fields[i + 2])
-          if src != phrase:
-            continue
-          if regex.match(r"^(する|される|をする)", trg):
-            continue
-          trg = regex.sub(r"[～〜]", "", trg)
-          trg = regex.sub(r"^(について|が|の|を|に|へ|と|より|から|で|や)", "", trg)
-          if not trg or regex.fullmatch(r"[\p{Katakana}ー]+", trg):
-            continue
-          pos = self.tokenizer.GetJaLastPos(trg)
-          if is_verb and pos[1] == "動詞":
-            prob += 0.1
-          orig_prob = orig_trans.get(trg)
-          if orig_prob:
-            phrase_trans[trg] = float(phrase_trans.get(trg) or 0.0) + orig_prob + prob
-      aux_phrase_trans = aux_trans.get(phrase)
-      if aux_phrase_trans:
-        for trg in aux_phrase_trans:
-          trg = regex.sub(r"^(について|が|の|を|に|へ|と|より|から|で|や)", "", trg)
-          phrase_trans[trg] = float(phrase_trans.get(trg) or 0.0) + 0.1
-      if not phrase_trans:
-        continue
-      for tran in list(phrase_trans.keys()):
-        if not regex.search(r"[\p{Han}\p{Katakana}]", tran):
-          continue
-        for cmp_tran, cmp_score in list(phrase_trans.items()):
-          if cmp_tran not in phrase_trans: continue
-          if cmp_tran.startswith(tran):
-            suffix = cmp_tran[len(tran):]
-            if suffix in ("する", "される", "をする", "に", "な", "の"):
-              phrase_trans[cmp_tran] = cmp_score + float(phrase_trans.get(tran) or 0)
-              if tran in phrase_trans:
-                del phrase_trans[tran]
-      scored_trans = sorted(phrase_trans.items(), key=lambda x: x[1], reverse=True)[:2]
-      if scored_trans:
-        final_phrases[phrase] = [x[0] for x in scored_trans]
-    if final_phrases:
-      entry["phrase_translation"] = final_phrases
-
   def SetRelations(self, word_entry, entries, word_dicts, live_words, rev_live_words,
                    phrase_prob_dbm, tran_prob_dbm, cooc_prob_dbm, extra_word_bases,
                    verb_words, adj_words, adv_words):
@@ -1888,6 +1795,125 @@ class BuildUnionDBBatch:
                 else:
                   root_infl_tokens.append(token)
               entry[infl_name] = " ".join(root_infl_tokens)
+
+  def SetPhraseTranslations(self, entry, merged_dict, aux_trans,
+                            tran_prob_dbm, phrase_prob_dbm, verb_words):
+    if not tran_prob_dbm or not phrase_prob_dbm:
+      return
+    word = entry["word"]
+    if not regex.fullmatch(r"[-\p{Latin}]+", word):
+      return
+    prob = float(phrase_prob_dbm.GetStr(word) or 0.0)
+    if prob < 0.00001:
+      return
+    prob = max(prob, 0.001)
+    norm_word = " ".join(self.tokenizer.Tokenize("en", word, True, True))
+    if word != norm_word:
+      return
+    phrases = []
+    for particle in particles:
+      phrase = word + " " + particle
+      phrase_prob = float(phrase_prob_dbm.GetStr(phrase) or 0.0)
+      ratio = phrase_prob / prob
+      phrases.append((phrase, ratio, ratio))
+      if ratio >= 0.005:
+        for sub_particle in particles:
+          sub_phrase = phrase + " " + sub_particle
+          sub_phrase_prob = float(phrase_prob_dbm.GetStr(sub_phrase) or 0.0)
+          sub_ratio = sub_phrase_prob / phrase_prob
+          phrases.append((sub_phrase, max(sub_ratio, ratio), ratio * (sub_ratio ** 0.01)))
+    is_verb = word in verb_words
+    verb_prob = 0.0
+    if is_verb:
+      for auxverb in ("not", "will", "shall", "can", "may", "must"):
+        auxverb_prob = float(phrase_prob_dbm.GetStr(auxverb + " " + word) or 0.0)
+        verb_prob += auxverb_prob
+      verb_prob *= 20
+    for particle in particles:
+      phrase = particle + " " + word
+      phrase_prob = float(phrase_prob_dbm.GetStr(phrase) or 0.0)
+      if particle == "to":
+        phrase_prob -= verb_prob
+      ratio = phrase_prob / prob
+      phrases.append((phrase, ratio, ratio))
+    if not phrases:
+      return
+    orig_trans = {}
+    tsv = tran_prob_dbm.GetStr(word)
+    if tsv:
+      fields = tsv.split("\t")
+      for i in range(0, len(fields), 3):
+        src, trg, prob = fields[i], fields[i + 1], float(fields[i + 2])
+        if src == word and prob >= 0.06:
+          orig_trans[trg] = prob
+    aux_orig_trans = aux_trans.get(word)
+    if aux_orig_trans:
+      for aux_orig_tran in aux_orig_trans:
+        orig_trans[aux_orig_tran] = float(orig_trans.get(aux_orig_tran) or 0) + 0.05
+    ent_orig_trans = entry.get("translation")
+    if ent_orig_trans:
+      base_score = 0.1
+      for ent_orig_tran in ent_orig_trans:
+        orig_trans[ent_orig_tran] = float(orig_trans.get(ent_orig_tran) or 0) + base_score
+        base_score *= 0.9
+    final_phrases = []
+    for phrase, phrase_prob, phrase_score in phrases:
+      phrase_trans = {}
+      if phrase_prob >= 0.03:
+        tsv = tran_prob_dbm.GetStr(phrase)
+        if tsv:
+          fields = tsv.split("\t")
+          for i in range(0, len(fields), 3):
+            src, trg, prob = fields[i], fields[i + 1], float(fields[i + 2])
+            if src != phrase:
+              continue
+            if regex.match(r"^(する|される|をする)", trg):
+              continue
+            trg = regex.sub(r"[～〜]", "", trg)
+            trg = regex.sub(r"^(について|が|の|を|に|へ|と|より|から|で|や)", "", trg)
+            if not trg or regex.fullmatch(r"[\p{Katakana}ー]+", trg):
+              continue
+            pos = self.tokenizer.GetJaLastPos(trg)
+            if is_verb and pos[1] == "動詞":
+              prob += 0.1
+            orig_prob = orig_trans.get(trg)
+            if orig_prob:
+              phrase_trans[trg] = float(phrase_trans.get(trg) or 0.0) + orig_prob + prob
+        aux_phrase_trans = aux_trans.get(phrase)
+        if aux_phrase_trans:
+          for trg in aux_phrase_trans:
+            trg = regex.sub(r"^(について|が|の|を|に|へ|と|より|から|で|や)", "", trg)
+            phrase_trans[trg] = float(phrase_trans.get(trg) or 0.0) + 0.1
+      if phrase_prob >= 0.001:
+        phrase_entries = merged_dict.get(phrase)
+        if phrase_entries:
+          for phrase_entry in phrase_entries:
+            if phrase_entry["word"] != phrase: continue
+            ent_phrase_trans = phrase_entry.get("translation")
+            if ent_phrase_trans:
+              base_score = 0.1
+              for trg in ent_phrase_trans:
+                phrase_trans[trg] = float(phrase_trans.get(trg) or 0.0) + base_score
+                base_score *= 0.9
+      if not phrase_trans:
+        continue
+      for tran in list(phrase_trans.keys()):
+        if not regex.search(r"[\p{Han}\p{Katakana}]", tran):
+          continue
+        for cmp_tran, cmp_score in list(phrase_trans.items()):
+          if cmp_tran not in phrase_trans: continue
+          if cmp_tran.startswith(tran):
+            suffix = cmp_tran[len(tran):]
+            if suffix in ("する", "される", "をする", "に", "な", "の"):
+              phrase_trans[cmp_tran] = cmp_score + float(phrase_trans.get(tran) or 0)
+              if tran in phrase_trans:
+                del phrase_trans[tran]
+      scored_trans = sorted(phrase_trans.items(), key=lambda x: x[1], reverse=True)[:4]
+      if scored_trans:
+        final_phrases.append((phrase, phrase_score, [x[0] for x in scored_trans]))
+    if final_phrases:
+      final_phrases = sorted(final_phrases, key=lambda x: x[1], reverse=True)
+      entry["phrase_translation"] = [(x[0], x[2]) for x in final_phrases]
 
 
 def main():

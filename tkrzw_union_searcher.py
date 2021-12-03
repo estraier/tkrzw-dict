@@ -73,6 +73,14 @@ class UnionSearcher:
       result.extend(tsv.split("\t"))
     return result
 
+  def CheckExact(self, text):
+    for word in text.split(","):
+      word = tkrzw_dict.NormalizeWord(word)
+      if not word: continue
+      if word in self.body_dbm:
+        return True
+    return False
+
   def SearchExact(self, text, capacity):
     result = []
     uniq_words = set()

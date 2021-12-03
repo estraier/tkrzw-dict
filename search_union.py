@@ -254,7 +254,7 @@ def PrintResult(entries, mode, query, searcher):
       if mode == "full":
         phrase_trans = entry.get("phrase_translation")
         if phrase_trans:
-          for phrase, trans in sorted(phrase_trans.items()):
+          for phrase, trans in phrase_trans:
             text = "[句訳] {} : {}".format(phrase, ", ".join(trans))
             PrintWrappedText(text, 4)
         parents = entry.get("parent")
@@ -824,11 +824,15 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
     if details:
       phrase_trans = entry.get("phrase_translation")
       if phrase_trans:
-        for phrase, trans in sorted(phrase_trans.items()):
+        for phrase, trans in phrase_trans:
           P('<div class="attr attr_phrase_tran">')
           P('<span class="attr_label">句訳</span>')
           P('<span class="text">')
-          P('{} : {}', phrase, ", ".join(trans))
+          if searcher.CheckExact(phrase):
+            P('<a href="{}?q={}">{}</a>', script_name, urllib.parse.quote(phrase), phrase)
+          else:
+            P('{}', phrase)
+          P(' : {}', ", ".join(trans))
           P('</span>')
           P('</div>')
       parents = entry.get("parent")
