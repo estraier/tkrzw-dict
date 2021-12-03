@@ -252,10 +252,11 @@ def PrintResult(entries, mode, query, searcher):
                 PrintWrappedText(subsubsubsection, 10)
         num_items += 1
       if mode == "full":
-        phrase_trans = entry.get("phrase_translation")
-        if phrase_trans:
-          for phrase, trans in phrase_trans:
-            text = "[句訳] {} : {}".format(phrase, ", ".join(trans))
+        phrases = entry.get("phrase")
+        if phrases:
+          for phrase in phrases:
+            pp_expr = "{:.3f}".format(float(phrase["p"]) * 100)
+            text = "[句] {} : {}  ({}%)".format(phrase["w"], ", ".join(phrase["x"]), pp_expr)
             PrintWrappedText(text, 4)
         parents = entry.get("parent")
         if parents:
@@ -822,17 +823,21 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
               P('</div>')
       P('</div>')
     if details:
-      phrase_trans = entry.get("phrase_translation")
-      if phrase_trans:
-        for phrase, trans in phrase_trans:
-          P('<div class="attr attr_phrase_tran">')
-          P('<span class="attr_label">句訳</span>')
+      phrases = entry.get("phrase")
+      if phrases:
+        for phrase in phrases:
+          pword = phrase["w"]
+          P('<div class="attr attr_phrase">')
+          P('<span class="attr_label">句</span>')
           P('<span class="text">')
-          if searcher.CheckExact(phrase):
-            P('<a href="{}?q={}">{}</a>', script_name, urllib.parse.quote(phrase), phrase)
+          if "i" in phrase:
+            P('<a href="{}?q={}">{}</a>', script_name, urllib.parse.quote(pword), pword)
           else:
-            P('{}', phrase)
-          P(' : {}', ", ".join(trans))
+            P('{}', pword)
+          ptrans = phrase["x"]
+          P(' : {}', ", ".join(ptrans))
+          pp_expr = "{:.3f}".format(float(phrase["p"]) * 100)
+          P('<span class="annot">({}%)</span>', pp_expr)
           P('</span>')
           P('</div>')
       parents = entry.get("parent")

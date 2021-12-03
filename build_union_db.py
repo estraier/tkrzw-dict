@@ -1803,10 +1803,10 @@ class BuildUnionDBBatch:
     word = entry["word"]
     if not regex.fullmatch(r"[-\p{Latin}]+", word):
       return
-    prob = float(phrase_prob_dbm.GetStr(word) or 0.0)
-    if prob < 0.00001:
+    word_prob = float(phrase_prob_dbm.GetStr(word) or 0.0)
+    if word_prob < 0.00001:
       return
-    prob = max(prob, 0.001)
+    word_mod_prob = max(word_prob, 0.001)
     norm_word = " ".join(self.tokenizer.Tokenize("en", word, True, True))
     if word != norm_word:
       return
@@ -1814,14 +1814,15 @@ class BuildUnionDBBatch:
     for particle in particles:
       phrase = word + " " + particle
       phrase_prob = float(phrase_prob_dbm.GetStr(phrase) or 0.0)
-      ratio = phrase_prob / prob
-      phrases.append((phrase, ratio, ratio))
+      ratio = phrase_prob / word_mod_prob
+      phrases.append((phrase, ratio, ratio, phrase_prob))
       if ratio >= 0.005:
         for sub_particle in particles:
           sub_phrase = phrase + " " + sub_particle
           sub_phrase_prob = float(phrase_prob_dbm.GetStr(sub_phrase) or 0.0)
           sub_ratio = sub_phrase_prob / phrase_prob
-          phrases.append((sub_phrase, max(sub_ratio, ratio), ratio * (sub_ratio ** 0.01)))
+          phrases.append((sub_phrase, max(sub_ratio, ratio),
+                          ratio * (sub_ratio ** 0.01), sub_phrase_prob))
     is_verb = word in verb_words
     verb_prob = 0.0
     if is_verb:
@@ -1834,8 +1835,8 @@ class BuildUnionDBBatch:
       phrase_prob = float(phrase_prob_dbm.GetStr(phrase) or 0.0)
       if particle == "to":
         phrase_prob -= verb_prob
-      ratio = phrase_prob / prob
-      phrases.append((phrase, ratio, ratio))
+      ratio = phrase_prob / word_mod_prob
+      phrases.append((phrase, ratio, ratio, phrase_prob))
     if not phrases:
       return
     orig_trans = {}
@@ -1857,9 +1858,9 @@ class BuildUnionDBBatch:
         orig_trans[ent_orig_tran] = float(orig_trans.get(ent_orig_tran) or 0) + base_score
         base_score *= 0.9
     final_phrases = []
-    for phrase, phrase_prob, phrase_score in phrases:
+    for phrase, mod_prob, phrase_score, raw_prob in phrases:
       phrase_trans = {}
-      if phrase_prob >= 0.03:
+      if mod_prob >= 0.03:
         tsv = tran_prob_dbm.GetStr(phrase)
         if tsv:
           fields = tsv.split("\t")
@@ -1884,7 +1885,7 @@ class BuildUnionDBBatch:
           for trg in aux_phrase_trans:
             trg = regex.sub(r"^(について|が|の|を|に|へ|と|より|から|で|や)", "", trg)
             phrase_trans[trg] = float(phrase_trans.get(trg) or 0.0) + 0.1
-      if phrase_prob >= 0.001:
+      if mod_prob >= 0.001:
         phrase_entries = merged_dict.get(phrase)
         if phrase_entries:
           for phrase_entry in phrase_entries:
@@ -1910,10 +1911,17 @@ class BuildUnionDBBatch:
                 del phrase_trans[tran]
       scored_trans = sorted(phrase_trans.items(), key=lambda x: x[1], reverse=True)[:4]
       if scored_trans:
-        final_phrases.append((phrase, phrase_score, [x[0] for x in scored_trans]))
+        final_phrases.append((phrase, phrase_score, raw_prob, [x[0] for x in scored_trans]))
     if final_phrases:
       final_phrases = sorted(final_phrases, key=lambda x: x[1], reverse=True)
-      entry["phrase_translation"] = [(x[0], x[2]) for x in final_phrases]
+      map_phrases = []
+      for phrase, score, raw_prob, trans in final_phrases:
+        prob_expr = "{:.6f}".format(raw_prob / word_prob).replace("0.", ".")
+        map_phrase = {"w": phrase, "p": prob_expr, "x": trans}
+        if phrase in merged_dict:
+          map_phrase["i"] = "1"
+        map_phrases.append(map_phrase)
+      entry["phrase"] = map_phrases
 
 
 def main():
