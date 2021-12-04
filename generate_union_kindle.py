@@ -452,6 +452,10 @@ class GenerateUnionEPUBBatch:
     for item in items[:10]:
       self.num_items += 1
       self.MakeMainEntryItem(P, item, False)
+    phrases = entry.get("phrase")
+    if phrases:
+      for phrase in phrases:
+        self.MakeMainEntryPhraseItem(P, phrase)
     parents = entry.get("parent")
     if parents:
       for parent in parents:
@@ -490,6 +494,12 @@ class GenerateUnionEPUBBatch:
     for annot in annots:
       P('<span class="attr">[{}]</span>', annot)
     P('<span class="text">{}</span>', text)
+    P('</div>')
+
+  def MakeMainEntryPhraseItem(self, P, phrase):
+    P('<div class="item">')
+    P('<span class="attr">[句]</span>')
+    P('<span class="text">{} : {}</span>', phrase["w"], ", ".join(phrase["x"]))
     P('</div>')
 
   def MakeMainEntryParentItem(self, P, parent, input_dbm):
