@@ -473,7 +473,7 @@ class BuildUnionDBBatch:
       for word_entry in merged_entry:
         self.PropagateTranslations(word_entry, merged_dict, tran_prob_dbm, aux_last_trans)
         self.SetPhraseTranslations(word_entry, merged_dict, aux_trans,
-                                   tran_prob_dbm, phrase_prob_dbm, verb_words)
+                                   tran_prob_dbm, phrase_prob_dbm, noun_words, verb_words)
         self.CompensateInflections(word_entry, merged_dict, verb_words)
       num_entries += 1
       if num_entries % 1000 == 0:
@@ -1797,12 +1797,14 @@ class BuildUnionDBBatch:
               entry[infl_name] = " ".join(root_infl_tokens)
 
   def SetPhraseTranslations(self, entry, merged_dict, aux_trans,
-                            tran_prob_dbm, phrase_prob_dbm, verb_words):
+                            tran_prob_dbm, phrase_prob_dbm, noun_words, verb_words):
     if not tran_prob_dbm or not phrase_prob_dbm:
       return
     word = entry["word"]
     if not regex.fullmatch(r"[-\p{Latin}]+", word):
       return
+    is_noun = word in noun_words
+    is_verb = word in verb_words
     word_prob = float(phrase_prob_dbm.GetStr(word) or 0.0)
     if word_prob < 0.00001:
       return
@@ -1815,15 +1817,14 @@ class BuildUnionDBBatch:
       phrase = word + " " + particle
       phrase_prob = float(phrase_prob_dbm.GetStr(phrase) or 0.0)
       ratio = phrase_prob / word_mod_prob
-      phrases.append((phrase, ratio, ratio, phrase_prob))
+      phrases.append((phrase, True, ratio, ratio, phrase_prob))
       if ratio >= 0.005:
         for sub_particle in particles:
           sub_phrase = phrase + " " + sub_particle
           sub_phrase_prob = float(phrase_prob_dbm.GetStr(sub_phrase) or 0.0)
           sub_ratio = sub_phrase_prob / phrase_prob
-          phrases.append((sub_phrase, max(sub_ratio, ratio),
+          phrases.append((sub_phrase, True, max(sub_ratio, ratio),
                           ratio * (sub_ratio ** 0.01), sub_phrase_prob))
-    is_verb = word in verb_words
     verb_prob = 0.0
     if is_verb:
       for auxverb in ("not", "will", "shall", "can", "may", "must"):
@@ -1836,7 +1837,7 @@ class BuildUnionDBBatch:
       if particle == "to":
         phrase_prob -= verb_prob
       ratio = phrase_prob / word_mod_prob
-      phrases.append((phrase, ratio, ratio, phrase_prob))
+      phrases.append((phrase, False, ratio, ratio, phrase_prob))
     if not phrases:
       return
     orig_trans = {}
@@ -1845,12 +1846,16 @@ class BuildUnionDBBatch:
       fields = tsv.split("\t")
       for i in range(0, len(fields), 3):
         src, trg, prob = fields[i], fields[i + 1], float(fields[i + 2])
+        trg = regex.sub(r"[～〜]", "", trg)
+        trg = self.tokenizer.StripJaParticles(trg)
         if src == word and prob >= 0.06:
           orig_trans[trg] = prob
     aux_orig_trans = aux_trans.get(word)
     if aux_orig_trans:
-      for aux_orig_tran in aux_orig_trans:
-        orig_trans[aux_orig_tran] = float(orig_trans.get(aux_orig_tran) or 0) + 0.05
+      for trg in aux_orig_trans:
+        trg = regex.sub(r"[～〜]", "", trg)
+        trg = self.tokenizer.StripJaParticles(trg)
+        orig_trans[trg] = float(orig_trans.get(trg) or 0) + 0.1
     ent_orig_trans = entry.get("translation")
     if ent_orig_trans:
       base_score = 0.1
@@ -1858,32 +1863,41 @@ class BuildUnionDBBatch:
         orig_trans[ent_orig_tran] = float(orig_trans.get(ent_orig_tran) or 0) + base_score
         base_score *= 0.9
     final_phrases = []
-    for phrase, mod_prob, phrase_score, raw_prob in phrases:
+    for phrase, is_suffix, mod_prob, phrase_score, raw_prob in phrases:
       phrase_trans = {}
+      pos_match = is_verb if is_suffix else is_noun
       if mod_prob >= 0.03:
-        tsv = tran_prob_dbm.GetStr(phrase)
-        if tsv:
-          fields = tsv.split("\t")
-          for i in range(0, len(fields), 3):
-            src, trg, prob = fields[i], fields[i + 1], float(fields[i + 2])
-            if src != phrase:
-              continue
-            if regex.match(r"^(する|される|をする)", trg):
-              continue
-            trg = regex.sub(r"[～〜]", "", trg)
-            trg = regex.sub(r"^(について|が|の|を|に|へ|と|より|から|で|や)", "", trg)
-            if not trg or regex.fullmatch(r"[\p{Katakana}ー]+", trg):
-              continue
-            pos = self.tokenizer.GetJaLastPos(trg)
-            if is_verb and pos[1] == "動詞":
-              prob += 0.1
-            orig_prob = orig_trans.get(trg)
-            if orig_prob:
-              phrase_trans[trg] = float(phrase_trans.get(trg) or 0.0) + orig_prob + prob
+        if pos_match:
+          tsv = tran_prob_dbm.GetStr(phrase)
+          if tsv:
+            fields = tsv.split("\t")
+            for i in range(0, len(fields), 3):
+              src, trg, prob = fields[i], fields[i + 1], float(fields[i + 2])
+              if src != phrase:
+                continue
+              trg = regex.sub(r"[～〜]", "", trg)
+              trg = self.tokenizer.StripJaParticles(trg)
+              if not trg or regex.fullmatch(r"[\p{Katakana}ー]+", trg):
+                continue
+              pos = self.tokenizer.GetJaLastPos(trg)
+              orig_prob = orig_trans.get(trg) or 0.0
+              if is_verb:
+                if self.tokenizer.IsJaWordSahenNoun(trg):
+                  orig_prob = max(orig_prob, orig_trans.get(trg + "する") or 0.0)
+                if trg.endswith("する"):
+                  orig_prob = max(orig_prob, orig_trans.get(trg[:-2]) or 0.0)
+                if trg.endswith("される"):
+                  orig_prob = max(orig_prob, orig_trans.get(trg[:-3]) or 0.0)
+              sum_prob = orig_prob + prob
+              if sum_prob >= 0.1:
+                if is_verb and pos[1] == "動詞":
+                  sum_prob += 0.1
+                phrase_trans[trg] = float(phrase_trans.get(trg) or 0.0) + sum_prob
         aux_phrase_trans = aux_trans.get(phrase)
         if aux_phrase_trans:
           for trg in aux_phrase_trans:
-            trg = regex.sub(r"^(について|が|の|を|に|へ|と|より|から|で|や)", "", trg)
+            trg = regex.sub(r"[～〜]", "", trg)
+            trg = self.tokenizer.StripJaParticles(trg)
             phrase_trans[trg] = float(phrase_trans.get(trg) or 0.0) + 0.1
       if mod_prob >= 0.001:
         phrase_entries = merged_dict.get(phrase)
@@ -1894,6 +1908,7 @@ class BuildUnionDBBatch:
             if ent_phrase_trans:
               base_score = 0.1
               for trg in ent_phrase_trans:
+                trg = self.tokenizer.StripJaParticles(trg)
                 phrase_trans[trg] = float(phrase_trans.get(trg) or 0.0) + base_score
                 base_score *= 0.9
       if not phrase_trans:
@@ -1909,7 +1924,15 @@ class BuildUnionDBBatch:
               phrase_trans[cmp_tran] = cmp_score + float(phrase_trans.get(tran) or 0)
               if tran in phrase_trans:
                 del phrase_trans[tran]
-      scored_trans = sorted(phrase_trans.items(), key=lambda x: x[1], reverse=True)[:4]
+      mod_trans = {}
+      for tran, score in phrase_trans.items():
+        if is_verb:
+          orig_tran = tran
+          pos = self.tokenizer.GetJaLastPos(tran)
+          if self.tokenizer.IsJaWordSahenNoun(tran):
+            tran = tran + "する"
+        mod_trans[tran] = float(mod_trans.get(tran) or 0.0) + score
+      scored_trans = sorted(mod_trans.items(), key=lambda x: x[1], reverse=True)[:4]
       if scored_trans:
         final_phrases.append((phrase, phrase_score, raw_prob, [x[0] for x in scored_trans]))
     if final_phrases:

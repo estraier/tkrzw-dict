@@ -342,3 +342,25 @@ class Tokenizer:
       if self.IsJaWordAdjvNoun(tran):
         return tran + "に"
     return tran
+
+  def StripJaParticles(self, word):
+    for particle in ("のため", "ために"):
+      if len(word) > len(particle):
+        if word.startswith(particle):
+          return word[len(particle):]
+        if word.endswith(particle):
+          return word[:-len(particle)]
+    self.InitMecab()
+    tokens = self.tagger_mecab.parse(word).split("\n")
+    parsed = []
+    for token in self.tagger_mecab.parse(word).split("\n"):
+      fields = token.split("\t")
+      if len(fields) != 4: continue
+      parsed.append(fields)
+    if len(parsed) >= 2 and parsed[0][1] in ("助詞", "助動詞", "接続詞"):
+      parsed = parsed[1:]
+    if len(parsed) >= 2 and parsed[-1][1] == "助詞" and parsed[-1][0] != "て":
+      parsed = parsed[:-1]
+    if len(parsed) == len(tokens):
+      return word
+    return "".join([x[0] for x in parsed])
