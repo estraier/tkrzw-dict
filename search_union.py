@@ -834,8 +834,19 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
             P('<a href="{}?q={}">{}</a>', script_name, urllib.parse.quote(pword), pword)
           else:
             P('{}', pword)
-          ptrans = phrase["x"]
-          P(' : {}', ", ".join(ptrans))
+          P(' : ')
+          tran_exprs = []
+          for ptran in phrase["x"]:
+            match = regex.search(r"^(\([^)]+\)) *(.*)", ptran)
+            if match:
+              tran_expr = '<span class="annot">{}</span>{}'.format(
+                esc(match.group(1)), esc(match.group(2)))
+            else:
+              tran_expr = esc(ptran)
+
+            tran_exprs.append(tran_expr)
+
+          print(", ".join(tran_exprs))
           pp_expr = "{:.3f}".format(float(phrase["p"]) * 100)
           P('<span class="annot">({}%)</span>', pp_expr)
           P('</span>')

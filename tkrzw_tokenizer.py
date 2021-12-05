@@ -207,7 +207,7 @@ class Tokenizer:
     if stem[0] == "的" and stem[1] == "名詞" and stem[2] == "接尾":
       return True
     return False
-  
+
   def RestoreJaWordAdjSaNoun(self, word):
     self.InitMecab()
     if not regex.search(r"[\p{Han}\p{Hiragana}]さ$", word):
@@ -344,12 +344,12 @@ class Tokenizer:
     return tran
 
   def StripJaParticles(self, word):
-    for particle in ("のため", "ために"):
+    for particle in ("のために", "のため", "ために", "ことから", "ことに", "ことの", "ことを"):
       if len(word) > len(particle):
         if word.startswith(particle):
-          return word[len(particle):]
+          return (word[len(particle):], particle, "")
         if word.endswith(particle):
-          return word[:-len(particle)]
+          return (word[:-len(particle)], "", particle)
     self.InitMecab()
     tokens = self.tagger_mecab.parse(word).split("\n")
     parsed = []
@@ -357,10 +357,18 @@ class Tokenizer:
       fields = token.split("\t")
       if len(fields) != 4: continue
       parsed.append(fields)
-    if len(parsed) >= 2 and parsed[0][1] in ("助詞", "助動詞", "接続詞"):
+    prefix = ""
+    suffix = ""
+    while (len(parsed) >= 2 and
+           ((parsed[0][1] == "助詞") or
+            (parsed[0][1] == "接続詞" and parsed[0][0] in ("と", "で")))):
+      prefix = prefix + parsed[0][0]
       parsed = parsed[1:]
-    if len(parsed) >= 2 and parsed[-1][1] == "助詞" and parsed[-1][0] != "て":
+    while (len(parsed) >= 2 and
+           ((parsed[-1][1] == "助詞") or
+            (parsed[-1][1] == "接続詞" and parsed[-1][0] in ("と", "で")))):
+      suffix = parsed[-1][0] + suffix
       parsed = parsed[:-1]
     if len(parsed) == len(tokens):
-      return word
-    return "".join([x[0] for x in parsed])
+      return (word, "", "")
+    return ("".join([x[0] for x in parsed]), prefix, suffix)

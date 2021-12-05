@@ -1847,14 +1847,14 @@ class BuildUnionDBBatch:
       for i in range(0, len(fields), 3):
         src, trg, prob = fields[i], fields[i + 1], float(fields[i + 2])
         trg = regex.sub(r"[～〜]", "", trg)
-        trg = self.tokenizer.StripJaParticles(trg)
+        trg, trg_prefix, trg_suffix = self.tokenizer.StripJaParticles(trg)
         if src == word and prob >= 0.06:
           orig_trans[trg] = prob
     aux_orig_trans = aux_trans.get(word)
     if aux_orig_trans:
       for trg in aux_orig_trans:
         trg = regex.sub(r"[～〜]", "", trg)
-        trg = self.tokenizer.StripJaParticles(trg)
+        trg, trg_prefix, trg_suffix = self.tokenizer.StripJaParticles(trg)
         orig_trans[trg] = float(orig_trans.get(trg) or 0) + 0.1
     ent_orig_trans = entry.get("translation")
     if ent_orig_trans:
@@ -1865,6 +1865,7 @@ class BuildUnionDBBatch:
     final_phrases = []
     for phrase, is_suffix, mod_prob, phrase_score, raw_prob in phrases:
       phrase_trans = {}
+      phrase_prefixes = {}
       pos_match = is_verb if is_suffix else is_noun
       if mod_prob >= 0.03:
         if pos_match:
@@ -1876,7 +1877,7 @@ class BuildUnionDBBatch:
               if src != phrase:
                 continue
               trg = regex.sub(r"[～〜]", "", trg)
-              trg = self.tokenizer.StripJaParticles(trg)
+              trg, trg_prefix, trg_suffix = self.tokenizer.StripJaParticles(trg)
               if not trg or regex.fullmatch(r"[\p{Katakana}ー]+", trg):
                 continue
               pos = self.tokenizer.GetJaLastPos(trg)
@@ -1889,15 +1890,25 @@ class BuildUnionDBBatch:
                 if trg.endswith("される"):
                   orig_prob = max(orig_prob, orig_trans.get(trg[:-3]) or 0.0)
               sum_prob = orig_prob + prob
+              if (is_suffix and is_verb and not trg_prefix and trg_suffix and
+                  (self.tokenizer.GetJaLastPos(trg)[1] == "動詞" or
+                   self.tokenizer.IsJaWordSahenNoun(trg))):
+                trg_prefix = trg_suffix
+                trg_suffix = ""
+              elif trg_suffix:
+                trg += trg_suffix
               if sum_prob >= 0.1:
                 if is_verb and pos[1] == "動詞":
                   sum_prob += 0.1
                 phrase_trans[trg] = float(phrase_trans.get(trg) or 0.0) + sum_prob
+                if trg_prefix and not trg_suffix:
+                  part_key = trg + ":" + trg_prefix
+                  phrase_prefixes[part_key] = float(phrase_trans.get(part_key) or 0.0) + sum_prob
         aux_phrase_trans = aux_trans.get(phrase)
         if aux_phrase_trans:
           for trg in aux_phrase_trans:
             trg = regex.sub(r"[～〜]", "", trg)
-            trg = self.tokenizer.StripJaParticles(trg)
+            trg, trg_prefix, trg_suffix = self.tokenizer.StripJaParticles(trg)
             phrase_trans[trg] = float(phrase_trans.get(trg) or 0.0) + 0.1
       if mod_prob >= 0.001:
         phrase_entries = merged_dict.get(phrase)
@@ -1906,10 +1917,13 @@ class BuildUnionDBBatch:
             if phrase_entry["word"] != phrase: continue
             ent_phrase_trans = phrase_entry.get("translation")
             if ent_phrase_trans:
-              base_score = 0.1
+              base_score = 0.2
               for trg in ent_phrase_trans:
-                trg = self.tokenizer.StripJaParticles(trg)
+                trg, trg_prefix, trg_suffix = self.tokenizer.StripJaParticles(trg)
                 phrase_trans[trg] = float(phrase_trans.get(trg) or 0.0) + base_score
+                if trg_prefix and not trg_suffix:
+                  part_key = trg + ":" + trg_prefix
+                  phrase_prefixes[part_key] = float(phrase_trans.get(part_key) or 0.0) + base_score
                 base_score *= 0.9
       if not phrase_trans:
         continue
@@ -1926,11 +1940,21 @@ class BuildUnionDBBatch:
                 del phrase_trans[tran]
       mod_trans = {}
       for tran, score in phrase_trans.items():
+        prefix_check = tran + ":"
+        best_prefix = ""
+        best_prefix_score = 0.0
+        for prefix, score in phrase_prefixes.items():
+          if not prefix.startswith(prefix_check): continue
+          if score >= best_prefix_score:
+            best_prefix = prefix[len(prefix_check):]
+            best_prefix_score = score
         if is_verb:
           orig_tran = tran
           pos = self.tokenizer.GetJaLastPos(tran)
-          if self.tokenizer.IsJaWordSahenNoun(tran):
+          if self.tokenizer.IsJaWordSahenNoun(tran) and best_prefix != "の":
             tran = tran + "する"
+        if best_prefix and best_prefix != "を":
+          tran = "({}){}".format(best_prefix, tran)
         mod_trans[tran] = float(mod_trans.get(tran) or 0.0) + score
       scored_trans = sorted(mod_trans.items(), key=lambda x: x[1], reverse=True)[:4]
       if scored_trans:
