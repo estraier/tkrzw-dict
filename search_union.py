@@ -843,11 +843,9 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
                 esc(match.group(1)), esc(match.group(2)))
             else:
               tran_expr = esc(ptran)
-
             tran_exprs.append(tran_expr)
-
           print(", ".join(tran_exprs))
-          pp_expr = "{:.3f}".format(float(phrase["p"]) * 100)
+          pp_expr = "{:.2f}".format(float(phrase["p"]) * 100)
           P('<span class="annot">({}%)</span>', pp_expr)
           P('</span>')
           P('</div>')

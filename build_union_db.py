@@ -923,6 +923,8 @@ class BuildUnionDBBatch:
         extra_records = []
         for i in range(0, len(fields), 3):
           src, trg, prob = fields[i], fields[i + 1], float(fields[i + 2])
+          if regex.search("[っん]$", trg) and self.tokenizer.GetJaLastPos(trg)[1] == "動詞":
+            continue
           if src != word:
             prob *= 0.1
           norm_trg = tkrzw_dict.NormalizeWord(trg)
@@ -1599,6 +1601,8 @@ class BuildUnionDBBatch:
       fields = tsv.split("\t")
       for i in range(0, len(fields), 3):
         src, trg, prob = fields[i], fields[i + 1], float(fields[i + 2])
+        if regex.search("[っん]$", trg) and self.tokenizer.GetJaLastPos(trg)[1] == "動詞":
+          continue
         norm_trg = tkrzw_dict.NormalizeWord(trg)
         prob = float(prob)
         if src != word:
@@ -1817,6 +1821,13 @@ class BuildUnionDBBatch:
       phrase = word + " " + particle
       phrase_prob = float(phrase_prob_dbm.GetStr(phrase) or 0.0)
       ratio = phrase_prob / word_mod_prob
+      if is_verb and ratio >= 0.005:
+        for pron in ("me", "us", "you", "him", "her", "it", "them"):
+          pron_phrase = word + " " + pron + " " + particle
+          pron_phrase_prob = float(phrase_prob_dbm.GetStr(pron_phrase) or 0.0)
+          if pron_phrase_prob > 0.0:
+            phrase_prob += pron_phrase_prob * 2.0
+            ratio = phrase_prob / word_mod_prob
       phrases.append((phrase, True, ratio, ratio, phrase_prob))
       if ratio >= 0.005:
         for sub_particle in particles:
@@ -1875,6 +1886,11 @@ class BuildUnionDBBatch:
             for i in range(0, len(fields), 3):
               src, trg, prob = fields[i], fields[i + 1], float(fields[i + 2])
               if src != phrase:
+                continue
+              if regex.search("[っん]$", trg) and self.tokenizer.GetJaLastPos(trg)[1] == "動詞":
+                continue
+              if (is_verb and regex.search("[いきしちにひみり]$", trg) and
+                  self.tokenizer.GetJaLastPos(trg)[1] == "動詞"):
                 continue
               trg = regex.sub(r"[～〜]", "", trg)
               trg, trg_prefix, trg_suffix = self.tokenizer.StripJaParticles(trg)
