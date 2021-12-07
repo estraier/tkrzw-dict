@@ -1849,6 +1849,12 @@ class BuildUnionDBBatch:
         phrase_prob -= verb_prob
       ratio = phrase_prob / word_mod_prob
       phrases.append((phrase, False, ratio, ratio, phrase_prob))
+      if is_noun:
+        for art in ("the", "a", "an"):
+          sub_phrase = particle + " " + art + " " + word
+          sub_phrase_prob = float(phrase_prob_dbm.GetStr(sub_phrase) or 0.0)
+          sub_ratio = sub_phrase_prob / word_mod_prob
+          phrases.append((sub_phrase, True, sub_ratio, sub_ratio, sub_phrase_prob))
     if not phrases:
       return
     orig_trans = {}
@@ -1905,12 +1911,17 @@ class BuildUnionDBBatch:
                   orig_prob = max(orig_prob, orig_trans.get(trg[:len(ext_suffix)]) or 0.0)
               sum_prob = orig_prob + prob
               if (is_suffix and is_verb and not trg_prefix and trg_suffix and
-                  (self.tokenizer.GetJaLastPos(trg)[1] == "動詞" or
-                   self.tokenizer.IsJaWordSahenNoun(trg))):
+                  (pos[1] == "動詞" or self.tokenizer.IsJaWordSahenNoun(trg))):
+                trg_prefix = trg_suffix
+                trg_suffix = ""
+              elif is_suffix and is_noun and not trg_prefix and trg_suffix in ("の", "が", "は"):
                 trg_prefix = trg_suffix
                 trg_suffix = ""
               elif trg_suffix:
                 trg += trg_suffix
+              if (is_suffix and is_verb and pos[1] == "名詞" and
+                  not self.tokenizer.IsJaWordSahenNoun(trg)):
+                sum_prob *= 0.5
               if sum_prob >= 0.1:
                 if is_verb and pos[1] == "動詞":
                   sum_prob += 0.1
