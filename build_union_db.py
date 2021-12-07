@@ -1901,10 +1901,8 @@ class BuildUnionDBBatch:
               if is_verb:
                 if self.tokenizer.IsJaWordSahenNoun(trg):
                   orig_prob = max(orig_prob, orig_trans.get(trg + "する") or 0.0)
-                if trg.endswith("する"):
-                  orig_prob = max(orig_prob, orig_trans.get(trg[:-2]) or 0.0)
-                if trg.endswith("される"):
-                  orig_prob = max(orig_prob, orig_trans.get(trg[:-3]) or 0.0)
+                for ext_suffix in ("する", "した", "して", "される", "された", "されて"):
+                  orig_prob = max(orig_prob, orig_trans.get(trg[:len(ext_suffix)]) or 0.0)
               sum_prob = orig_prob + prob
               if (is_suffix and is_verb and not trg_prefix and trg_suffix and
                   (self.tokenizer.GetJaLastPos(trg)[1] == "動詞" or
@@ -1956,6 +1954,8 @@ class BuildUnionDBBatch:
                 del phrase_trans[tran]
       mod_trans = {}
       for tran, score in phrase_trans.items():
+        if regex.search(r"^[\p{Katakana}ー]", tran):
+          score *= 0.5
         prefix_check = tran + ":"
         best_prefix = ""
         best_prefix_score = 0.0

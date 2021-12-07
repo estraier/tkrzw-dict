@@ -365,7 +365,7 @@ class Tokenizer:
       prefix = prefix + parsed[0][0]
       parsed = parsed[1:]
     while (len(parsed) >= 2 and
-           ((parsed[-1][1] == "助詞") or
+           ((parsed[-1][1] == "助詞" and parsed[-1][0] not in ("た", "て", "で")) or
             (parsed[-1][1] == "接続詞" and parsed[-1][0] in ("と", "で")))):
       suffix = parsed[-1][0] + suffix
       parsed = parsed[:-1]
