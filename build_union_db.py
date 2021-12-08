@@ -464,6 +464,7 @@ class BuildUnionDBBatch:
       if num_entries % 1000 == 0:
         logger.info("Modifying entries: num_records={}".format(num_entries))
     logger.info("Modifying entries done: elapsed_time={:.2f}s".format(time.time() - start_time))
+    start_time = time.time()
     logger.info("Finishing entries")
     merged_dict = {}
     for key, merged_entry in merged_entries:
@@ -471,13 +472,19 @@ class BuildUnionDBBatch:
     num_entries = 0
     for key, merged_entry in merged_entries:
       for word_entry in merged_entry:
-        self.PropagateTranslations(word_entry, merged_dict, tran_prob_dbm, aux_last_trans)
-        self.SetPhraseTranslations(word_entry, merged_dict, aux_trans, aux_last_trans,
-                                   tran_prob_dbm, phrase_prob_dbm, noun_words, verb_words)
         self.CompensateInflections(word_entry, merged_dict, verb_words)
+        self.PropagateTranslations(word_entry, merged_dict, tran_prob_dbm, aux_last_trans)
       num_entries += 1
       if num_entries % 1000 == 0:
-        logger.info("Finishing entries: num_records={}".format(num_entries))
+        logger.info("Finishing entries R1: num_records={}".format(num_entries))
+    num_entries = 0
+    for key, merged_entry in merged_entries:
+      for word_entry in merged_entry:
+        self.SetPhraseTranslations(word_entry, merged_dict, aux_trans, aux_last_trans,
+                                   tran_prob_dbm, phrase_prob_dbm, noun_words, verb_words)
+      num_entries += 1
+      if num_entries % 1000 == 0:
+        logger.info("Finishing entries R2: num_records={}".format(num_entries))
     logger.info("Finishing entries done: elapsed_time={:.2f}s".format(time.time() - start_time))
     rev_live_words.Close().OrDie()
     live_words.Close().OrDie()
@@ -1426,6 +1433,45 @@ class BuildUnionDBBatch:
     if final_cooc_words:
       word_entry["cooccurrence"] = final_cooc_words
 
+  def CompensateInflections(self, entry, merged_dict, verb_words):
+    word = entry["word"]
+    root_verb = None
+    ing_value = entry.get("verb_present_participle")
+    if ing_value and ing_value.endswith("<ing"):
+      root_verb = ing_value[:-4]
+    for infl_name in inflection_names:
+      value = entry.get(infl_name)
+      if value and not regex.fullmatch(r"[-\p{Latin}0-9' ]+", value):
+        del entry[infl_name]
+    poses = set()
+    for item in entry["item"]:
+      poses.add(item["pos"])
+    if "verb" in poses and word.find(" ") >= 0 and not regex.search(r"[A-Z]", word):
+      tokens = self.tokenizer.Tokenize("en", word, False, False)
+      if len(tokens) > 1:
+        if not root_verb:
+          for token in tokens:
+            if token not in particles and token not in misc_stop_words and token in verb_words:
+              root_verb = token
+              break
+        if root_verb:
+          root_entry = merged_dict.get(root_verb)
+          if root_entry:
+            for infl_name in inflection_names:
+              if not infl_name.startswith("verb_") or entry.get(infl_name):
+                continue
+              root_infl = root_entry[0].get(infl_name)
+              if not root_infl:
+                continue
+              root_infl_tokens = []
+              for token in tokens:
+                if root_infl and token == root_verb:
+                  root_infl_tokens.append(root_infl)
+                  root_infl = None
+                else:
+                  root_infl_tokens.append(token)
+              entry[infl_name] = " ".join(root_infl_tokens)
+
   def GetEntryTranslations(self, merged_dict, word, is_capital, best_pos):
     key = tkrzw_dict.NormalizeWord(word)
     entry = merged_dict.get(key)
@@ -1760,45 +1806,6 @@ class BuildUnionDBBatch:
     elif pos[1] == "動詞":
       tran = stem + "ように"
     return tran
-
-  def CompensateInflections(self, entry, merged_dict, verb_words):
-    word = entry["word"]
-    root_verb = None
-    ing_value = entry.get("verb_present_participle")
-    if ing_value and ing_value.endswith("<ing"):
-      root_verb = ing_value[:-4]
-    for infl_name in inflection_names:
-      value = entry.get(infl_name)
-      if value and not regex.fullmatch(r"[-\p{Latin}0-9' ]+", value):
-        del entry[infl_name]
-    poses = set()
-    for item in entry["item"]:
-      poses.add(item["pos"])
-    if "verb" in poses and word.find(" ") >= 0 and not regex.search(r"[A-Z]", word):
-      tokens = self.tokenizer.Tokenize("en", word, False, False)
-      if len(tokens) > 1:
-        if not root_verb:
-          for token in tokens:
-            if token not in particles and token not in misc_stop_words and token in verb_words:
-              root_verb = token
-              break
-        if root_verb:
-          root_entry = merged_dict.get(root_verb)
-          if root_entry:
-            for infl_name in inflection_names:
-              if not infl_name.startswith("verb_") or entry.get(infl_name):
-                continue
-              root_infl = root_entry[0].get(infl_name)
-              if not root_infl:
-                continue
-              root_infl_tokens = []
-              for token in tokens:
-                if root_infl and token == root_verb:
-                  root_infl_tokens.append(root_infl)
-                  root_infl = None
-                else:
-                  root_infl_tokens.append(token)
-              entry[infl_name] = " ".join(root_infl_tokens)
 
   def SetPhraseTranslations(self, entry, merged_dict, aux_trans, aux_last_trans,
                             tran_prob_dbm, phrase_prob_dbm, noun_words, verb_words):
