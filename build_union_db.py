@@ -472,7 +472,7 @@ class BuildUnionDBBatch:
     for key, merged_entry in merged_entries:
       for word_entry in merged_entry:
         self.PropagateTranslations(word_entry, merged_dict, tran_prob_dbm, aux_last_trans)
-        self.SetPhraseTranslations(word_entry, merged_dict, aux_trans,
+        self.SetPhraseTranslations(word_entry, merged_dict, aux_trans, aux_last_trans,
                                    tran_prob_dbm, phrase_prob_dbm, noun_words, verb_words)
         self.CompensateInflections(word_entry, merged_dict, verb_words)
       num_entries += 1
@@ -1800,7 +1800,7 @@ class BuildUnionDBBatch:
                   root_infl_tokens.append(token)
               entry[infl_name] = " ".join(root_infl_tokens)
 
-  def SetPhraseTranslations(self, entry, merged_dict, aux_trans,
+  def SetPhraseTranslations(self, entry, merged_dict, aux_trans, aux_last_trans,
                             tran_prob_dbm, phrase_prob_dbm, noun_words, verb_words):
     if not tran_prob_dbm or not phrase_prob_dbm:
       return
@@ -1812,7 +1812,7 @@ class BuildUnionDBBatch:
     word_prob = float(phrase_prob_dbm.GetStr(word) or 0.0)
     if word_prob < 0.00001:
       return
-    word_mod_prob = max(word_prob, 0.001)
+    word_mod_prob = min(word_prob, 0.001)
     norm_word = " ".join(self.tokenizer.Tokenize("en", word, True, True))
     if word != norm_word:
       return
@@ -1854,7 +1854,7 @@ class BuildUnionDBBatch:
           sub_phrase = particle + " " + art + " " + word
           sub_phrase_prob = float(phrase_prob_dbm.GetStr(sub_phrase) or 0.0)
           sub_ratio = sub_phrase_prob / word_mod_prob
-          phrases.append((sub_phrase, True, sub_ratio, sub_ratio, sub_phrase_prob))
+          phrases.append((sub_phrase, False, sub_ratio, sub_ratio, sub_phrase_prob))
     if not phrases:
       return
     orig_trans = {}
@@ -1867,9 +1867,9 @@ class BuildUnionDBBatch:
         trg, trg_prefix, trg_suffix = self.tokenizer.StripJaParticles(trg)
         if src == word and prob >= 0.06:
           orig_trans[trg] = prob
-    aux_orig_trans = aux_trans.get(word)
+    aux_orig_trans = (aux_trans.get(word) or []) + (aux_last_trans.get(word) or [])
     if aux_orig_trans:
-      for trg in aux_orig_trans:
+      for trg in set(aux_orig_trans):
         trg = regex.sub(r"[～〜]", "", trg)
         trg, trg_prefix, trg_suffix = self.tokenizer.StripJaParticles(trg)
         orig_trans[trg] = float(orig_trans.get(trg) or 0) + 0.1
@@ -1903,25 +1903,29 @@ class BuildUnionDBBatch:
               if not trg or regex.fullmatch(r"[\p{Katakana}ー]+", trg):
                 continue
               pos = self.tokenizer.GetJaLastPos(trg)
+              if (is_noun and is_suffix and pos[1] == "名詞" and
+                  not self.tokenizer.IsJaWordSahenNoun(trg)):
+                continue
+              if is_noun and is_suffix and trg in ("ある", "いる", "です", "ます"):
+                continue
               orig_prob = orig_trans.get(trg) or 0.0
               if is_verb:
                 if self.tokenizer.IsJaWordSahenNoun(trg):
                   orig_prob = max(orig_prob, orig_trans.get(trg + "する") or 0.0)
                 for ext_suffix in ("する", "した", "して", "される", "された", "されて"):
                   orig_prob = max(orig_prob, orig_trans.get(trg[:len(ext_suffix)]) or 0.0)
-              sum_prob = orig_prob + prob
               if (is_suffix and is_verb and not trg_prefix and trg_suffix and
                   (pos[1] == "動詞" or self.tokenizer.IsJaWordSahenNoun(trg))):
                 trg_prefix = trg_suffix
                 trg_suffix = ""
-              elif is_suffix and is_noun and not trg_prefix and trg_suffix in ("の", "が", "は"):
+              elif is_suffix and is_noun and not trg_prefix:
+                if trg_suffix == "のため":
+                  trg_suffix = "ための"
                 trg_prefix = trg_suffix
                 trg_suffix = ""
               elif trg_suffix:
                 trg += trg_suffix
-              if (is_suffix and is_verb and pos[1] == "名詞" and
-                  not self.tokenizer.IsJaWordSahenNoun(trg)):
-                sum_prob *= 0.5
+              sum_prob = orig_prob + prob                
               if sum_prob >= 0.1:
                 if is_verb and pos[1] == "動詞":
                   sum_prob += 0.1
@@ -1929,12 +1933,14 @@ class BuildUnionDBBatch:
                 if trg_prefix and not trg_suffix:
                   part_key = trg + ":" + trg_prefix
                   phrase_prefixes[part_key] = float(phrase_trans.get(part_key) or 0.0) + sum_prob
-        aux_phrase_trans = aux_trans.get(phrase)
-        if aux_phrase_trans:
-          for trg in aux_phrase_trans:
-            trg = regex.sub(r"[～〜]", "", trg)
-            trg, trg_prefix, trg_suffix = self.tokenizer.StripJaParticles(trg)
-            phrase_trans[trg] = float(phrase_trans.get(trg) or 0.0) + 0.1
+        for aux_phrase_trans in (aux_trans.get(phrase), aux_last_trans.get(phrase)):
+          if aux_phrase_trans:
+            for trg in aux_phrase_trans:
+              trg = regex.sub(r"[～〜]", "", trg)
+              trg, trg_prefix, trg_suffix = self.tokenizer.StripJaParticles(trg)
+              if is_noun and is_suffix and trg in ("ある", "いる", "です", "ます"):
+                continue
+              phrase_trans[trg] = float(phrase_trans.get(trg) or 0.0) + 0.1
       if mod_prob >= 0.001:
         phrase_entries = merged_dict.get(phrase)
         if phrase_entries:
@@ -1942,7 +1948,7 @@ class BuildUnionDBBatch:
             if phrase_entry["word"] != phrase: continue
             ent_phrase_trans = phrase_entry.get("translation")
             if ent_phrase_trans:
-              base_score = 0.2
+              base_score = 0.15
               for trg in ent_phrase_trans:
                 trg, trg_prefix, trg_suffix = self.tokenizer.StripJaParticles(trg)
                 phrase_trans[trg] = float(phrase_trans.get(trg) or 0.0) + base_score
@@ -1965,8 +1971,6 @@ class BuildUnionDBBatch:
                 del phrase_trans[tran]
       mod_trans = {}
       for tran, score in phrase_trans.items():
-        if regex.search(r"^[\p{Katakana}ー]", tran):
-          score *= 0.5
         prefix_check = tran + ":"
         best_prefix = ""
         best_prefix_score = 0.0
@@ -1975,12 +1979,23 @@ class BuildUnionDBBatch:
           if score >= best_prefix_score:
             best_prefix = prefix[len(prefix_check):]
             best_prefix_score = score
+        if regex.search(r"^[\p{Katakana}ー]", tran):
+          score *= 0.5
+        pos = self.tokenizer.GetJaLastPos(tran)
+        if (is_suffix and is_verb and pos[1] == "名詞" and
+            not self.tokenizer.IsJaWordSahenNoun(tran)):
+          score *= 0.5
+        elif not is_suffix and pos[1] == "名詞" and not best_prefix:
+          if self.tokenizer.IsJaWordSahenNoun(tran) or self.tokenizer.IsJaWordAdjvNoun(tran):
+            score *= 0.7
+          else:
+            score *= 0.5
         if is_verb:
           orig_tran = tran
           pos = self.tokenizer.GetJaLastPos(tran)
           if self.tokenizer.IsJaWordSahenNoun(tran) and best_prefix != "の":
             tran = tran + "する"
-        if best_prefix and best_prefix != "を":
+        if best_prefix and best_prefix not in ("を", "が", "は"):
           tran = "({}){}".format(best_prefix, tran)
         mod_trans[tran] = float(mod_trans.get(tran) or 0.0) + score
       scored_trans = sorted(mod_trans.items(), key=lambda x: x[1], reverse=True)[:4]
