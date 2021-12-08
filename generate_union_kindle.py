@@ -466,6 +466,7 @@ class GenerateUnionEPUBBatch:
         P('<span class="col"><span class="attr">[{}]</span> {}</span>', label, value)
       P('</div>')
     P('</idx:entry>')
+    P('<br/>')
 
   def MakeMainEntryItem(self, P, item, simple):
     pos = item["pos"]

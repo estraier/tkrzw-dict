@@ -794,7 +794,7 @@ class BuildUnionDBBatch:
           for alternative in alternatives:
             norm_alt = tkrzw_dict.NormalizeWord(alternative)
             if norm_alt == key: continue
-            if word != "be":
+            if label not in self.core_labels:
               dist = tkrzw.Utility.EditDistanceLev(key, norm_alt)
               dist_ratio = dist / max(len(key), len(norm_alt))
               if dist > 4 or dist_ratio > 0.3: continue
@@ -1813,6 +1813,8 @@ class BuildUnionDBBatch:
       return
     word = entry["word"]
     if not regex.fullmatch(r"[-\p{Latin}]+", word):
+      return
+    if len(word) < 2 or word in ("an", "the"):
       return
     is_noun = word in noun_words
     is_verb = word in verb_words
