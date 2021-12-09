@@ -207,8 +207,7 @@ class BuildUnionDBBatch:
             entry[name] = value
           if alternatives:
             entry["alternative"] = alternatives
-          if texts:
-            entry["text"] = texts
+          entry["text"] = texts
           for rel_name, rel_value in rel_words.items():
             entry[rel_name] = rel_value
           if mode:
@@ -363,11 +362,12 @@ class BuildUnionDBBatch:
           if word in verb_words:
             children = set()
             for part_name in ("verb_present_participle", "verb_past_participle"):
-              part = entry.get(part_name)
-              if part and (part in noun_words or part in adj_words):
-                base_index[part].append(word)
-                extra_word_bases[part] = word
-                children.add(part)
+              for part in (entry.get(part_name) or "").split(","):
+                part = part.strip()
+                if part and part != word and (part in noun_words or part in adj_words):
+                  base_index[part].append(word)
+                  extra_word_bases[part] = word
+                  children.add(part)
             if children:
               entry["base_child"] = list(children)
           if word in adj_words:
@@ -1441,7 +1441,7 @@ class BuildUnionDBBatch:
       root_verb = ing_value[:-4]
     for infl_name in inflection_names:
       value = entry.get(infl_name)
-      if value and not regex.fullmatch(r"[-\p{Latin}0-9' ]+", value):
+      if value and not regex.fullmatch(r"[-\p{Latin}0-9', ]+", value):
         del entry[infl_name]
     poses = set()
     for item in entry["item"]:
