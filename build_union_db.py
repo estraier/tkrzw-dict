@@ -481,7 +481,8 @@ class BuildUnionDBBatch:
     for key, merged_entry in merged_entries:
       for word_entry in merged_entry:
         self.SetPhraseTranslations(word_entry, merged_dict, aux_trans, aux_last_trans,
-                                   tran_prob_dbm, phrase_prob_dbm, noun_words, verb_words)
+                                   tran_prob_dbm, phrase_prob_dbm, noun_words, verb_words,
+                                   live_words, rev_live_words)
       num_entries += 1
       if num_entries % 1000 == 0:
         logger.info("Finishing entries R2: num_records={}".format(num_entries))
@@ -1808,7 +1809,8 @@ class BuildUnionDBBatch:
     return tran
 
   def SetPhraseTranslations(self, entry, merged_dict, aux_trans, aux_last_trans,
-                            tran_prob_dbm, phrase_prob_dbm, noun_words, verb_words):
+                            tran_prob_dbm, phrase_prob_dbm, noun_words, verb_words,
+                            live_words, rev_live_words):
     if not tran_prob_dbm or not phrase_prob_dbm:
       return
     word = entry["word"]
@@ -1864,6 +1866,31 @@ class BuildUnionDBBatch:
           sub_phrase_prob = float(phrase_prob_dbm.GetStr(sub_phrase) or 0.0)
           sub_ratio = sub_phrase_prob / word_mod_prob
           phrases.append((sub_phrase, False, sub_ratio, sub_ratio, sub_phrase_prob))
+    it = live_words.MakeIterator()
+    it.Jump(word + " ")
+    while True:
+      rec = it.GetStr()
+      if not rec: break
+      phrase, phrase_prob = rec
+      if not phrase.startswith(word + " "): break
+      phrase_prob = float(phrase_prob)
+      ratio = phrase_prob / word_prob
+      if ratio >= 0.1:
+        phrases.append((phrase, True, ratio, ratio, phrase_prob))
+      it.Next()
+    it = rev_live_words.MakeIterator()
+    it.Jump(word + " ")
+    while True:
+      rec = it.GetStr()
+      if not rec: break
+      phrase, phrase_prob = rec
+      if not phrase.startswith(word + " "): break
+      phrase_prob = float(phrase_prob)
+      ratio = phrase_prob / word_prob
+      if ratio >= 0.1:
+        phrase = " ".join(reversed(phrase.split(" ")))
+        phrases.append((phrase, True, ratio, ratio, phrase_prob))
+      it.Next()
     if not phrases:
       return
     orig_trans = {}
@@ -1889,7 +1916,10 @@ class BuildUnionDBBatch:
         orig_trans[ent_orig_tran] = float(orig_trans.get(ent_orig_tran) or 0) + base_score
         base_score *= 0.9
     final_phrases = []
+    uniq_phrases = set()
     for phrase, is_suffix, mod_prob, phrase_score, raw_prob in phrases:
+      if phrase in uniq_phrases: continue
+      uniq_phrases.add(phrase)
       phrase_trans = {}
       phrase_prefixes = {}
       pos_match = is_verb if is_suffix else is_noun
@@ -1932,6 +1962,12 @@ class BuildUnionDBBatch:
                   trg_suffix = "ための"
                 trg_prefix = trg_suffix
                 trg_suffix = ""
+              elif not trg_suffix and trg_prefix in ("ための", "のため"):
+                if trg.endswith("する"):
+                  trg += "ための"
+                else:
+                  trg += "のため"
+                trg_prefix = ""
               elif trg_suffix:
                 trg += trg_suffix
               sum_prob = orig_prob + prob                

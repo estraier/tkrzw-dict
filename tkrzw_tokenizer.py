@@ -344,7 +344,8 @@ class Tokenizer:
     return tran
 
   def StripJaParticles(self, word):
-    for particle in ("のために", "のため", "ために", "ことから", "ことに", "ことの", "ことを"):
+    for particle in (
+        "のために", "のため", "ために", "ための", "ことから", "ことに", "ことの", "ことを"):
       if len(word) > len(particle):
         if word.startswith(particle):
           return (word[len(particle):], particle, "")
