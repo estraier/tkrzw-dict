@@ -1118,6 +1118,22 @@ class BuildUnionDBBatch:
         score += bonus
       if norm_tran in tran_labels:
         score += (len(tran_labels[norm_tran]) - 1) * 0.001
+      tran_pos = self.tokenizer.GetJaLastPos(tran)
+      if pure_noun:
+        if tran_pos[1] == "名詞" and regex.search(r"\p{Han}", tran):
+          score *= 1.2
+      if pure_verb:
+        if tran_pos[1] == "動詞":
+          if regex.search("[うくすつぬふむゆる]$", tran):
+            score *= 1.3
+        elif self.tokenizer.IsJaWordSahenNoun(tran):
+          score *= 1.2
+      if pure_adjective:
+        tran_pos = self.tokenizer.GetJaLastPos(tran)
+        if tran_pos[1] == "形容詞" or self.tokenizer.IsJaWordAdjvNoun(tran):
+          score *= 1.2
+      if (pure_verb or pure_adjective or pure_adverb) and len(tran) <= 1:
+        score *= 0.8
       sorted_translations.append((tran, score))
     sorted_translations = sorted(sorted_translations, key=lambda x: x[1], reverse=True)
     deduped_translations = []
@@ -1844,9 +1860,9 @@ class BuildUnionDBBatch:
         for sub_particle in particles:
           sub_phrase = phrase + " " + sub_particle
           sub_phrase_prob = float(phrase_prob_dbm.GetStr(sub_phrase) or 0.0)
-          sub_ratio = sub_phrase_prob / phrase_prob
+          sub_ratio = max(sub_phrase_prob / phrase_prob, 0.01)
           phrases.append((sub_phrase, True, max(sub_ratio, ratio),
-                          ratio * (sub_ratio ** 0.01), sub_phrase_prob))
+                          ratio * (sub_ratio ** 0.005), sub_phrase_prob))
     verb_prob = 0.0
     if is_verb:
       for auxverb in ("not", "will", "shall", "can", "may", "must"):
@@ -1875,7 +1891,7 @@ class BuildUnionDBBatch:
       if not phrase.startswith(word + " "): break
       phrase_prob = float(phrase_prob)
       ratio = phrase_prob / word_prob
-      if ratio >= 0.1:
+      if ratio >= 0.05:
         phrases.append((phrase, True, ratio, ratio, phrase_prob))
       it.Next()
     it = rev_live_words.MakeIterator()
@@ -1887,7 +1903,7 @@ class BuildUnionDBBatch:
       if not phrase.startswith(word + " "): break
       phrase_prob = float(phrase_prob)
       ratio = phrase_prob / word_prob
-      if ratio >= 0.1:
+      if ratio >= 0.05:
         phrase = " ".join(reversed(phrase.split(" ")))
         phrases.append((phrase, True, ratio, ratio, phrase_prob))
       it.Next()
@@ -2027,14 +2043,18 @@ class BuildUnionDBBatch:
         if regex.search(r"^[\p{Katakana}ー]", tran):
           score *= 0.5
         pos = self.tokenizer.GetJaLastPos(tran)
-        if (is_suffix and is_verb and pos[1] == "名詞" and
-            not self.tokenizer.IsJaWordSahenNoun(tran)):
-          score *= 0.5
-        elif not is_suffix and pos[1] == "名詞" and not best_prefix:
+        if is_suffix and is_verb:
+          if pos[1] == "動詞" and regex.search("[うくすつぬふむゆる]$", tran):
+            score *= 1.5
+          if pos[1] == "名詞" and not self.tokenizer.IsJaWordSahenNoun(tran):
+            score *= 0.5
+        if not is_suffix and pos[1] == "名詞" and not best_prefix:
           if self.tokenizer.IsJaWordSahenNoun(tran) or self.tokenizer.IsJaWordAdjvNoun(tran):
             score *= 0.7
           else:
             score *= 0.5
+        if len(tran) <= 1:
+          score *= 0.5
         if is_verb:
           orig_tran = tran
           pos = self.tokenizer.GetJaLastPos(tran)
