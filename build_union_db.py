@@ -967,7 +967,7 @@ class BuildUnionDBBatch:
       aux_weight = 1.0
       extra_records = []
       for aux_tran, count in count_aux_trans.items():
-        aux_score = (0.01 ** (1 / count)) * aux_weight
+        aux_score = (0.01 ** (1 / (count + 1))) * aux_weight
         prob = (tran_probs.get(aux_tran) or 0) + aux_score
         tran_probs[aux_tran] = prob
         stem_tran = regex.sub(
@@ -1070,7 +1070,7 @@ class BuildUnionDBBatch:
             norm_tran = self.tokenizer.NormalizeJaWordForPos(pos, tran)
             if norm_tran and norm_tran not in uniq_trans:
               Vote(norm_tran, weight, label)
-              weight *= 0.85
+              weight *= 0.8
               uniq_trans.add(norm_tran)
     pos_scores = {}
     pos_base_score = 1.0
