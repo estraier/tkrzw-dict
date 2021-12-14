@@ -674,6 +674,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         last_level = level
         if text.find("{{quote") >= 0: continue
         text = self.MakePlainText(text)
+        if text.startswith("cf."): continue
         eff_text = regex.sub(r"\(.*?\)", "", text).strip()
         if not regex.search(r"(\p{Latin}{2,})|([\p{Han}\p{Hiragana}|\p{Katakana}ー])", eff_text):
           continue

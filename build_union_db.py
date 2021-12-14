@@ -1477,17 +1477,21 @@ class BuildUnionDBBatch:
             for infl_name in inflection_names:
               if not infl_name.startswith("verb_") or entry.get(infl_name):
                 continue
-              root_infl = root_entry[0].get(infl_name)
-              if not root_infl:
+              root_infls = root_entry[0].get(infl_name)
+              if not root_infls:
                 continue
-              root_infl_tokens = []
-              for token in tokens:
-                if root_infl and token == root_verb:
-                  root_infl_tokens.append(root_infl)
-                  root_infl = None
-                else:
-                  root_infl_tokens.append(token)
-              entry[infl_name] = " ".join(root_infl_tokens)
+              phrase_infls = []
+              for root_infl in regex.split(r"[,|]", root_infls):
+                root_infl_tokens = []
+                for token in tokens:
+                  if root_infl and token == root_verb:
+                    root_infl_tokens.append(root_infl)
+                    root_infl = None
+                  else:
+                    root_infl_tokens.append(token)
+                phrase_infls.append(" ".join(root_infl_tokens))
+              if phrase_infls:
+                entry[infl_name] = ", ".join(phrase_infls)
 
   def GetEntryTranslations(self, merged_dict, word, is_capital, best_pos):
     key = tkrzw_dict.NormalizeWord(word)
@@ -1986,7 +1990,7 @@ class BuildUnionDBBatch:
                 trg_prefix = ""
               elif trg_suffix:
                 trg += trg_suffix
-              sum_prob = orig_prob + prob                
+              sum_prob = orig_prob + prob
               if sum_prob >= 0.1:
                 if is_verb and pos[1] == "動詞":
                   sum_prob += 0.1
