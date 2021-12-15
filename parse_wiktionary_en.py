@@ -139,9 +139,16 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     derivatives = []
     relations = []
     translations = {}
+    alsos = []
     for line in fulltext.split("\n"):
       line = line.strip()
-      if regex.search(r"^==([^=]+)==$", line):
+      if regex.search(r"^{{also\|(.*)}}", line):
+        expr = regex.sub(r"^{{also\|(.*)}}", r"\1", line)
+        for also in expr.split("|"):
+          also = also.strip()
+          if also:
+            alsos.append(also)
+      elif regex.search(r"^==([^=]+)==$", line):
         lang = regex.sub(r"^==([^=]+)==$", r"\1", line).strip()
         lang = lang.lower()
         if lang in ("{{en}}", "{{eng}}", "english"):
@@ -695,6 +702,10 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         continue
       output.append("{}={}".format(mode, current_text))
     if output:
+      if title.find(" ") >= 0:
+        clam_title = regex.sub(r" ", "", title)
+        if clam_title in alsos:
+          alternatives.append(clam_title)
       if alternatives:
         uniq_alts = set()
         out_alts = []
