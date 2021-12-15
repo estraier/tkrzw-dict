@@ -702,10 +702,11 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         continue
       output.append("{}={}".format(mode, current_text))
     if output:
-      if title.find(" ") >= 0:
-        clam_title = regex.sub(r" ", "", title)
-        if clam_title in alsos:
-          alternatives.append(clam_title)
+      cram_title = regex.sub(r"[-_ ]", "", title)
+      for also in alsos:
+        if (also != title and regex.sub(r"[-_ ]", "", also) == cram_title and
+            regex.fullmatch("[\p{Latin}\d][- \p{Latin}\d']*[\p{Latin}\d]", also)):
+          alternatives.append(also)
       if alternatives:
         uniq_alts = set()
         out_alts = []
