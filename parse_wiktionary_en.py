@@ -701,26 +701,26 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           r"([\p{Latin}0-9]{2,}|[\p{Han}\p{Hiragana}\p{Katakana}])", current_text):
         continue
       output.append("{}={}".format(mode, current_text))
+    cram_title = regex.sub(r"[-_ ]", "", title)
+    for also in alsos:
+      if (also != title and regex.sub(r"[-_ ]", "", also) == cram_title and
+          regex.fullmatch("[\p{Latin}\d][- \p{Latin}\d']*[\p{Latin}\d]", also)):
+        alternatives.append(also)
+    if alternatives:
+      uniq_alts = set()
+      out_alts = []
+      for alt in alternatives:
+        if alt in uniq_alts: continue
+        uniq_alts.add(alt)
+        out_alts.append(alt)
+      output.append("alternative={}".format(", ".join(out_alts)))
+    for rel in ((synonyms, "synonym"), (hypernyms, "hypernym"), (hyponyms, "hyponym"),
+                (antonyms, "antonym"), (derivatives, "derivative"), (relations, "relation")):
+      if rel[0]:
+        output.append("{}={}".format(rel[1], ", ".join(rel[0])))
+    if tran_mode:
+      output.append("mode=translation")
     if output:
-      cram_title = regex.sub(r"[-_ ]", "", title)
-      for also in alsos:
-        if (also != title and regex.sub(r"[-_ ]", "", also) == cram_title and
-            regex.fullmatch("[\p{Latin}\d][- \p{Latin}\d']*[\p{Latin}\d]", also)):
-          alternatives.append(also)
-      if alternatives:
-        uniq_alts = set()
-        out_alts = []
-        for alt in alternatives:
-          if alt in uniq_alts: continue
-          uniq_alts.add(alt)
-          out_alts.append(alt)
-        output.append("alternative={}".format(", ".join(out_alts)))
-      for rel in ((synonyms, "synonym"), (hypernyms, "hypernym"), (hyponyms, "hyponym"),
-                  (antonyms, "antonym"), (derivatives, "derivative"), (relations, "relation")):
-        if rel[0]:
-          output.append("{}={}".format(rel[1], ", ".join(rel[0])))
-      if tran_mode:
-        output.append("mode=translation")
       print("word={}\t{}".format(title, "\t".join(output)))
 
   def IsGoodInflection(self, text):
