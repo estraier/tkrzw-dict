@@ -1132,8 +1132,15 @@ class BuildUnionDBBatch:
         tran_pos = self.tokenizer.GetJaLastPos(tran)
         if tran_pos[1] == "形容詞" or self.tokenizer.IsJaWordAdjvNoun(tran):
           score *= 1.2
-      if (pure_verb or pure_adjective or pure_adverb) and len(tran) <= 1:
-        score *= 0.8
+      if (pure_verb or pure_adjective or pure_adverb):
+        if len(tran) <= 1:
+          score *= 0.8
+        if regex.search(r"[\p{Katakana}ー]+", tran):
+          score *= 0.8
+          if regex.fullmatch(r"[\p{Katakana}ー]+", tran):
+            score *= 0.8
+        elif regex.fullmatch(r"[\p{Hiragana}ー]+", tran):
+          score *= 0.9
       sorted_translations.append((tran, score))
     sorted_translations = sorted(sorted_translations, key=lambda x: x[1], reverse=True)
     deduped_translations = []
@@ -1164,6 +1171,11 @@ class BuildUnionDBBatch:
       if norm_tran in uniq_trans:
         continue
       uniq_trans.add(norm_tran)
+      match = regex.search("(.*)(をする|をやる|する)$", norm_tran)
+      if match:
+        uniq_trans.add(match.group(1) + "する")
+        uniq_trans.add(match.group(1) + "をする")
+        uniq_trans.add(match.group(1) + "をやる")
       if len(final_translations) < max_elems or score >= 0.001:
         final_translations.append(tran)
     sorted_aux_trans = sorted(count_aux_trans.items(), key=lambda x: -x[1])

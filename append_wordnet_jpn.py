@@ -357,7 +357,7 @@ class AppendWordnetJPNBatch:
             num_items_rescued += 1
           if rev_prob_dbm or tran_prob_dbm:
             item_trans, item_score, tran_scores = (self.SortWordsByScore(
-              word, item_trans, hand_trans, rev_prob_dbm, tokenizer, tran_prob_dbm))
+              word, pos, item_trans, hand_trans, rev_prob_dbm, tokenizer, tran_prob_dbm))
           item["translation"] = item_trans[:MAX_TRANSLATIONS_PER_WORD]
           if tran_scores:
             tran_score_map = {}
@@ -452,7 +452,6 @@ class AppendWordnetJPNBatch:
         fallback_penalty *= 0.1
     return base_prob
 
-  _regex_stop_word_katakana = regex.compile(r"^[\p{Katakana}ー]+$")
   def GetTranProb(self, tran_prob_dbm, word, tran):
     max_prob = 0.0
     key = tkrzw_dict.NormalizeWord(word)
@@ -464,19 +463,29 @@ class AppendWordnetJPNBatch:
         src, trg, prob = fields[i], fields[i + 1], fields[i + 2]
         if src == word and trg.lower() == norm_tran:
           prob = float(prob)
-          if self._regex_stop_word_katakana.search(trg):
-            prob **= 1.2
           max_prob = max(max_prob, prob)
     return max_prob
 
-  _regex_stop_word_hiragana = regex.compile(r"^[\p{Hiragana}ー]+$")
-  _regex_stop_word_single = regex.compile(r"^.$")
-  def SortWordsByScore(self, word, trans, hand_trans, rev_prob_dbm, tokenizer, tran_prob_dbm):
+  _regex_stop_word_katakana = regex.compile(r"[\p{Katakana}ー]+")
+  _regex_stop_word_hiragana = regex.compile(r"[\p{Hiragana}ー]+")
+  def SortWordsByScore(
+      self, word, pos, trans, hand_trans, rev_prob_dbm, tokenizer, tran_prob_dbm):
     scored_trans = []
     pure_translation_scores = []
     max_score = 0.0
     sum_score = 0.0
     for tran in trans:
+      tran_bias = 1.0
+      if self._regex_stop_word_katakana.search(tran):
+        tran_bias *= 0.8
+        if self._regex_stop_word_katakana.fullmatch(tran):
+          tran_bias *= 0.8
+        if pos != "noun":
+          tran_bias *= 0.8
+      elif self._regex_stop_word_hiragana.fullmatch(tran):
+        tran_bias *= 0.9
+      elif self.IsValidPosTran(tokenizer, pos, tran):
+        tran_bias *= 1.2
       prob_score = 0.0
       if rev_prob_dbm:
         prob_score = self.GetPhraseProb(rev_prob_dbm, tokenizer, "ja", tran)
@@ -491,18 +500,18 @@ class AppendWordnetJPNBatch:
           prob_score = max(prob_score, stem_prob_score * 0.9)
         prob_score = max(prob_score, 0.0000001)
         prob_score = math.exp(-abs(math.log(0.001) - math.log(prob_score))) * 0.1
-        if self._regex_stop_word_hiragana.search(tran):
+        if self._regex_stop_word_hiragana.fullmatch(tran):
           prob_score *= 0.5
-        elif self._regex_stop_word_single.search(tran):
+        elif len(tran) <= 1:
           prob_score *= 0.5
       tran_score = 0.0
       if tran_prob_dbm:
-        tran_score = self.GetTranProb(tran_prob_dbm, word, tran)
+        tran_score = self.GetTranProb(tran_prob_dbm, word, tran) * tran_bias
         if tran_score:
           pure_translation_scores.append((tran, tran_score))
       if tran in hand_trans:
-        tran_score += 0.1
-      score = max(prob_score, tran_score)
+        tran_score += 0.1 * tran_bias        
+      score = prob_score + tran_score
       scored_trans.append((tran, score))
       max_score = max(max_score, score)
       sum_score += score
