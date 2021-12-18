@@ -181,7 +181,7 @@ OVERVIEW_TEXT = """
 <body>
 <article>
 <h2>概要</h2>
-<p>これは、オープンなデータから作成された英和辞書である。このデータは<a href="http://idpf.org/epub/dict/epub-dict.html">EPUB Dictionaries and Glossaries 1.0</a>の仕様に準拠しているので、EPUBの閲覧用システムにインストールすれば、検索機能を備える電子辞書として利用することができる。辞書データは<a href="https://wordnet.princeton.edu/">WordNet</a>と<a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">日本語WordNet</a>と<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>と<a href="https://en.wiktionary.org/">Wiktionary英語版</a>を統合したものだ。作成方法については<a href="https://dbmx.net/dict/">公式サイト</a>を参照のこと。利用や再配布の権利については各データのライセンスに従うべきだ。</p>
+<p>これは、オープンなデータから作成された英和辞書である。このデータは<a href="http://idpf.org/epub/dict/epub-dict.html">EPUB Dictionaries and Glossaries 1.0</a>の仕様に準拠しているので、EPUBの閲覧用システムにインストールすれば、検索機能を備える電子辞書として利用することができる。辞書データは<a href="https://wordnet.princeton.edu/">WordNet</a>と<a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">日本語WordNet</a>と<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>と<a href="https://en.wiktionary.org/">Wiktionary英語版</a>と<a href="http://www.edrdg.org/jmdict/edict.html">EDict2</a>を統合したものだ。作成方法については<a href="https://dbmx.net/dict/">公式サイト</a>を参照のこと。利用や再配布の権利については各データのライセンスに従うべきだ。</p>
 <p>見出し語は太字で表示される。IPA発音記号の情報がある場合、見出し語の右に「//」で括って表示される。訳語の情報がある場合、見出し語の下に訳語のリストが表示される。語義の各項目の先頭には品詞のラベルが付いている。その後に、英語か日本語の語義説明が来る。「複数」「三単」「現分」「過去」「過分」「比較」「最上」は、名詞や動詞や形容詞の屈折形を示す。</p>
 </article>
 </body>

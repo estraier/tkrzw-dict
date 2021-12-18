@@ -46,8 +46,8 @@ import unicodedata
 logger = tkrzw_dict.GetLogger()
 poses = ("noun", "verb", "adjective", "adverb",
          "pronoun", "auxverb", "preposition", "determiner", "article",
-         "interjection", "conjunction",
-         "prefix", "suffix", "abbreviation")
+         "interjection", "conjunction", "prefix", "suffix",
+         "abbreviation", "phrase", "misc")
 inflection_names = ("noun_plural","verb_singular", "verb_present_participle",
                    "verb_past", "verb_past_participle",
                    "adjective_comparative", "adjective_superlative",
@@ -1135,12 +1135,17 @@ class BuildUnionDBBatch:
       if (pure_verb or pure_adjective or pure_adverb):
         if len(tran) <= 1:
           score *= 0.8
-        if regex.search(r"[\p{Katakana}ー]+", tran):
+        if regex.search(r"[\p{Katakana}ー]", tran):
           score *= 0.8
           if regex.fullmatch(r"[\p{Katakana}ー]+", tran):
             score *= 0.8
         elif regex.fullmatch(r"[\p{Hiragana}ー]+", tran):
           score *= 0.9
+      else:
+        if regex.fullmatch(r"[\p{Hiragana}\p{Katakana}ー]", tran):
+          score *= 0.8
+        elif regex.fullmatch(r"[\p{Hiragana}\p{Katakana}ー]+", tran):
+          score *= 0.95
       sorted_translations.append((tran, score))
     sorted_translations = sorted(sorted_translations, key=lambda x: x[1], reverse=True)
     deduped_translations = []
@@ -1729,7 +1734,14 @@ class BuildUnionDBBatch:
     scored_trans = sorted(scored_trans, key=lambda x: x[1], reverse=True)
     rec_aux_trans = aux_last_trans.get(word)
     if rec_aux_trans:
+      scored_aux_trans = []
       for aux_tran in rec_aux_trans:
+        norm_trg = tkrzw_dict.NormalizeWord(aux_tran)
+        prob = prob_trans.get(norm_trg) or 0.0
+        prob += 0.01 / (len(aux_tran) + 1)
+        scored_aux_trans.append((aux_tran, prob))
+      scored_aux_trans = sorted(scored_aux_trans, key=lambda x: x[1], reverse=True)
+      for aux_tran, score in scored_aux_trans:
         scored_trans.append((aux_tran, 0, False))
     final_trans = []
     uniq_trans = set()
@@ -1955,7 +1967,7 @@ class BuildUnionDBBatch:
       phrase_trans = {}
       phrase_prefixes = {}
       pos_match = is_verb if is_suffix else is_noun
-      if mod_prob >= 0.03:
+      if mod_prob >= 0.02:
         if pos_match:
           tsv = tran_prob_dbm.GetStr(phrase)
           if tsv:
@@ -2100,7 +2112,7 @@ def main():
   core_labels = set((tkrzw_dict.GetCommandFlag(args, "--core", 1) or "xa,wn").split(","))
   gross_labels = set((tkrzw_dict.GetCommandFlag(args, "--gross", 1) or "wj").split(","))
   top_labels = set((tkrzw_dict.GetCommandFlag(args, "--top", 1) or "we,lx,xa").split(","))
-  slim_labels = set((tkrzw_dict.GetCommandFlag(args, "--slim", 1) or "we").split(","))
+  slim_labels = set((tkrzw_dict.GetCommandFlag(args, "--slim", 1) or "ox,we,wj").split(","))
   surfeit_labels = set((tkrzw_dict.GetCommandFlag(args, "--surfeit", 1) or "we").split(","))
   tran_list_labels = set((tkrzw_dict.GetCommandFlag(
     args, "--tran_list", 1) or "xa,wn,we").split(","))
