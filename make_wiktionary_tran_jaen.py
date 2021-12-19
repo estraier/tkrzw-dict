@@ -27,22 +27,33 @@ import tkrzw_tokenizer
 
 tokenizer = tkrzw_tokenizer.Tokenizer()
 word_dict = collections.defaultdict(list)
+alt_source = None
+alt_targets = None
 for line in sys.stdin:
   fields = line.strip().split("\t")
   if len(fields) != 3: continue
   word, pos, text = fields
   word = tokenizer.NormalizeJaWordForPos(pos, word)
+  if pos == "alternative":
+    alt_source = word
+    alt_targets = set()
+    for alt in regex.split(r"[,;]", text):
+      if regex.fullmatch(r"[\p{Han}\p{Hiragana}\p{Katakana}ー]+", alt):
+        alt_targets.add(alt)
+    continue
   for tran in regex.split(r"[,;]", text):
     tran = tran.strip()
-    if pos == "alternative": continue
     if pos == "verb":
       tran = regex.sub(r"^to ", "", tran)
     if pos == "noun":
       tran = regex.sub(r"^(a|an|the) ", "", tran)
     if not regex.fullmatch(r"[-_\p{Latin}0-9'. ]+", tran): continue
-    tokens = tran.strip(" ")
+    tokens = tran.split(" ")
     if len(tokens) < 1 or len(tokens) > 5: continue
     word_dict[tran].append(word)
+    if alt_source == word:
+      for alt in alt_targets:
+        word_dict[tran].append(alt)
 
 for word, trans in word_dict.items():
   print("{}\t{}".format(word, "\t".join(set(trans))))
