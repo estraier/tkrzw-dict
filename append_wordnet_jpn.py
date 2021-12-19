@@ -248,40 +248,47 @@ class AppendWordnetJPNBatch:
         similar_ids = links.get("similar") or []
         derivative_ids = links.get("derivative") or []
         item_tran_pairs = wnjpn_trans.get(synset) or []
-        item_aux_trans = aux_trans.get(word) or []
-        item_aux_trans.extend(subaux_trans.get(word) or [])
+        item_aux_trans = list(aux_trans.get(word) or [])
+        ext_item_aux_trans = list(item_aux_trans)
+        ext_item_aux_trans.extend(subaux_trans.get(word) or [])
         self.NormalizeTranslationList(tokenizer, pos, item_aux_trans)
-        item_trans = []
+        self.NormalizeTranslationList(tokenizer, pos, ext_item_aux_trans)
+        scored_item_trans = []
         hand_trans = set()
         for tran, src in item_tran_pairs:
           if src == "mono":
             hit = False
-            for item_aux_tran in item_aux_trans:
+            for item_aux_tran in ext_item_aux_trans:
               dist = tkrzw.Utility.EditDistanceLev(tran, item_aux_tran)
               dist_ratio = dist / max(len(tran), len(item_aux_tran))
               if dist < 0.3:
                 hit = True
             if not hit:
               continue
-          item_trans.append(tran)
+          tran = tokenizer.NormalizeJaWordForPos(pos, tran)
+          scored_item_trans.append((tran, 1.0))
           if src == "hand":
             hand_trans.add(tran)
         if feedback_trans:
           item_fb_trans = feedback_trans.get(word + ":" + synset) or []
           if item_fb_trans:
-            item_trans.extend(item_fb_trans)
-        self.NormalizeTranslationList(tokenizer, pos, item_trans)
+            for tran in item_fb_trans:
+              tran = tokenizer.NormalizeJaWordForPos(pos, tran)
+              scored_item_trans.append((tran, 0.9))
+        uniq_item_trans = set()
+        for tran, score in scored_item_trans:
+          uniq_item_trans.add(tran)
         num_items += 1
-        bare = not item_trans
+        bare = not scored_item_trans
         if bare:
           num_items_bare += 1
-        num_orig_trans += len(item_trans)
+        num_orig_trans += len(uniq_item_trans)
         syno_tran_counts = collections.defaultdict(int)
         hyper_tran_counts = collections.defaultdict(int)
         hypo_tran_counts = collections.defaultdict(int)
         similar_tran_counts = collections.defaultdict(int)
         derivative_tran_counts = collections.defaultdict(int)
-        aux_trans_set = set(item_aux_trans)
+        aux_trans_set = set(ext_item_aux_trans)
         checked_words = set()
         checked_ids = set([synset])
         voted_rel_words = set()
@@ -315,12 +322,13 @@ class AppendWordnetJPNBatch:
             if rel_aux_trans:
               self.NormalizeTranslationList(tokenizer, pos, rel_aux_trans)
               if not is_similar and mean_prob < 0.0005:
-                for item_aux_tran in item_aux_trans:
+                for item_aux_tran in ext_item_aux_trans:
                   if regex.fullmatch(r"[\p{Hiragana}]{,3}", item_aux_tran): continue
                   if item_aux_tran in rel_aux_trans:
                     valid_pos = self.IsValidPosTran(tokenizer, pos, item_aux_tran)
-                    if valid_pos and item_aux_tran not in item_trans:
-                      item_trans.append(item_aux_tran)
+                    if valid_pos and item_aux_tran not in uniq_item_trans:
+                      scored_item_trans.append((item_aux_tran, 0.9))
+                      uniq_item_trans.add(item_aux_tran)
                       num_match_trans += 1
               if mean_prob < 0.005:
                 voted_top = rel_word
@@ -345,20 +353,40 @@ class AppendWordnetJPNBatch:
           if syno_tran in hypo_tran_counts: count += 1
           if syno_tran in similar_tran_counts: count += 1
           if syno_tran in derivative_tran_counts: count += 1
-          if bare and syno_tran in aux_trans_set: count += 1
-          if count >= 3 and syno_tran not in item_trans:
+          if syno_tran in aux_trans_set: count += 1
+          if count >= 3 and syno_tran not in uniq_item_trans:
             valid_pos = self.IsValidPosTran(tokenizer, pos, syno_tran)
-            if valid_pos and syno_tran not in item_trans:
-              item_trans.append(syno_tran)
+            if valid_pos:
+              scored_item_trans.append((syno_tran, 0.9))
               num_voted_trans += 1
+        if item_aux_trans:
+          for syno_tran, count in syno_tran_counts.items():
+            if count < 2 and count < len(synonyms): continue
+            if len(syno_tran) < 2: continue
+            if not regex.search("\p{Han}", syno_tran): continue
+            for aux_tran in item_aux_trans:
+              if aux_tran.find(syno_tran) >= 0 and aux_tran not in uniq_item_trans:
+                scored_item_trans.append((aux_tran, 0.2))
+                uniq_item_trans.add(aux_tran)
+          for hyper_tran, count in hyper_tran_counts.items():
+            if count < 2 and count < len(hypernyms): continue
+            if len(hyper_tran) < 2: continue
+            if not regex.search("\p{Han}", hyper_tran): continue
+            for aux_tran in item_aux_trans:
+              if aux_tran.find(hyper_tran) >= 0 and aux_tran not in uniq_item_trans:
+                scored_item_trans.append((aux_tran, 0.2))
+                uniq_item_trans.add(aux_tran)
         item_score = 0.0
-        if item_trans:
+        if scored_item_trans:
           if bare:
             num_items_rescued += 1
           if rev_prob_dbm or tran_prob_dbm:
-            item_trans, item_score, tran_scores = (self.SortWordsByScore(
-              word, pos, item_trans, hand_trans, rev_prob_dbm, tokenizer, tran_prob_dbm))
-          item["translation"] = item_trans[:MAX_TRANSLATIONS_PER_WORD]
+            final_item_trans, item_score, tran_scores = (self.SortWordsByScore(
+              word, pos, scored_item_trans, hand_trans, rev_prob_dbm, tokenizer, tran_prob_dbm))
+          else:
+            scored_item_trans = sorted(scored_item_trans, key=lambda x: x[1], reverse=True)
+            final_item_trans = [x[0] for x in scored_item_trans]
+          item["translation"] = final_item_trans[:MAX_TRANSLATIONS_PER_WORD]
           if tran_scores:
             tran_score_map = {}
             for tran, tran_score in tran_scores[:MAX_TRANSLATIONS_PER_WORD]:
@@ -410,11 +438,11 @@ class AppendWordnetJPNBatch:
       return True
     return False
 
-  def NormalizeTranslationList(self, tokenizer, pos, item_trans):
-    for i, tran in enumerate(item_trans):
+  def NormalizeTranslationList(self, tokenizer, pos, trans):
+    for i, tran in enumerate(trans):
       restored = tokenizer.NormalizeJaWordForPos(pos, tran)
       if restored != tran:
-        item_trans[i] = restored
+        trans[i] = restored
 
   def GetPhraseProb(self, prob_dbm, tokenizer, language, word):
     base_prob = 0.000000001
@@ -469,13 +497,13 @@ class AppendWordnetJPNBatch:
   _regex_stop_word_katakana = regex.compile(r"[\p{Katakana}ー]+")
   _regex_stop_word_hiragana = regex.compile(r"[\p{Hiragana}ー]+")
   def SortWordsByScore(
-      self, word, pos, trans, hand_trans, rev_prob_dbm, tokenizer, tran_prob_dbm):
+      self, word, pos, input_trans, hand_trans, rev_prob_dbm, tokenizer, tran_prob_dbm):
     scored_trans = []
     pure_translation_scores = []
     max_score = 0.0
     sum_score = 0.0
-    for tran in trans:
-      tran_bias = 1.0
+    for tran, score in input_trans:
+      tran_bias = score
       if self._regex_stop_word_katakana.search(tran):
         tran_bias *= 0.8
         if self._regex_stop_word_katakana.fullmatch(tran):
@@ -510,13 +538,13 @@ class AppendWordnetJPNBatch:
         if tran_score:
           pure_translation_scores.append((tran, tran_score))
       if tran in hand_trans:
-        tran_score += 0.1 * tran_bias        
+        tran_score += 0.1 * tran_bias
       score = prob_score + tran_score
       scored_trans.append((tran, score))
       max_score = max(max_score, score)
       sum_score += score
     scored_trans = sorted(scored_trans, key=operator.itemgetter(1), reverse=True)
-    score_bias = 1000 / (1000 + min(10, len(trans) - 1))
+    score_bias = 1000 / (1000 + min(10, len(input_trans) - 1))
     pure_translation_scores = sorted(
       pure_translation_scores, key=operator.itemgetter(1), reverse=True)
     mean_score = (max_score * sum_score) ** 0.5 + 0.00001
