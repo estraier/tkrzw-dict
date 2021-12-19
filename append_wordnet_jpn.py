@@ -363,7 +363,7 @@ class AppendWordnetJPNBatch:
           for syno_tran, count in syno_tran_counts.items():
             if count < 2 and count < len(synonyms): continue
             if len(syno_tran) < 2: continue
-            if not regex.search("\p{Han}[\p{Han}\p{Hiragana}]", syno_tran): continue
+            if not regex.search(r"\p{Han}[\p{Han}\p{Hiragana}]", syno_tran): continue
             for aux_tran in item_aux_trans:
               if aux_tran.find(syno_tran) >= 0 and aux_tran not in uniq_item_trans:
                 scored_item_trans.append((aux_tran, 0.2))
@@ -371,7 +371,7 @@ class AppendWordnetJPNBatch:
           for hyper_tran, count in hyper_tran_counts.items():
             if count < 2 and count < len(hypernyms): continue
             if len(hyper_tran) < 2: continue
-            if not regex.search("\p{Han}[\p{Han}\p{Hiragana}]", syno_tran): continue
+            if not regex.search(r"\p{Han}[\p{Han}\p{Hiragana}]", hyper_tran): continue
             for aux_tran in item_aux_trans:
               if aux_tran.find(hyper_tran) >= 0 and aux_tran not in uniq_item_trans:
                 scored_item_trans.append((aux_tran, 0.2))
