@@ -4,7 +4,7 @@
 # Script to parse English Wiktionary XML stream and export word information
 #
 # Usage:
-#   parse_wiktionary_en_tran.py [--quiet]
+#   make_wiktionary_gross_jaen.py [--quiet]
 #   (It reads the standard input and prints the result on the standard output.)
 #
 # Example:
