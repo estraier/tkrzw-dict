@@ -1,7 +1,7 @@
 #! /usr/bin/python3
 # -*- coding: utf-8 -*-
 #--------------------------------------------------------------------------------------------------
-# Script to parse English Wiktionary XML stream and export word information
+# Script to parse the Japense-English grossary file to make a translation TSV file
 #
 # Usage:
 #   make_wiktionary_tran_jaen.py
