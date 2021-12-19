@@ -287,14 +287,18 @@ class Tokenizer:
     return ["", "", "", "", ""]
 
   def NormalizeJaWordForPos(self, pos, tran):
+    if not regex.search(r"[\p{Han}\p{Hiragana}\p{Katakana}ー]$", tran):
+      return tran
     if pos in ("verb", "adjective", "adverb"):
       tran = self.CutJaWordNounThing(tran)
     if pos == "noun":
       stem = regex.sub(
         r"を(する|される|行う|実行する|実施する|挙行する|遂行する)", "", tran)
       if stem != tran and len(stem) >= 2:
+        stem = regex.sub(r"を", "の", stem)
         return stem
       if self.IsJaWordSahenVerb(tran):
+        tran = regex.sub(r"を", "の", tran)
         return regex.sub(r"する$", "", tran)
       if tran and tran[-1] in ("な", "に"):
         stem = tran[:-1]
