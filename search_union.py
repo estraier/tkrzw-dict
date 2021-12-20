@@ -744,10 +744,13 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
       P('<span class="pos">{}</span>', pos)
       if attr_label:
         fields = []
-        annot = ""
-        annot_match = regex.search(r"^\(.*?\)", section)
-        if annot_match:
+        annots = []
+        while True:
+          annot_match = regex.search(r"^\(.*?\)", section)
+          if not annot_match: break
           annot = annot_match.group(0)
+          if annot:
+            annots.append(annot)
           section = section[len(annot):].strip()
         for subword in section.split(","):
           subword = subword.strip()
@@ -758,8 +761,10 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
         if fields:
           P('<span class="subattr_label">{}</span>', attr_label)
           P('<span class="text">', end="")
-          if annot:
-            P('<span class="annot">{}</span> ', annot)
+          if annots:
+            for annot in annots:
+              P('<span class="annot">{}</span>', annot)
+            P(' ')
           print(", ".join(fields))
           P('</span>')
       else:
@@ -933,7 +938,7 @@ def PrintItemTextCGI(text):
     if match:
       print(esc(match.group(1)), end="")
       P('<span class="annot">{}</span>', match.group(2), end="")
-      text = text[len(match.group(0)):]
+      text = text[len(match.group(0)):].strip()
     else:
       print(esc(text), end="")
       break
