@@ -111,7 +111,7 @@ PACKAGE_HEADER_TEXT = """<?xml version="1.0" encoding="utf-8"?>
 <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
 <dc:identifier id="pub-id">urn:uuid:{}</dc:identifier>
 <dc:publisher>dbmx.net</dc:publisher>
-<dc:title>Union English-Japanese Dictionary</dc:title>
+<dc:title>{}</dc:title>
 <dc:language>en</dc:language>
 <dc:language>ja</dc:language>
 <dc:type id="tp">dictionary</dc:type>
@@ -129,7 +129,7 @@ PACKAGE_HEADER_TEXT = """<?xml version="1.0" encoding="utf-8"?>
 <item id="style" href="style.css" media-type="text/css"/>
 <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
 <item id="overview" href="overview.xhtml" media-type="application/xhtml+xml"/>
-""".format(CURRENT_UUID, CURRENT_DATETIME)
+"""
 PACKAGE_MIDDLE_TEXT = """</manifest>
 <spine page-progression-direction="default">
 <itemref idref="nav"/>
@@ -147,11 +147,11 @@ NAVIGATION_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
 <head>
-<title>Union English-Japanese Dictionary: Contents</title>
+<title>{}: Contents</title>
 <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
-<h1>Union English-Japanese Dictionary</h1>
+<h1>{}</h1>
 <article>
 <h2>Index</h2>
 <nav epub:type="toc">
@@ -167,7 +167,7 @@ NAVIGATION_FOOTER_TEXT = """</ol>
 OVERVIEW_TEXT = """
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="ja">
 <head>
-<title>Union English-Japanese Dictionary: Overview</title>
+<title>{}: Overview</title>
 <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
@@ -183,7 +183,7 @@ OVERVIEW_TEXT = """
 MAIN_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="ja" xmlns:mbp="https://kindlegen.s3.amazonaws.com/AmazonKindlePublishingGuidelines.pdf" xmlns:mmc="https://kindlegen.s3.amazonaws.com/AmazonKindlePublishingGuidelines.pdf" xmlns:idx="https://kindlegen.s3.amazonaws.com/AmazonKindlePublishingGuidelines.pdf">
 <head>
-<title>Union English-Japanese Dictionary</title>
+<title>{}</title>
 <link rel="stylesheet" href="style.css"/>
 </head>
 <body epub:type="dictionary">
@@ -227,10 +227,11 @@ def GetKeyPrefix(key):
 
 
 class GenerateUnionEPUBBatch:
-  def __init__(self, input_path, output_path, keyword_path, min_prob, sufficient_prob):
+  def __init__(self, input_path, output_path, keyword_path, title, min_prob, sufficient_prob):
     self.input_path = input_path
     self.output_path = output_path
     self.keyword_path = keyword_path
+    self.title = title
     self.min_prob = min_prob
     self.sufficient_prob = sufficient_prob
     self.num_words = 0
@@ -363,7 +364,7 @@ class GenerateUnionEPUBBatch:
         logger.info("Creating: {}".format(out_path))
         out_file = open(out_path, "w")
         out_files[key_prefix] = out_file
-        print(MAIN_HEADER_TEXT, file=out_file, end="")
+        print(MAIN_HEADER_TEXT.format(esc(self.title)), file=out_file, end="")
       serialized = input_dbm.GetStr(key)
       if not serialized: continue
       entries = json.loads(serialized)
@@ -528,7 +529,8 @@ class GenerateUnionEPUBBatch:
     out_path = os.path.join(self.output_path, "nav.xhtml")
     logger.info("Creating: {}".format(out_path))
     with open(out_path, "w") as out_file:
-      print(NAVIGATION_HEADER_TEXT, file=out_file, end="")
+      print(NAVIGATION_HEADER_TEXT.format(esc(self.title), esc(self.title)),
+            file=out_file, end="")
       for key_prefix in key_prefixes:
         main_path = "main-{}.xhtml".format(key_prefix)
         print('<li><a href="{}">Word: {}</a></li>'.format(main_path, key_prefix),
@@ -539,7 +541,7 @@ class GenerateUnionEPUBBatch:
     out_path = os.path.join(self.output_path, "overview.xhtml")
     logger.info("Creating: {}".format(out_path))
     with open(out_path, "w") as out_file:
-      print(OVERVIEW_TEXT.format(self.num_words, self.num_trans, self.num_items),
+      print(OVERVIEW_TEXT.format(esc(self.title), self.num_words, self.num_trans, self.num_items),
             file=out_file, end="")
 
   def MakeStyle(self):
@@ -552,7 +554,8 @@ class GenerateUnionEPUBBatch:
     out_path = os.path.join(self.output_path, "package.opf")
     logger.info("Creating: {}".format(out_path))
     with open(out_path, "w") as out_file:
-      print(PACKAGE_HEADER_TEXT, file=out_file, end="")
+      print(PACKAGE_HEADER_TEXT.format(CURRENT_UUID, esc(self.title), CURRENT_DATETIME),
+            file=out_file, end="")
       main_ids = []
       for key_prefix in key_prefixes:
         main_path = "main-{}.xhtml".format(key_prefix)
@@ -571,13 +574,15 @@ def main():
   input_path = tkrzw_dict.GetCommandFlag(args, "--input", 1) or "union-body.tkh"
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-dict-kindle"
   keyword_path = tkrzw_dict.GetCommandFlag(args, "--keyword", 1) or ""
+  title = tkrzw_dict.GetCommandFlag(args, "--title", 1) or "Union English-Japanese Dictionary"
   min_prob = float(tkrzw_dict.GetCommandFlag(args, "--min_prob", 1) or 0)
   sufficient_prob = float(tkrzw_dict.GetCommandFlag(args, "--sufficient_prob", 1) or 0.00001)
   if not input_path:
     raise RuntimeError("an input path is required")
   if not output_path:
     raise RuntimeError("an output path is required")
-  GenerateUnionEPUBBatch(input_path, output_path, keyword_path, min_prob, sufficient_prob).Run()
+  GenerateUnionEPUBBatch(
+    input_path, output_path, keyword_path, title, min_prob, sufficient_prob).Run()
 
 
 if __name__=="__main__":
