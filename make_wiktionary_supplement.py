@@ -29,8 +29,7 @@ import tkrzw_dict
 import tkrzw_tokenizer
 
 
-def Run(phrase_prob_path, tran_prob_path, tran_aux_path, min_phrase_prob, min_tran_prob):
-  print(tran_aux_path)
+def Run(phrase_prob_path, tran_prob_path, tran_aux_paths, min_phrase_prob, min_tran_prob):
   phrase_prob_dbm = None
   if phrase_prob_path:
     phrase_prob_dbm = tkrzw.DBM()
@@ -40,14 +39,16 @@ def Run(phrase_prob_path, tran_prob_path, tran_aux_path, min_phrase_prob, min_tr
     tran_prob_dbm = tkrzw.DBM()
     tran_prob_dbm.Open(tran_prob_path, False, dbm="HashDBM").OrDie()
   aux_trans = collections.defaultdict(list)
-  if tran_aux_path:
-    with open(tran_aux_path) as input_file:
-      for line in input_file:
-        fields = line.strip().split("\t")
-        if len(fields) < 2: continue
-        word = fields[0]
-        for tran in fields[1:]:
-          aux_trans[word].append(tran)
+  for tran_aux_path in tran_aux_paths.split(","):
+    tran_aux_path = tran_aux_path.strip()
+    if tran_aux_path:
+      with open(tran_aux_path) as input_file:
+        for line in input_file:
+          fields = line.strip().split("\t")
+          if len(fields) < 2: continue
+          word = fields[0]
+          for tran in fields[1:]:
+            aux_trans[word].append(tran)
   tokenizer = tkrzw_tokenizer.Tokenizer()
   word_dict = collections.defaultdict(list)
   alt_source = None
@@ -109,7 +110,6 @@ def ProcessWord(word, trans, tokenizer, phrase_prob_dbm, tran_prob_dbm, aux_tran
     tokens = tokenizer.Tokenize("en", word, False, True)[:3]
     norm_phrase = " ".join(tokens)
     phrase_prob = float(phrase_prob_dbm.GetStr(norm_phrase) or 0.0)
-  if phrase_prob < min_phrase_prob: return None, None
   uniq_trans = set()
   check_trans = []
   norm_word = word.lower()
@@ -143,6 +143,7 @@ def ProcessWord(word, trans, tokenizer, phrase_prob_dbm, tran_prob_dbm, aux_tran
     if aux_targets and tran in aux_targets:
       aux_hit = True
       tran_prob += 0.05
+    if not aux_hit and phrase_prob < min_phrase_prob: continue
     if not aux_hit and tran_prob < min_tran_prob: continue
     if regex.fullmatch(r"[\p{Katakana}ー]+", tran):
       tran_prob *= 0.7
@@ -150,7 +151,7 @@ def ProcessWord(word, trans, tokenizer, phrase_prob_dbm, tran_prob_dbm, aux_tran
       tran_prob *= 0.8
     scored_trans.append((pos, tran, tran_prob))
   if not scored_trans: return None, None
-  scored_trans = sorted(scored_trans, key=lambda x: x[2], reverse=True)  
+  scored_trans = sorted(scored_trans, key=lambda x: x[2], reverse=True)
   return (scored_trans, phrase_prob)
 
 
@@ -180,10 +181,10 @@ def main():
   args = sys.argv[1:]
   phrase_prob_path = tkrzw_dict.GetCommandFlag(args, "--phrase_prob", 1) or ""
   tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
-  tran_aux_path = tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or ""
+  tran_aux_paths = tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or ""
   min_phrase_prob = float(tkrzw_dict.GetCommandFlag(args, "--min_phrase_prob", 1) or .000001)
   min_tran_prob = float(tkrzw_dict.GetCommandFlag(args, "--min_tran_prob", 1) or 0.1)
-  Run(phrase_prob_path, tran_prob_path, tran_aux_path, min_phrase_prob, min_tran_prob)
+  Run(phrase_prob_path, tran_prob_path, tran_aux_paths, min_phrase_prob, min_tran_prob)
 
 
 if __name__=="__main__":

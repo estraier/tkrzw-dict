@@ -209,6 +209,7 @@ class AppendWordnetJPNBatch:
     num_orig_trans = 0
     num_match_trans = 0
     num_voted_trans = 0
+    num_borrowed_trans = 0
     num_items = 0
     num_items_bare = 0
     num_items_rescued = 0
@@ -253,7 +254,7 @@ class AppendWordnetJPNBatch:
         ext_item_aux_trans.extend(subaux_trans.get(word) or [])
         self.NormalizeTranslationList(tokenizer, pos, item_aux_trans)
         self.NormalizeTranslationList(tokenizer, pos, ext_item_aux_trans)
-        scored_item_trans = []
+        scored_item_trans = collections.defaultdict(float)
         hand_trans = set()
         for tran, src in item_tran_pairs:
           if src == "mono":
@@ -266,7 +267,7 @@ class AppendWordnetJPNBatch:
             if not hit:
               continue
           tran = tokenizer.NormalizeJaWordForPos(pos, tran)
-          scored_item_trans.append((tran, 1.0))
+          scored_item_trans[tran] = 1.0
           if src == "hand":
             hand_trans.add(tran)
         if feedback_trans:
@@ -274,15 +275,13 @@ class AppendWordnetJPNBatch:
           if item_fb_trans:
             for tran in item_fb_trans:
               tran = tokenizer.NormalizeJaWordForPos(pos, tran)
-              scored_item_trans.append((tran, 0.9))
-        uniq_item_trans = set()
-        for tran, score in scored_item_trans:
-          uniq_item_trans.add(tran)
+              if tran not in scored_item_trans:
+                scored_item_trans[tran] = 0.9
         num_items += 1
         bare = not scored_item_trans
         if bare:
           num_items_bare += 1
-        num_orig_trans += len(uniq_item_trans)
+        num_orig_trans += len(scored_item_trans)
         syno_tran_counts = collections.defaultdict(int)
         hyper_tran_counts = collections.defaultdict(int)
         hypo_tran_counts = collections.defaultdict(int)
@@ -291,6 +290,7 @@ class AppendWordnetJPNBatch:
         aux_trans_set = set(ext_item_aux_trans)
         checked_words = set()
         checked_ids = set([synset])
+        adopted_rel_trans = set()
         voted_rel_words = set()
         voted_rel_records = set()
         for rel_words, rel_ids, tran_counts in (
@@ -325,11 +325,8 @@ class AppendWordnetJPNBatch:
                 for item_aux_tran in ext_item_aux_trans:
                   if regex.fullmatch(r"[\p{Hiragana}]{,3}", item_aux_tran): continue
                   if item_aux_tran in rel_aux_trans:
-                    valid_pos = self.IsValidPosTran(tokenizer, pos, item_aux_tran)
-                    if valid_pos and item_aux_tran not in uniq_item_trans:
-                      scored_item_trans.append((item_aux_tran, 0.9))
-                      uniq_item_trans.add(item_aux_tran)
-                      num_match_trans += 1
+                    if self.IsValidPosTran(tokenizer, pos, item_aux_tran):
+                      adopted_rel_trans.add(item_aux_tran)
               if mean_prob < 0.005:
                 voted_top = rel_word
                 for voted_rel_word in voted_rel_words:
@@ -343,10 +340,14 @@ class AppendWordnetJPNBatch:
                     continue
                   voted_rel_records.add(voted_record)
                   tran_counts[rel_aux_tran] += 1
+        for rel_tran in adopted_rel_trans:
+          scored_item_trans[rel_tran] = max(0.8, scored_item_trans[rel_tran] + 0.25)
+          num_match_trans += 1
         if bare:
           for deri_tran, count in derivative_tran_counts.items():
             syno_tran_counts[deri_tran] = syno_tran_counts[deri_tran] + count
           derivative_tran_counts.clear()
+        adopted_syno_trans = set()
         for syno_tran, count in syno_tran_counts.items():
           if regex.fullmatch(r"[\p{Hiragana}]{,3}", syno_tran): continue
           if syno_tran in hyper_tran_counts: count += 1
@@ -354,30 +355,35 @@ class AppendWordnetJPNBatch:
           if syno_tran in similar_tran_counts: count += 1
           if syno_tran in derivative_tran_counts: count += 1
           if syno_tran in aux_trans_set: count += 1
-          if count >= 3 and syno_tran not in uniq_item_trans:
-            valid_pos = self.IsValidPosTran(tokenizer, pos, syno_tran)
-            if valid_pos:
-              scored_item_trans.append((syno_tran, 0.9))
-              num_voted_trans += 1
+          if count >= 3 and self.IsValidPosTran(tokenizer, pos, syno_tran):
+            adopted_syno_trans.add(syno_tran)
+        for syno_tran in adopted_syno_trans:
+          scored_item_trans[syno_tran] = max(0.8, scored_item_trans[syno_tran] + 0.25)
+          num_voted_trans += 1
         if item_aux_trans:
+          aux_scores = {}
           for syno_tran, count in syno_tran_counts.items():
-            if count < 2 and count < len(synonyms): continue
+            if count < math.ceil(len(synonyms) * 2 / 3): continue
             if len(syno_tran) < 2: continue
             if not regex.search(r"\p{Han}[\p{Han}\p{Hiragana}]", syno_tran): continue
             for aux_tran in item_aux_trans:
-              if aux_tran.find(syno_tran) >= 0 and aux_tran not in uniq_item_trans:
-                scored_item_trans.append((aux_tran, 0.2))
-                uniq_item_trans.add(aux_tran)
+              if aux_tran.find(syno_tran) >= 0 and self.IsValidPosTran(tokenizer, pos, aux_tran):
+                weight = 0.25 if aux_tran == syno_tran else 0.2
+                aux_scores[aux_tran] = max(aux_scores.get(aux_tran) or 0.0, weight)
           for hyper_tran, count in hyper_tran_counts.items():
-            if count < 2 and count < len(hypernyms): continue
+            if count < math.ceil(len(hypernyms) * 2 / 3): continue
             if len(hyper_tran) < 2: continue
             if not regex.search(r"\p{Han}[\p{Han}\p{Hiragana}]", hyper_tran): continue
             for aux_tran in item_aux_trans:
-              if aux_tran.find(hyper_tran) >= 0 and aux_tran not in uniq_item_trans:
-                scored_item_trans.append((aux_tran, 0.2))
-                uniq_item_trans.add(aux_tran)
+              if aux_tran.find(hyper_tran) >= 0 and self.IsValidPosTran(tokenizer, pos, aux_tran):
+                weight = 0.25 if aux_tran == hyper_tran else 0.2
+                aux_scores[aux_tran] = max(aux_scores.get(aux_tran) or 0.0, weight)
+          for aux_tran, score in aux_scores.items():
+            scored_item_trans[aux_tran] = scored_item_trans[aux_tran] + score
+            num_borrowed_trans += 1
         item_score = 0.0
         if scored_item_trans:
+          scored_item_trans = scored_item_trans.items()
           if bare:
             num_items_rescued += 1
           if rev_prob_dbm or tran_prob_dbm:
@@ -416,8 +422,9 @@ class AppendWordnetJPNBatch:
     logger.info(
       "Aappending translations done: words={}, elapsed_time={:.2f}s".format(
         num_words, time.time() - start_time))
-    logger.info("Stats: orig={}, match={}, voted={}, items={}, bare={}, rescued={}".format(
-      num_orig_trans, num_match_trans, num_voted_trans,
+    logger.info(("Stats: orig={}, match={}, voted={}, borrowed={}" +
+                 ", items={}, bare={}, rescued={}").format(
+      num_orig_trans, num_match_trans, num_voted_trans, num_borrowed_trans,
       num_items, num_items_bare, num_items_rescued))
 
   def AreSimilarWords(self, word_a, word_b):

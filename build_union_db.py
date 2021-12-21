@@ -95,7 +95,7 @@ misc_stop_words = set([
 
 class BuildUnionDBBatch:
   def __init__(self, input_confs, output_path, core_labels, gross_labels,
-               surfeit_labels, top_labels, slim_labels, tran_list_labels,
+               surfeit_labels, top_labels, slim_labels, tran_list_labels, supplement_labels,
                phrase_prob_path, tran_prob_path, tran_aux_paths, tran_aux_last_paths,
                rev_prob_path, cooc_prob_path, aoa_paths, keyword_path, min_prob_map):
     self.input_confs = input_confs
@@ -106,6 +106,7 @@ class BuildUnionDBBatch:
     self.top_labels = top_labels
     self.slim_labels = slim_labels
     self.tran_list_labels = tran_list_labels
+    self.supplement_labels = supplement_labels
     self.phrase_prob_path = phrase_prob_path
     self.tran_prob_path = tran_prob_path
     self.tran_aux_paths = tran_aux_paths
@@ -1002,9 +1003,10 @@ class BuildUnionDBBatch:
       score *= weight
       old_score = translations.get(tran) or 0.0
       translations[tran] = max(old_score, score)
-      old_labels = tran_labels.get(norm_tran) or set()
-      old_labels.add(label)
-      tran_labels[norm_tran] = old_labels
+      if label:
+        old_labels = tran_labels.get(norm_tran) or set()
+        old_labels.add(label)
+        tran_labels[norm_tran] = old_labels
     body_weight = 1.0
     tran_weight = 0.7
     for item in entry["item"]:
@@ -1072,6 +1074,13 @@ class BuildUnionDBBatch:
               Vote(norm_tran, weight, label)
               weight *= 0.8
               uniq_trans.add(norm_tran)
+      if label in self.supplement_labels:
+        text = sections[0]
+        uniq_trans = set()
+        for tran in regex.split("[;,]", text):
+          norm_tran = self.tokenizer.NormalizeJaWordForPos(pos, tran.strip())
+          if norm_tran and norm_tran not in uniq_trans:
+            Vote(norm_tran, 0.01, "")
     pos_scores = {}
     pos_base_score = 1.0
     for item in entry["item"]:
@@ -1557,7 +1566,7 @@ class BuildUnionDBBatch:
       label = item["label"]
       pos = item["pos"]
       poses.add(pos)
-      if label in self.gross_labels: continue
+      if label in self.gross_labels or label in self.supplement_labels: continue
       is_first = label not in uniq_labels
       uniq_labels.add(label)
       text = item["text"]
@@ -2116,6 +2125,7 @@ def main():
   surfeit_labels = set((tkrzw_dict.GetCommandFlag(args, "--surfeit", 1) or "we").split(","))
   tran_list_labels = set((tkrzw_dict.GetCommandFlag(
     args, "--tran_list", 1) or "xa,wn,we").split(","))
+  supplement_labels = set((tkrzw_dict.GetCommandFlag(args, "--gross", 1) or "xs").split(","))
   phrase_prob_path = tkrzw_dict.GetCommandFlag(args, "--phrase_prob", 1) or ""
   tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
   tran_aux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or "").split(",")
@@ -2145,7 +2155,7 @@ def main():
       raise RuntimeError("invalid input: " + input)
     input_confs.append(input_conf)
   BuildUnionDBBatch(input_confs, output_path, core_labels, gross_labels,
-                    surfeit_labels, top_labels, slim_labels, tran_list_labels,
+                    surfeit_labels, top_labels, slim_labels, tran_list_labels, supplement_labels,
                     phrase_prob_path, tran_prob_path, tran_aux_paths, tran_aux_last_paths,
                     rev_prob_path, cooc_prob_path, aoa_paths, keyword_path,
                     min_prob_map).Run()

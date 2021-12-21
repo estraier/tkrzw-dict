@@ -41,12 +41,13 @@ for line in sys.stdin:
       if regex.fullmatch(r"[\p{Han}\p{Hiragana}\p{Katakana}ー]+", alt):
         alt_targets.add(alt)
     continue
+  text = regex.sub(r"\.$", "", text).strip()
   for tran in regex.split(r"[,;]", text):
     tran = tran.strip()
     if pos == "verb":
       tran = regex.sub(r"^to ", "", tran)
     if pos == "noun":
-      tran = regex.sub(r"^(a|an|the) ", "", tran)
+      tran = regex.sub(r"(?i)^(a|an|the) ", "", tran)
     if not regex.fullmatch(r"[-_\p{Latin}0-9'. ]+", tran): continue
     tokens = tran.split(" ")
     if len(tokens) < 1 or len(tokens) > 5: continue

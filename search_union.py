@@ -225,6 +225,8 @@ def PrintResult(entries, mode, query, searcher):
         label = item.get("label")
         pos = item.get("pos")
         sections = item["text"].split(" [-] ")
+        if mode == "simple" and sections[0].startswith("[translation]:"):
+          continue
         text = ""
         if label:
           text += "({}) ".format(label)
@@ -721,11 +723,10 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
         P('<span class="attr_label">代替</span>', end="")
         P(' <span class="attr_value">{}</span>', ", ".join(alternatives), end="")
         P('</div>')
+    omitted = False
     for num_items, item in enumerate(entry["item"]):
       if not details and num_items >= 8:
-        P('<div class="item item_omit">', label)
-        P('<a href="{}" class="omit_link">... ...</a>', word_url)
-        P('</div>')
+        omitted = True
         break
       label = item.get("label") or "misc"
       pos = item.get("pos") or "misc"
@@ -735,6 +736,9 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
       attr_label = None
       attr_match = regex.search(r"^\[([a-z]+)\]: ", section)
       if attr_match:
+        if not details and attr_match.group(1) == "translation":
+          omitted = True
+          continue
         attr_label = WORDNET_ATTRS.get(attr_match.group(1))
         if attr_label:
           section = section[len(attr_match.group(0)):].strip()
@@ -928,6 +932,10 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
           P('<span class="attr_label">年齢</span>' +
             ' <span class="attr_value">{:.2f}</span>', aoa)
         P('</div>')
+    if omitted:
+      P('<div class="item item_omit">', label)
+      P('<a href="{}" class="omit_link">... ...</a>', word_url)
+      P('</div>')
     P('</div>')
 
 
@@ -1173,6 +1181,7 @@ a.navi_link:hover {{ background: #dddddd; opacity: 1; }}
 .item_ox .label {{ background: #ffeedd; opacity: 0.7; }}
 .item_we .label {{ background: #ffddee; opacity: 0.7; }}
 .item_wj .label {{ background: #ddeeff; opacity: 0.7; }}
+.item_xs .label {{ background: #ffffdd; opacity: 0.7; }}
 .tran {{ color: #000000; }}
 .attr_value {{ margin-left: 0.3ex; color: #111111; }}
 .text {{ margin-left: 0.3ex; color: #111111; }}
