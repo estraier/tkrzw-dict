@@ -29,31 +29,48 @@ import tkrzw_dict
 import tkrzw_tokenizer
 
 
+logger = tkrzw_dict.GetLogger()
+
+
 def Run(phrase_prob_path, tran_prob_path, tran_aux_paths, min_phrase_prob, min_tran_prob):
+  logger.info("Start the process")
   phrase_prob_dbm = None
   if phrase_prob_path:
+    logger.info("Opening the phrase prob DB: " + phrase_prob_path)
     phrase_prob_dbm = tkrzw.DBM()
     phrase_prob_dbm.Open(phrase_prob_path, False, dbm="HashDBM").OrDie()
   tran_prob_dbm = None
   if tran_prob_path:
+    logger.info("Opening the tran prob DB: " + tran_prob_path)
     tran_prob_dbm = tkrzw.DBM()
     tran_prob_dbm.Open(tran_prob_path, False, dbm="HashDBM").OrDie()
   aux_trans = collections.defaultdict(list)
   for tran_aux_path in tran_aux_paths.split(","):
     tran_aux_path = tran_aux_path.strip()
     if tran_aux_path:
+      logger.info("Reading the tran aux file: " + tran_aux_path)
       with open(tran_aux_path) as input_file:
+        uniq_keys = set()
         for line in input_file:
           fields = line.strip().split("\t")
           if len(fields) < 2: continue
           word = fields[0]
           for tran in fields[1:]:
+            uniq_key = word + ":" + tran
+            if uniq_key in uniq_keys: continue
             aux_trans[word].append(tran)
+            uniq_keys.add(uniq_key)
+  logger.info("Processing the gross.")
   tokenizer = tkrzw_tokenizer.Tokenizer()
   word_dict = collections.defaultdict(list)
   alt_source = None
   alt_targets = None
+  num_lines = 0
   for line in sys.stdin:
+    num_lines += 1
+    if num_lines % 10000 == 0:
+      logger.info("Processing the gross: {} lines: {} items".format(
+        num_lines, len(word_dict)))
     fields = line.strip().split("\t")
     if len(fields) != 3: continue
     word, pos, text = fields
@@ -73,7 +90,7 @@ def Run(phrase_prob_path, tran_prob_path, tran_aux_paths, min_phrase_prob, min_t
         tran = regex.sub(r"^(a|an|the) ", "", tran)
       if not regex.fullmatch(r"[-_\p{Latin}0-9'. ]+", tran): continue
       tokens = tran.split(" ")
-      if len(tokens) < 1 or len(tokens) > 3: continue
+      if len(tokens) < 1 or len(tokens) > 4: continue
       word_dict[tran].append((pos, word))
       if alt_source == word:
         for alt in alt_targets:
@@ -101,6 +118,7 @@ def Run(phrase_prob_path, tran_prob_path, tran_aux_paths, min_phrase_prob, min_t
     tran_prob_dbm.Close().OrDie()
   if phrase_prob_dbm:
     phrase_prob_dbm.Close().OrDie()
+  logger.info("Process done")
 
 
 def ProcessWord(word, trans, tokenizer, phrase_prob_dbm, tran_prob_dbm, aux_trans,
@@ -140,9 +158,11 @@ def ProcessWord(word, trans, tokenizer, phrase_prob_dbm, tran_prob_dbm, aux_tran
           if trg != tran: continue
           tran_prob = float(prob)
     aux_hit = False
-    if aux_targets and tran in aux_targets:
-      aux_hit = True
-      tran_prob += 0.05
+    if aux_targets:
+      count = aux_targets.count(tran)
+      if count > 0:
+        aux_hit = True
+        tran_prob += count * 0.05
     if not aux_hit and phrase_prob < min_phrase_prob: continue
     if not aux_hit and tran_prob < min_tran_prob: continue
     if regex.fullmatch(r"[\p{Katakana}ー]+", tran):
