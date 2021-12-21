@@ -4,12 +4,12 @@
 # Script to parse the Japense-English grossary file to make a supplement TSV file
 #
 # Usage:
-#   make_wiktionary_supplement.py [--phrase_prob str] [--tran_prob str]
+#   make_supplement_from_gaen_gross.py [--phrase_prob str] [--tran_prob str]
 #   (It reads the standard input and prints the result on the standard output.)
 #
 # Example:
-#   $ cat wiktionary-gross-jaen.tsv |
-#     ./make_wiktionary_supplement.py > wiktionary-supplement.tsv
+#   $ cat wiktionary-gross-jaen.tsv edict2-gross.txt |
+#     ./make_supplement_from_gaen_gross.py > supplement.tsv
 #
 # Copyright 2020 Google LLC
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
