@@ -945,7 +945,7 @@ def PrintItemTextCGI(text):
     match = regex.search("(^|.*?[。、])([\(（〔].+?[\)）〕])", text)
     if match:
       print(esc(match.group(1)), end="")
-      P('<span class="annot">{}</span>', match.group(2), end="")
+      P('<span class="annot">{}</span> ', match.group(2), end="")
       text = text[len(match.group(0)):].strip()
     else:
       print(esc(text), end="")
