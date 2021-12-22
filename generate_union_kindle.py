@@ -20,10 +20,12 @@
 #--------------------------------------------------------------------------------------------------
 
 import collections
+import copy
 import datetime
 import html
 import json
 import logging
+import math
 import os
 import pathlib
 import regex
@@ -31,6 +33,7 @@ import sys
 import time
 import tkrzw
 import tkrzw_dict
+import tkrzw_tokenizer
 import urllib
 import uuid
 
@@ -227,11 +230,14 @@ def GetKeyPrefix(key):
 
 
 class GenerateUnionEPUBBatch:
-  def __init__(self, input_path, output_path, keyword_path, trustable_labels, title,
+  def __init__(self, input_path, output_path, keyword_path,
+               vetted_labels, preferable_labels, trustable_labels, title,
                min_prob, sufficient_prob):
     self.input_path = input_path
     self.output_path = output_path
     self.keyword_path = keyword_path
+    self.vetted_labels = vetted_labels
+    self.preferable_labels = preferable_labels
     self.trustable_labels = trustable_labels
     self.title = title
     self.min_prob = min_prob
@@ -239,6 +245,8 @@ class GenerateUnionEPUBBatch:
     self.num_words = 0
     self.num_trans = 0
     self.num_items = 0
+    self.label_counters = collections.defaultdict(int)
+    self.tokenizer = tkrzw_tokenizer.Tokenizer()
 
   def Run(self):
     start_time = time.time()
@@ -259,6 +267,8 @@ class GenerateUnionEPUBBatch:
     self.MakeStyle()
     self.MakePackage(key_prefixes)
     input_dbm.Close().OrDie()
+    for label, count in self.label_counters.items():
+      logger.info("Adopted label: {}: {}".format(label, count))
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
   def ListUpWords(self, input_dbm):
@@ -398,7 +408,7 @@ class GenerateUnionEPUBBatch:
     for item in entry["item"][:8]:
       poses.add(item["pos"])
     infl_groups = collections.defaultdict(list)
-    if not regex.search(r"[A-Z]", word):
+    if not regex.search(r"[A-Z].*[A-Z]", word):
       for attr_list in INFLECTIONS:
         for name, label in attr_list:
           pos, suffix = name.split("_", 1)
@@ -410,16 +420,54 @@ class GenerateUnionEPUBBatch:
           value = entry.get(name)
           if value:
             infl_groups[pos].append((suffix, value, label))
-    items = []
-    first_label = None
+    main_labels = set()
+    label_items = collections.defaultdict(list)
     for item in entry["item"]:
       label = item["label"]
-      if first_label:
-        if first_label != label:
-          break
-      else:
-        first_label = label
-      items.append(item)
+      if label in self.preferable_labels:
+        main_labels.add(label)
+      label_items[label].append(item)
+    best_label = None
+    if len(main_labels) >= 2:
+      min_cost = None
+      for label in main_labels:
+        score = 0
+        num_items = 0
+        length_cost = 0
+        for item in label_items[label]:
+          text = item["text"]
+          if text.startswith("[translation]:"): continue
+          text = regex.sub(r" \[-+\] .*", "", text).strip()
+          if not text: continue
+          num_items += 1
+          text = regex.sub(r"[^-_\p{Latin}\d']+", " ", text).strip()
+          num_words = text.count(" ") + 1
+          length_cost += abs(math.log(8) - math.log(num_words))
+        if not num_items: continue
+        item_cost = abs(math.log(4) - math.log(num_items))
+        length_cost = length_cost / num_items
+        quality_cost = 1.0 if label in self.vetted_labels else 1.2
+        cost = (item_cost + 0.5) * (length_cost + 1.0) * quality_cost
+        if not min_cost or cost < min_cost:
+          best_label = label
+          min_cost = cost
+    elif len(main_labels) >= 1:
+      best_label = list(main_labels)[0]
+    else:
+      best_label = entry["item"][0]["label"]
+    self.label_counters[best_label] += 1
+    items = []
+    sub_items = []
+    for item in entry["item"]:
+      label = item["label"]
+      text = item["text"]
+      if text.startswith("[translation]:"): continue
+      if label == best_label:
+        items.append(item)
+      elif label in main_labels:
+        sub_items.append(item)
+    if not items: return
+    items = self.MergeShownItems(items, sub_items)
     self.num_words += 1
     P('<idx:entry name="en" scriptable="yes" spell="yes">')
     P('<div class="head">')
@@ -454,9 +502,9 @@ class GenerateUnionEPUBBatch:
     if translations:
       self.num_trans += 1
       P('<div class="tran">{}</div>', ", ".join(translations[:6]))
-    for item in items[:10]:
-      self.num_items += 1
+    for item in items:
       self.MakeMainEntryItem(P, item, False)
+      self.num_items += 1
     phrases = entry.get("phrase")
     if phrases:
       for phrase in phrases:
@@ -496,6 +544,8 @@ class GenerateUnionEPUBBatch:
     if simple:
       text = CutTextByWidth(text, 100)
     P('<div class="item">')
+    if item.get("is_sub"):
+      P('<span class="attr">・</span>', POSES.get(pos) or pos)
     P('<span class="pos">[{}]</span>', POSES.get(pos) or pos)
     for annot in annots:
       P('<span class="attr">[{}]</span>', annot)
@@ -572,12 +622,58 @@ class GenerateUnionEPUBBatch:
         print('<itemref idref="{}"/>'.format(main_id), file=out_file)
       print(PACKAGE_FOOTER_TEXT, file=out_file, end="")
 
+  _stop_words = set(("a", "the", "an"))
+  def TokenizeForDupCheck(self, text):
+    tokens = []
+    for token in self.tokenizer.Tokenize("en", text, True, True):
+      token = regex.sub(r"[^-_\p{Latin}\d']+", "", token).strip()
+      if not token or token in self._stop_words: continue
+      tokens.append(token)
+    return tokens
+
+  def MergeShownItems(self, items, sub_items):
+    min_shown_items = 4
+    mid_shown_items = 6
+    max_shown_items = 10
+    max_dup_score = 0.3
+    merged_items = []
+    for item in items:
+      if len(merged_items) >= max_shown_items: break
+      merged_items.append(item)
+    if len(merged_items) < min_shown_items and sub_items:
+      references = []
+      for item in merged_items:
+        text = item["text"]
+        text = regex.sub(r" \[-+\] .*", "", text).strip()
+        text = regex.sub(r"\(.*?\)", "", text).strip()
+        text = regex.sub(r"\[.*?\]", "", text).strip()
+        tokens = self.TokenizeForDupCheck(text)
+        if tokens:
+          references.append(tokens)
+      for item in sub_items:
+        if len(merged_items) >= mid_shown_items: break
+        if references:
+          text = item["text"]
+          text = regex.sub(r" \[-+\] .*", "", text).strip()
+          text = regex.sub(r"\(.*?\)", "", text).strip()
+          text = regex.sub(r"\[.*?\]", "", text).strip()
+          candidate = self.TokenizeForDupCheck(text)
+          if not candidate: continue
+          dup_score = tkrzw_dict.ComputeNGramPresision(candidate, references, 3)
+          if dup_score >= max_dup_score: continue
+        item["is_sub"] = True
+        merged_items.append(item)
+    return merged_items
+
 
 def main():
   args = sys.argv[1:]
   input_path = tkrzw_dict.GetCommandFlag(args, "--input", 1) or "union-body.tkh"
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-dict-kindle"
   keyword_path = tkrzw_dict.GetCommandFlag(args, "--keyword", 1) or ""
+  vetted_labels = set((tkrzw_dict.GetCommandFlag(args, "--vetted", 1) or "xa,wn").split(","))
+  preferable_labels = set((tkrzw_dict.GetCommandFlag(
+    args, "--preferable", 1) or "xa,wn,ox,we").split(","))
   trustable_labels = set((tkrzw_dict.GetCommandFlag(
     args, "--trustable", 1) or "xa,ox,wj").split(","))
   title = tkrzw_dict.GetCommandFlag(args, "--title", 1) or "Union English-Japanese Dictionary"
@@ -588,8 +684,9 @@ def main():
   if not output_path:
     raise RuntimeError("an output path is required")
   GenerateUnionEPUBBatch(
-    input_path, output_path, keyword_path, trustable_labels, title,
-    min_prob, sufficient_prob).Run()
+    input_path, output_path, keyword_path,
+    vetted_labels, preferable_labels, trustable_labels,
+    title, min_prob, sufficient_prob).Run()
 
 
 if __name__=="__main__":

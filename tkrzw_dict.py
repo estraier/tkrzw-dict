@@ -13,6 +13,7 @@
 # and limitations under the License.
 #--------------------------------------------------------------------------------------------------
 
+import collections
 import importlib
 import logging
 import math
@@ -231,16 +232,17 @@ def TwiddleWords(words, query):
   return [x[0] for x in scored_words]
 
 
-def ComputeBLEUScore(candidate, references, ngrams):
+def ComputeBLEUScore(candidate, references, ngram):
   if not candidate or not references: return 0.0
+  ngram = min(ngram, len(candidate))
   def GetNGramMap(tokens, n):
-    result = {}
+    result = collections.defaultdict(int)
     for i in range(0, len(tokens) - n + 1):
       phrase = "\0".join(tokens[i:i + n])
-      result[phrase] = (result.get(phrase) or 0) + 1
+      result[phrase] += 1
     return result
   sum_log = 0.0
-  for n in range(1, ngrams + 1):
+  for n in range(1, ngram + 1):
     cand_map = GetNGramMap(candidate, n)
     merged_ref_map = {}
     for reference in references:
@@ -262,16 +264,17 @@ def ComputeBLEUScore(candidate, references, ngrams):
   return mean_precision * brevity_penalty
 
 
-def ComputeNGramPresision(candidate, references, ngrams):
+def ComputeNGramPresision(candidate, references, ngram):
   if not candidate or not references: return 0.0
+  ngram = min(ngram, len(candidate))
   def GetNGramMap(tokens, n):
-    result = {}
+    result = collections.defaultdict(int)
     for i in range(0, len(tokens) - n + 1):
       phrase = "\0".join(tokens[i:i + n])
-      result[phrase] = (result.get(phrase) or 0) + 1
+      result[phrase] += 1
     return result
   sum_precision = 0.0
-  for n in range(1, ngrams + 1):
+  for n in range(1, ngram + 1):
     cand_map = GetNGramMap(candidate, n)
     merged_ref_map = {}
     for reference in references:
@@ -283,6 +286,5 @@ def ComputeNGramPresision(candidate, references, ngrams):
       match_count = min(merged_ref_map.get(phrase) or 0, count)
       total_count += count
       total_match_count += match_count
-    print(n, "|", total_match_count / total_count)
     sum_precision += total_match_count / total_count
   return sum_precision / n
