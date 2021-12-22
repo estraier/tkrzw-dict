@@ -231,13 +231,12 @@ def TwiddleWords(words, query):
   return [x[0] for x in scored_words]
 
 
-def GetBLEUScore(candidate, references, ngrams):
+def ComputeBLEUScore(candidate, references, ngrams):
   if not candidate or not references: return 0.0
-  ngrams = min(ngrams, len(candidate))
   def GetNGramMap(tokens, n):
     result = {}
     for i in range(0, len(tokens) - n + 1):
-      phrase = " ".join(tokens[i:i + n])
+      phrase = "\0".join(tokens[i:i + n])
       result[phrase] = (result.get(phrase) or 0) + 1
     return result
   sum_log = 0.0
@@ -261,3 +260,29 @@ def GetBLEUScore(candidate, references, ngrams):
   ref_len = min(ref_lens, key=lambda x: (abs(x - cand_len), x))
   brevity_penalty = min(1.0, math.exp(1.0 - ref_len / cand_len))
   return mean_precision * brevity_penalty
+
+
+def ComputeNGramPresision(candidate, references, ngrams):
+  if not candidate or not references: return 0.0
+  def GetNGramMap(tokens, n):
+    result = {}
+    for i in range(0, len(tokens) - n + 1):
+      phrase = "\0".join(tokens[i:i + n])
+      result[phrase] = (result.get(phrase) or 0) + 1
+    return result
+  sum_precision = 0.0
+  for n in range(1, ngrams + 1):
+    cand_map = GetNGramMap(candidate, n)
+    merged_ref_map = {}
+    for reference in references:
+      for phrase, count in GetNGramMap(reference, n).items():
+        merged_ref_map[phrase] = max(merged_ref_map.get(phrase) or 0, count)
+    total_count = 0
+    total_match_count = 0
+    for phrase, count in cand_map.items():
+      match_count = min(merged_ref_map.get(phrase) or 0, count)
+      total_count += count
+      total_match_count += match_count
+    print(n, "|", total_match_count / total_count)
+    sum_precision += total_match_count / total_count
+  return sum_precision / n

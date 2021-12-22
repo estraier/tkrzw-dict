@@ -227,10 +227,12 @@ def GetKeyPrefix(key):
 
 
 class GenerateUnionEPUBBatch:
-  def __init__(self, input_path, output_path, keyword_path, title, min_prob, sufficient_prob):
+  def __init__(self, input_path, output_path, keyword_path, trustable_labels, title,
+               min_prob, sufficient_prob):
     self.input_path = input_path
     self.output_path = output_path
     self.keyword_path = keyword_path
+    self.trustable_labels = trustable_labels
     self.title = title
     self.min_prob = min_prob
     self.sufficient_prob = sufficient_prob
@@ -299,7 +301,9 @@ class GenerateUnionEPUBBatch:
       poses.add(item["pos"])
       if item["text"].startswith("[translation]:"): continue
       labels.add(item["label"])
-    if "wj" in labels: return True
+    for label in labels:
+      if label in self.trustable_labels:
+        return True
     if "verb" in poses and regex.fullmatch(r"[a-z ]+", word):
       tokens = word.split(" ")
       if len(tokens) >= 2 and tokens[0] in keywords:
@@ -574,6 +578,8 @@ def main():
   input_path = tkrzw_dict.GetCommandFlag(args, "--input", 1) or "union-body.tkh"
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-dict-kindle"
   keyword_path = tkrzw_dict.GetCommandFlag(args, "--keyword", 1) or ""
+  trustable_labels = set((tkrzw_dict.GetCommandFlag(
+    args, "--trustable", 1) or "xa,ox,wj").split(","))
   title = tkrzw_dict.GetCommandFlag(args, "--title", 1) or "Union English-Japanese Dictionary"
   min_prob = float(tkrzw_dict.GetCommandFlag(args, "--min_prob", 1) or 0)
   sufficient_prob = float(tkrzw_dict.GetCommandFlag(args, "--sufficient_prob", 1) or 0.00001)
@@ -582,7 +588,8 @@ def main():
   if not output_path:
     raise RuntimeError("an output path is required")
   GenerateUnionEPUBBatch(
-    input_path, output_path, keyword_path, title, min_prob, sufficient_prob).Run()
+    input_path, output_path, keyword_path, trustable_labels, title,
+    min_prob, sufficient_prob).Run()
 
 
 if __name__=="__main__":
