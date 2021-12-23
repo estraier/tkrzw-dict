@@ -458,14 +458,20 @@ class GenerateUnionEPUBBatch:
     self.label_counters[best_label] += 1
     items = []
     sub_items = []
+    tran_items = []
     for item in entry["item"]:
       label = item["label"]
       text = item["text"]
-      if text.startswith("[translation]:"): continue
-      if label == best_label:
+      if text.startswith("[translation]:"):
+        tran_items.append(item)
+      elif label == best_label:
         items.append(item)
       elif label in main_labels:
         sub_items.append(item)
+    if not items:
+      items = sub_items
+    if not items:
+      items = tran_items
     if not items: return
     items = self.MergeShownItems(items, sub_items)
     self.num_words += 1
