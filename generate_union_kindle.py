@@ -236,11 +236,18 @@ def GetKeyPrefix(key):
   return regex.sub(r"[^a-zA-Z0-9]", "_", prefix)
 
 
+_regex_nonsafe_text = regex.compile(
+  r"[^\x20-\x7F\p{Han}\p{Hiragana}\p{Katakana}ー・、。’々]")
+def CheckSafeText(text):
+  return not regex.search(_regex_nonsafe_text, text)
+
+
 _regex_invalid_scripts = regex.compile(
-  r"[^\s\p{Common}\p{Latin}\p{Cyrillic}\p{Han}\p{Hangul}\p{Hiragana}\p{Katakana}ー]")
+  r"[^\s\p{Common}\p{Latin}\p{Cyrillic}\p{Greek}\p{Han}\p{Hangul}\p{Hiragana}\p{Katakana}ー]")
+_regex_space_scripts = regex.compile(r"[\s\p{C}]+")
 def SanitizeText(text):
-  if regex.search(_regex_invalid_scripts, text):
-    text = regex.sub(_regex_invalid_scripts, "\uFFFD", text)
+  text = regex.sub(_regex_invalid_scripts, "□", text)
+  text = regex.sub(_regex_space_scripts, " ", text).strip()
   return text
 
 
@@ -447,11 +454,13 @@ class GenerateUnionEPUBBatch:
     if len(main_labels) >= 2:
       min_cost = None
       for label in main_labels:
-        score = 0
+        vetted = label in self.vetted_labels
         num_items = 0
         length_cost = 0
         for item in label_items[label]:
           text = item["text"]
+          if not vetted and not CheckSafeText(text):
+            length_cost += 10000
           if text.startswith("[translation]:"): continue
           text = regex.sub(r" \[-+\] .*", "", text).strip()
           if not text: continue
@@ -462,7 +471,7 @@ class GenerateUnionEPUBBatch:
         if not num_items: continue
         item_cost = abs(math.log(4) - math.log(num_items))
         length_cost = length_cost / num_items
-        quality_cost = 1.0 if label in self.vetted_labels else 1.25
+        quality_cost = 1.0 if vetted else 1.25
         cost = (item_cost + 0.5) * (length_cost + 1.0) * quality_cost
         if not min_cost or cost < min_cost:
           best_label = label
@@ -673,8 +682,9 @@ class GenerateUnionEPUBBatch:
           references.append(tokens)
       for item in sub_items:
         if len(merged_items) >= mid_shown_items: break
+        text = item["text"]
+        if not CheckSafeText(text): continue
         if references:
-          text = item["text"]
           text = regex.sub(r" \[-+\] .*", "", text).strip()
           text = regex.sub(r"\(.*?\)", "", text).strip()
           text = regex.sub(r"\[.*?\]", "", text).strip()
