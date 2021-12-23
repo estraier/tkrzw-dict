@@ -291,6 +291,7 @@ class GenerateUnionEPUBBatch:
         if not self.IsGoodEntry(entry, input_dbm, keywords): continue
         word = entry["word"]
         prob = float(entry.get("probability") or "0")
+        if regex.search(r"[^\x20-\x7F\p{Latin}]", word): continue
         words[word] = max(words.get(word) or 0.0, prob)
       it.Next()
     logger.info("Checking words done: {}".format(len(words)))
@@ -392,11 +393,16 @@ class GenerateUnionEPUBBatch:
       print(MAIN_FOOTER_TEXT, file=out_file, end="")
       out_file.close()
 
+  _regex_invalid_scripts = regex.compile(
+    r"[\p{Arabic}\p{Bengali}\p{Buhid}\p{Devanagari}\p{Gujarati}\p{Gurmukhi}" +
+    r"\p{Kannada}\p{Limbu}\p{Malayalam}\p{Sinhala}\p{Tamil}\p{Telugu}\p{Thaana}]")
   def MakeMainEntry(self, out_file, entry, input_dbm, keys, inflections):
     def P(*args, end="\n"):
       esc_args = []
       for arg in args[1:]:
         if isinstance(arg, str):
+          if regex.search(self._regex_invalid_scripts, arg):
+            arg = regex.sub(self._regex_invalid_scripts, "\uFFFD", arg)
           arg = esc(arg)
         esc_args.append(arg)
       print(args[0].format(*esc_args), end=end, file=out_file)
