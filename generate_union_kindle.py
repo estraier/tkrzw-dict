@@ -462,7 +462,7 @@ class GenerateUnionEPUBBatch:
         if not num_items: continue
         item_cost = abs(math.log(4) - math.log(num_items))
         length_cost = length_cost / num_items
-        quality_cost = 1.0 if label in self.vetted_labels else 1.2
+        quality_cost = 1.0 if label in self.vetted_labels else 1.25
         cost = (item_cost + 0.5) * (length_cost + 1.0) * quality_cost
         if not min_cost or cost < min_cost:
           best_label = label
