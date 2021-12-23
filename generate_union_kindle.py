@@ -299,21 +299,21 @@ class GenerateUnionEPUBBatch:
   def IsGoodEntry(self, entry, input_dbm, keywords):
     word = entry["word"]
     prob = float(entry.get("probability") or "0")
-    if word in keywords:
-      return True
-    if prob < self.min_prob:
-      return False
-    if prob >= self.sufficient_prob:
-      return True
     poses = set()
     labels = set()
     for item in entry["item"]:
       poses.add(item["pos"])
       if item["text"].startswith("[translation]:"): continue
       labels.add(item["label"])
+    if word in keywords:
+      return True
     for label in labels:
       if label in self.trustable_labels:
         return True
+    if prob < self.min_prob:
+      return False
+    if prob >= self.sufficient_prob:
+      return True
     if "verb" in poses and regex.fullmatch(r"[a-z ]+", word):
       tokens = word.split(" ")
       if len(tokens) >= 2 and tokens[0] in keywords:
