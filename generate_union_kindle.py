@@ -208,6 +208,13 @@ def CutTextByWidth(text, width):
   result = ""
   for c in text:
     if width < 0:
+      i = len(result) - 1
+      word_head_min = max(i - 20, 20)
+      while i >= word_head_min:
+        if not regex.search(r"[-_\p{Latin}]", result[i]):
+          break
+        i -= 1
+      result = result[:i]
       result += "..."
       break
     result += c
@@ -227,6 +234,14 @@ def GetKeyPrefix(key):
     return "_"
   prefix = key[0]
   return regex.sub(r"[^a-zA-Z0-9]", "_", prefix)
+
+
+_regex_invalid_scripts = regex.compile(
+  r"[^\s\p{Common}\p{Latin}\p{Cyrillic}\p{Han}\p{Hangul}\p{Hiragana}\p{Katakana}ー]")
+def SanitizeText(text):
+  if regex.search(_regex_invalid_scripts, text):
+    text = regex.sub(_regex_invalid_scripts, "\uFFFD", text)
+  return text
 
 
 class GenerateUnionEPUBBatch:
@@ -393,16 +408,11 @@ class GenerateUnionEPUBBatch:
       print(MAIN_FOOTER_TEXT, file=out_file, end="")
       out_file.close()
 
-  _regex_invalid_scripts = regex.compile(
-    r"[\p{Arabic}\p{Bengali}\p{Buhid}\p{Devanagari}\p{Gujarati}\p{Gurmukhi}" +
-    r"\p{Kannada}\p{Limbu}\p{Malayalam}\p{Sinhala}\p{Tamil}\p{Telugu}\p{Thaana}]")
   def MakeMainEntry(self, out_file, entry, input_dbm, keys, inflections):
     def P(*args, end="\n"):
       esc_args = []
       for arg in args[1:]:
         if isinstance(arg, str):
-          if regex.search(self._regex_invalid_scripts, arg):
-            arg = regex.sub(self._regex_invalid_scripts, "\uFFFD", arg)
           arg = esc(arg)
         esc_args.append(arg)
       print(args[0].format(*esc_args), end=end, file=out_file)
@@ -515,7 +525,7 @@ class GenerateUnionEPUBBatch:
       self.num_trans += 1
       P('<div class="tran">{}</div>', ", ".join(translations[:6]))
     for item in items:
-      self.MakeMainEntryItem(P, item, False)
+      self.MakeMainEntryItem(P, item)
       self.num_items += 1
     phrases = entry.get("phrase")
     if phrases:
@@ -533,9 +543,9 @@ class GenerateUnionEPUBBatch:
     P('</idx:entry>')
     P('<br/>')
 
-  def MakeMainEntryItem(self, P, item, simple):
+  def MakeMainEntryItem(self, P, item):
     pos = item["pos"]
-    text = item["text"]
+    text = SanitizeText(item["text"])
     annots = []
     attr_match = regex.search(r"^\[([a-z]+)\]: ", text)
     if attr_match:
@@ -553,8 +563,7 @@ class GenerateUnionEPUBBatch:
       text = text[len(attr_match.group(0)):].strip()
       annots.append(attr_label)
     text = regex.sub(r" \[-+\] .*", "", text).strip()
-    if simple:
-      text = CutTextByWidth(text, 100)
+    text = CutTextByWidth(text, 160)
     P('<div class="item">')
     if item.get("is_sub"):
       P('<span class="attr">・</span>', POSES.get(pos) or pos)
