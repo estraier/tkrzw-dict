@@ -248,10 +248,13 @@ def CheckSafeText(text):
 
 
 _regex_invalid_scripts = regex.compile(
-  r"[^\s\p{Common}\p{Latin}\p{Cyrillic}\p{Greek}\p{Han}\p{Hangul}\p{Hiragana}\p{Katakana}ー]")
+  r"[^\s\p{Common}\p{Latin}\p{Cyrillic}\p{Greek}\p{Runic}" +
+  r"\p{Han}\p{Hangul}\p{Hiragana}\p{Katakana}ー]")
+_regex_nonbasic_scripts = regex.compile(r"[^\u0000-\uFFFF]")
 _regex_space_scripts = regex.compile(r"[\s\p{C}]+")
 def SanitizeText(text):
   text = regex.sub(_regex_invalid_scripts, "□", text)
+  text = regex.sub(_regex_nonbasic_scripts, "□", text)
   text = regex.sub(_regex_space_scripts, " ", text).strip()
   return text
 
@@ -465,7 +468,7 @@ class GenerateUnionEPUBBatch:
         for item in label_items[label]:
           text = item["text"]
           if not vetted and not CheckSafeText(text):
-            length_cost += 10000
+            length_cost += 10.0
           if text.startswith("[translation]:"): continue
           text = regex.sub(r" \[-+\] .*", "", text).strip()
           if not text: continue
