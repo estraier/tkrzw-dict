@@ -155,6 +155,7 @@ class BuildUnionDBBatch:
     num_entries = 0
     with open(input_path) as input_file:
       for line in input_file:
+        line = unicodedata.normalize('NFKC', line)
         word = ""
         ipa = ""
         sampa = ""
@@ -168,6 +169,7 @@ class BuildUnionDBBatch:
           columns = field.split("=", 1)
           if len(columns) < 2: continue
           name, value = columns
+          value = regex.sub(r"[\s\p{C}]+", " ", value).strip()
           if name == "word":
             word = value
           elif name == "pronunciation_ipa":
@@ -227,6 +229,7 @@ class BuildUnionDBBatch:
     num_entries = 0
     with open(input_path) as input_file:
       for line in input_file:
+        line = unicodedata.normalize('NFKC', line)
         fields = line.strip().split("\t")
         if len(fields) < 2: continue
         word = fields[0]
@@ -234,7 +237,7 @@ class BuildUnionDBBatch:
         uniq_trans = set()
         for tran in fields[1:]:
           tran = regex.sub(r"[\p{Ps}\p{Pe}\p{C}]", "", tran)
-          tran = regex.sub(r"\s+", " ", tran).strip()
+          tran = regex.sub(r"[\s\p{C}]+", " ", tran).strip()
           norm_tran = tkrzw_dict.NormalizeWord(tran)
           if not tran or not norm_tran: continue
           if norm_tran in uniq_trans: continue
@@ -254,6 +257,7 @@ class BuildUnionDBBatch:
     with open(input_path) as input_file:
       is_first = True
       for line in input_file:
+        line = unicodedata.normalize('NFKC', line)
         if is_first:
           is_first = False
           continue
@@ -283,6 +287,7 @@ class BuildUnionDBBatch:
     num_entries = 0
     with open(input_path) as input_file:
       for line in input_file:
+        line = unicodedata.normalize('NFKC', line)
         keyword = line.strip()
         keywords.add(keyword)
         num_entries += 1
