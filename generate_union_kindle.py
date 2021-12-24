@@ -237,9 +237,14 @@ def GetKeyPrefix(key):
 
 
 _regex_nonsafe_text = regex.compile(
-  r"[^\x20-\x7F\p{Han}\p{Hiragana}\p{Katakana}ー・、。’々]")
+  r"[^\x20-\x7F\p{Han}\p{Hiragana}\p{Katakana}ー・、。々]")
+_regex_nonsafe_ascii_symbols = regex.compile(r"[\\{}`]")
 def CheckSafeText(text):
-  return not regex.search(_regex_nonsafe_text, text)
+  if regex.search(_regex_nonsafe_text, text):
+    return False
+  if regex.search(_regex_nonsafe_ascii_symbols, text):
+    return False
+  return True
 
 
 _regex_invalid_scripts = regex.compile(

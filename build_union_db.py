@@ -148,6 +148,15 @@ class BuildUnionDBBatch:
     self.SaveWords(word_dicts, aux_trans, aux_last_trans, aoa_words, keywords)
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
+  def NormalizeText(self, text):
+    text = unicodedata.normalize('NFKC', text)
+    text = regex.sub(r"[\u2018\u2019\u201A\u201B\u2758\u275B\u275C\u275F\uFF02]", "'", text)
+    text = regex.sub(r"[\u201C\u201D\u201E\u201F]", '"', text)
+    text = regex.sub(
+      r"[\u00AD\u02D7\u2010\u2011\u2012\u2013\u2014\u2015\u2043\u2212\u2796\u2E3A\u2E3B" +
+      r"\uFE58\uFE63\uFF0D]", "-", text)
+    return text
+
   def ReadInput(self, input_path, slim):
     start_time = time.time()
     logger.info("Reading an input file: input_path={}".format(input_path))
@@ -155,7 +164,6 @@ class BuildUnionDBBatch:
     num_entries = 0
     with open(input_path) as input_file:
       for line in input_file:
-        line = unicodedata.normalize('NFKC', line)
         word = ""
         ipa = ""
         sampa = ""
@@ -169,6 +177,7 @@ class BuildUnionDBBatch:
           columns = field.split("=", 1)
           if len(columns) < 2: continue
           name, value = columns
+          value = self.NormalizeText(value)
           value = regex.sub(r"[\s\p{C}]+", " ", value).strip()
           if name == "word":
             word = value
@@ -229,13 +238,13 @@ class BuildUnionDBBatch:
     num_entries = 0
     with open(input_path) as input_file:
       for line in input_file:
-        line = unicodedata.normalize('NFKC', line)
         fields = line.strip().split("\t")
         if len(fields) < 2: continue
-        word = fields[0]
+        word = self.NormalizeText(fields[0])
         values = aux_trans.get(word) or []
         uniq_trans = set()
         for tran in fields[1:]:
+          tran = self.NormalizeText(tran)
           tran = regex.sub(r"[\p{Ps}\p{Pe}\p{C}]", "", tran)
           tran = regex.sub(r"[\s\p{C}]+", " ", tran).strip()
           norm_tran = tkrzw_dict.NormalizeWord(tran)
@@ -257,13 +266,12 @@ class BuildUnionDBBatch:
     with open(input_path) as input_file:
       is_first = True
       for line in input_file:
-        line = unicodedata.normalize('NFKC', line)
         if is_first:
           is_first = False
           continue
         fields = line.strip().split(",")
         if len(fields) != 7: continue
-        word = fields[0].strip()
+        word = self.NormalizeText(fields[0]).strip()
         occur = fields[3]
         mean = fields[4]
         stddev = fields[5]
@@ -287,8 +295,7 @@ class BuildUnionDBBatch:
     num_entries = 0
     with open(input_path) as input_file:
       for line in input_file:
-        line = unicodedata.normalize('NFKC', line)
-        keyword = line.strip()
+        keyword = self.NormalizeText(line).strip()
         keywords.add(keyword)
         num_entries += 1
         if num_entries % 10000 == 0:
