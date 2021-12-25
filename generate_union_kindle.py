@@ -208,14 +208,24 @@ def CutTextByWidth(text, width):
   result = ""
   for c in text:
     if width < 0:
+      is_cut = False
       i = len(result) - 1
-      word_head_min = max(i - 20, 20)
+      word_head_min = max(i - 40, 20)
       while i >= word_head_min:
-        if not regex.search(r"[-_\p{Latin}]", result[i]):
+        if result[i] == ";":
+          result = result[:i]
+          is_cut = True
           break
         i -= 1
-      result = result[:i]
-      result += "..."
+      if not is_cut:
+        i = len(result) - 1
+        word_head_min = max(i - 20, 20)
+        while i >= word_head_min:
+          if not regex.search(r"[-_\p{Latin}]", result[i]):
+            result = result[:i]
+            break
+          i -= 1
+        result += "..."
       break
     result += c
     width -= 2 if ord(c) > 256 else 1
@@ -275,6 +285,7 @@ class GenerateUnionEPUBBatch:
     self.num_words = 0
     self.num_trans = 0
     self.num_items = 0
+    self.num_aux_items = 0
     self.label_counters = collections.defaultdict(int)
     self.tokenizer = tkrzw_tokenizer.Tokenizer()
 
@@ -299,6 +310,8 @@ class GenerateUnionEPUBBatch:
     input_dbm.Close().OrDie()
     for label, count in self.label_counters.items():
       logger.info("Adopted label: {}: {}".format(label, count))
+    logger.info("Stats: num_words={}, num_trans={}, num_items={}, num_aux_items={}".format(
+      self.num_words, self.num_trans, self.num_items, self.num_aux_items))
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
   def ListUpWords(self, input_dbm):
@@ -435,6 +448,7 @@ class GenerateUnionEPUBBatch:
     prob = float(entry.get("probability") or "0")
     pronunciation = entry.get("pronunciation")
     translations = entry.get("translation")
+    is_major_word = prob >= 0.00001 and not regex.search("[A-Z]", word)
     poses = set()
     for item in entry["item"][:8]:
       poses.add(item["pos"])
@@ -499,7 +513,7 @@ class GenerateUnionEPUBBatch:
         tran_items.append(item)
       elif label == best_label:
         items.append(item)
-      elif label in main_labels:
+      elif label in main_labels and is_major_word:
         sub_items.append(item)
     if not items:
       items = sub_items
@@ -543,7 +557,6 @@ class GenerateUnionEPUBBatch:
       P('<div class="tran">{}</div>', ", ".join(translations[:6]))
     for item in items:
       self.MakeMainEntryItem(P, item)
-      self.num_items += 1
     phrases = entry.get("phrase")
     if phrases:
       for phrase in phrases:
@@ -579,11 +592,13 @@ class GenerateUnionEPUBBatch:
       if not attr_label: break
       text = text[len(attr_match.group(0)):].strip()
       annots.append(attr_label)
+    self.num_items += 1
     text = regex.sub(r" \[-+\] .*", "", text).strip()
     text = CutTextByWidth(text, 160)
     P('<div class="item">')
-    if item.get("is_sub"):
+    if item.get("is_aux"):
       P('<span class="attr">・</span>', POSES.get(pos) or pos)
+      self.num_aux_items += 1
     P('<span class="pos">[{}]</span>', POSES.get(pos) or pos)
     for annot in annots:
       P('<span class="attr">[{}]</span>', annot)
@@ -700,7 +715,7 @@ class GenerateUnionEPUBBatch:
           if not candidate: continue
           dup_score = tkrzw_dict.ComputeNGramPresision(candidate, references, 3)
           if dup_score >= max_dup_score: continue
-        item["is_sub"] = True
+        item["is_aux"] = True
         merged_items.append(item)
     return merged_items
 
