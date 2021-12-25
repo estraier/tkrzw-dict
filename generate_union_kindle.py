@@ -213,7 +213,7 @@ def CutTextByWidth(text, width):
       word_head_min = max(i - 40, 20)
       while i >= word_head_min:
         if result[i] == ";":
-          result = result[:i]
+          result = result[:i].strip()
           is_cut = True
           break
         i -= 1
@@ -222,7 +222,7 @@ def CutTextByWidth(text, width):
         word_head_min = max(i - 20, 20)
         while i >= word_head_min:
           if not regex.search(r"[-_\p{Latin}]", result[i]):
-            result = result[:i]
+            result = result[:i].strip()
             break
           i -= 1
         result += "..."
