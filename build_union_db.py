@@ -178,7 +178,7 @@ class BuildUnionDBBatch:
           if len(columns) < 2: continue
           name, value = columns
           value = self.NormalizeText(value)
-          value = regex.sub(r"[\s\p{C}]+", " ", value).strip()
+          value = regex.sub(r"[\p{Z}\p{C}]+", " ", value).strip()
           if name == "word":
             word = value
           elif name == "pronunciation_ipa":
@@ -246,7 +246,7 @@ class BuildUnionDBBatch:
         for tran in fields[1:]:
           tran = self.NormalizeText(tran)
           tran = regex.sub(r"[\p{Ps}\p{Pe}\p{C}]", "", tran)
-          tran = regex.sub(r"[\s\p{C}]+", " ", tran).strip()
+          tran = regex.sub(r"[\p{Z}\p{C}]+", " ", tran).strip()
           norm_tran = tkrzw_dict.NormalizeWord(tran)
           if not tran or not norm_tran: continue
           if norm_tran in uniq_trans: continue
@@ -928,7 +928,7 @@ class BuildUnionDBBatch:
         tran = regex.sub(r"[\p{S}\p{P}]+ *(が|の|を|に|へ|と|より|から|で|や)", "", tran)
         tran = regex.sub(r"[～\p{S}\p{P}]", " ", tran)
         tran = regex.sub(r" +(?=[\p{Han}\p{Hiragana}\p{Katakana}ー])", "", tran)
-        tran = regex.sub(r"[\s]+", " ", tran).strip()
+        tran = regex.sub(r"[\p{Z}]+", " ", tran).strip()
         if tran:
           trans.append(tran)
     return trans
@@ -1037,7 +1037,7 @@ class BuildUnionDBBatch:
           weight *= 0.1
         text = regex.sub(r"[\(（《〔\{\(].*?[)）》〕\}\]]", "〜", text)
         text = regex.sub(r"[･・]", "", text)
-        text = regex.sub(r"\s+", " ", text).strip()
+        text = regex.sub(r"\p{Z}+", " ", text).strip()
         if regex.search(
             r"の(直接法|直説法|仮定法)?(現在|過去)?(第?[一二三]人称)?[ ・･、]?" +
             r"(単数|複数|現在|過去|比較|最上|進行|完了|動名詞|単純|縮約)+[ ・･、]?" +
@@ -1069,7 +1069,7 @@ class BuildUnionDBBatch:
           tran = " ".join(tokens)
           tran = regex.sub(r"([\p{Han}\p{Hiragana}\p{Katakana}ー]) +", r"\1", tran)
           tran = regex.sub(r" +([\p{Han}\p{Hiragana}\p{Katakana}ー])", r"\1", tran)
-          tran = regex.sub(r"[\s]+", " ", tran).strip()
+          tran = regex.sub(r"[\p{Z}]+", " ", tran).strip()
           if tran:
             Vote(tran, weight, label)
             weight *= 0.8
