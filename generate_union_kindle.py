@@ -272,7 +272,7 @@ def SanitizeText(text):
 class GenerateUnionEPUBBatch:
   def __init__(self, input_path, output_path, keyword_path,
                vetted_labels, preferable_labels, trustable_labels, title,
-               min_prob, sufficient_prob):
+               min_prob_normal, min_prob_capital, min_prob_multi, sufficient_prob):
     self.input_path = input_path
     self.output_path = output_path
     self.keyword_path = keyword_path
@@ -280,7 +280,9 @@ class GenerateUnionEPUBBatch:
     self.preferable_labels = preferable_labels
     self.trustable_labels = trustable_labels
     self.title = title
-    self.min_prob = min_prob
+    self.min_prob_normal = min_prob_normal
+    self.min_prob_capital = min_prob_capital
+    self.min_prob_multi = min_prob_multi
     self.sufficient_prob = sufficient_prob
     self.num_words = 0
     self.num_trans = 0
@@ -334,7 +336,6 @@ class GenerateUnionEPUBBatch:
         if not self.IsGoodEntry(entry, input_dbm, keywords): continue
         word = entry["word"]
         prob = float(entry.get("probability") or "0")
-        if regex.search(r"[^\x20-\x7F\p{Latin}]", word): continue
         words[word] = max(words.get(word) or 0.0, prob)
       it.Next()
     logger.info("Checking words done: {}".format(len(words)))
@@ -342,6 +343,10 @@ class GenerateUnionEPUBBatch:
 
   def IsGoodEntry(self, entry, input_dbm, keywords):
     word = entry["word"]
+    if regex.search(r"[^\x20-\x7F\p{Latin}]", word):
+      return False
+    if regex.fullmatch(r"\d+(th)?", word):
+      return False
     prob = float(entry.get("probability") or "0")
     poses = set()
     labels = set()
@@ -354,7 +359,11 @@ class GenerateUnionEPUBBatch:
     for label in labels:
       if label in self.trustable_labels:
         return True
-    if prob < self.min_prob:
+    if regex.search(r"[A-Z]", word) and prob < self.min_prob_capital:
+      return False
+    if word.find(" ") >= 0 and prob < self.min_prob_multi:
+      return False
+    if prob < self.min_prob_normal:
       return False
     if prob >= self.sufficient_prob:
       return True
@@ -522,7 +531,7 @@ class GenerateUnionEPUBBatch:
     if not items: return
     items = self.MergeShownItems(items, sub_items)
     self.num_words += 1
-    P('<idx:entry name="en" scriptable="yes" spell="yes">')
+    P('<idx:entry name="en">')
     P('<div class="head">')
     P('<span class="word">')
     P('<idx:orth>{}', word)
@@ -729,9 +738,11 @@ def main():
   preferable_labels = set((tkrzw_dict.GetCommandFlag(
     args, "--preferable", 1) or "xa,wn,ox,we").split(","))
   trustable_labels = set((tkrzw_dict.GetCommandFlag(
-    args, "--trustable", 1) or "xa,ox,wj").split(","))
+    args, "--trustable", 1) or "xa,ox").split(","))
   title = tkrzw_dict.GetCommandFlag(args, "--title", 1) or "Union English-Japanese Dictionary"
-  min_prob = float(tkrzw_dict.GetCommandFlag(args, "--min_prob", 1) or 0)
+  min_prob_normal = float(tkrzw_dict.GetCommandFlag(args, "--min_prob_normal", 1) or 0.0000001)
+  min_prob_capital = float(tkrzw_dict.GetCommandFlag(args, "--min_prob_multi", 1) or 0.000001)
+  min_prob_multi = float(tkrzw_dict.GetCommandFlag(args, "--min_prob_capital", 1) or 0.000001)
   sufficient_prob = float(tkrzw_dict.GetCommandFlag(args, "--sufficient_prob", 1) or 0.00001)
   if not input_path:
     raise RuntimeError("an input path is required")
@@ -740,7 +751,7 @@ def main():
   GenerateUnionEPUBBatch(
     input_path, output_path, keyword_path,
     vetted_labels, preferable_labels, trustable_labels,
-    title, min_prob, sufficient_prob).Run()
+    title, min_prob_normal, min_prob_capital, min_prob_multi, sufficient_prob).Run()
 
 
 if __name__=="__main__":
