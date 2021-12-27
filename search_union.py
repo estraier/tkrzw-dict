@@ -1583,6 +1583,11 @@ def PrintCGIFooter(file=sys.stdout):
 def main_cgi():
   script_name = os.environ.get("SCRIPT_NAME", sys.argv[0])
   request_method = os.environ.get("REQUEST_METHOD", sys.argv[0])
+  path_info = regex.sub(r"[^a-z]", "", os.environ.get("PATH_INFO", ""))[:20]
+  if path_info:
+    data_prefix = path_info + "-" + CGI_DATA_PREFIX
+  else:
+    data_prefix = CGI_DATA_PREFIX
   params = {}
   form = cgi.FieldStorage()
   for key in form.keys():
@@ -1594,7 +1599,7 @@ def main_cgi():
   query = (params.get("q") or "").strip()
   extra_mode = (params.get("x") or "").strip()
   if extra_mode == "json":
-    ProcessJSON(query)
+    ProcessJSON(query, path_info)
     return
   error_notes = []
   is_http_query = False
@@ -1697,7 +1702,7 @@ def main_cgi():
       P('<p>{}</p>', note)
     P('</div>')
   elif query:
-    searcher = tkrzw_union_searcher.UnionSearcher(CGI_DATA_PREFIX)
+    searcher = tkrzw_union_searcher.UnionSearcher(data_prefix)
     is_reverse = False
     if index_mode == "auto":
       if tkrzw_dict.PredictLanguage(query) != "en":
@@ -1966,12 +1971,12 @@ def main_cgi():
   PrintCGIFooter()
 
 
-def ProcessJSON(query):
+def ProcessJSON(query, data_prefix):
   print("""Content-Type: application/json
 Access-Control-Allow-Origin: *
 
 """, end="")
-  searcher = tkrzw_union_searcher.UnionSearcher(CGI_DATA_PREFIX)
+  searcher = tkrzw_union_searcher.UnionSearcher(data_prefix)
   out_records = []
   query = tkrzw_dict.NormalizeWord(query)
   if not query:
