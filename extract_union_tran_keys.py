@@ -7,7 +7,7 @@
 #   extract_union_tran_keys.py [--input str] [--output str] [--rev_prob str] [--quiet]
 #
 # Example:
-#   ./extract_union_tran_keys.py --input wordnet-body.tkh --output union-keys.txt \
+#   ./extract_union_tran_keys.py --input union-tran-index.tkh --output union-tran-keys.txt \
 #     --rev_prob jawiki-word-prob.tkh
 #
 # Copyright 2020 Google LLC
@@ -20,7 +20,6 @@
 # and limitations under the License.
 #--------------------------------------------------------------------------------------------------
 
-import json
 import logging
 import math
 import os
