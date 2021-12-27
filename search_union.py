@@ -1586,6 +1586,7 @@ def main_cgi():
   path_info = regex.sub(r"[^a-z]", "", os.environ.get("PATH_INFO", ""))[:20]
   if path_info:
     data_prefix = path_info + "-" + CGI_DATA_PREFIX
+    script_name = script_name + "/" + path_info
   else:
     data_prefix = CGI_DATA_PREFIX
   params = {}
