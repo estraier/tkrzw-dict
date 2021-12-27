@@ -179,6 +179,11 @@ OVERVIEW_TEXT = """
 <p>This dictionary is made from data sources published as open-source data.  It uses <a href="https://wordnet.princeton.edu/">WordNet</a>, <a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">Japanese WordNet</a>, <a href="https://ja.wiktionary.org/">Japanese Wiktionary</a>, <a href="https://en.wiktionary.org/">English Wiktionary</a>, and <a href="http://www.edrdg.org/jmdict/edict.html">EDict2</a>.  See <a href="https://dbmx.net/dict/">the homepage</a> for details to organize the data.  Using and/or redistributing this data should be done according to the license of each data source.</p>
 <p>In each word entry, the title word is shown in bold.  Some words have a pronounciation expression in the IPA format, bracketed as "/.../".  A list of translation can come next.  Then, definitions of the word come in English or Japanese.  Each definition is led by a part of speech label.  Additional information such as inflections and varints can come next.</p>
 <p>The number of words is {}.  The number of words with translations is {}.  The number of definition items is {}.</p>
+<h2>Copyright</h2>
+<div>WordNet Copyright© 2021 The Trustees of Princeton University.</div>
+<div>Japanese Wordnet Copyright© 2009-2011 NICT, 2012-2015 Francis Bond and 2016-2017 Francis Bond, Takayuki Kuribayashi.</div>
+<div>Wiktionary data is copyrighted by each contributers and licensed under CC BY-SA and GFDL.</div>
+<div>EDict2 Copyright© 2017 The Electronic Dictionary Research and Development Group.</div>
 </article>
 </body>
 </html>
@@ -186,11 +191,12 @@ OVERVIEW_TEXT = """
 MAIN_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="ja" xmlns:mbp="https://kindlegen.s3.amazonaws.com/AmazonKindlePublishingGuidelines.pdf" xmlns:mmc="https://kindlegen.s3.amazonaws.com/AmazonKindlePublishingGuidelines.pdf" xmlns:idx="https://kindlegen.s3.amazonaws.com/AmazonKindlePublishingGuidelines.pdf">
 <head>
-<title>{}</title>
+<title>{}: {}</title>
 <link rel="stylesheet" href="style.css"/>
 </head>
 <body epub:type="dictionary">
 <mbp:frameset>
+<h2>Words: {}</h2>
 """
 MAIN_FOOTER_TEXT = """</mbp:frameset>
 </body>
@@ -303,7 +309,7 @@ class GenerateUnionEPUBBatch:
     key_prefixes = set()
     for key in keys:
       key_prefixes.add(GetKeyPrefix(key))
-    key_prefixes = sorted(list(key_prefixes))
+    key_prefixes = sorted(list(key_prefixes), key=lambda x: 1000 if x == "_" else ord(x))
     self.MakeMain(input_dbm, keys, words)
     self.MakeNavigation(key_prefixes)
     self.MakeOverview()
@@ -431,7 +437,9 @@ class GenerateUnionEPUBBatch:
         logger.info("Creating: {}".format(out_path))
         out_file = open(out_path, "w")
         out_files[key_prefix] = out_file
-        print(MAIN_HEADER_TEXT.format(esc(self.title)), file=out_file, end="")
+        page_title = "etc." if key_prefix == "_" else key_prefix.upper()
+        print(MAIN_HEADER_TEXT.format(esc(self.title), esc(page_title), esc(page_title)),
+              file=out_file, end="")
       serialized = input_dbm.GetStr(key)
       if not serialized: continue
       entries = json.loads(serialized)
@@ -649,7 +657,8 @@ class GenerateUnionEPUBBatch:
             file=out_file, end="")
       for key_prefix in key_prefixes:
         main_path = "main-{}.xhtml".format(key_prefix)
-        print('<li><a href="{}">Word: {}</a></li>'.format(main_path, key_prefix),
+        page_title = "etc." if key_prefix == "_" else key_prefix.upper()
+        print('<li><a href="{}">Words: {}</a></li>'.format(esc(main_path), esc(page_title)),
               file=out_file)
       print(NAVIGATION_FOOTER_TEXT, file=out_file, end="")
 

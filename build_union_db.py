@@ -519,6 +519,10 @@ class BuildUnionDBBatch:
                   align_pow=0, num_buckets=num_buckets)
     num_records = 0
     for key, merged_entry in merged_entries:
+      for word_entry in merged_entry:
+        for attr_name in list(word_entry.keys()):
+          if attr_name.startswith("_"):
+            del word_entry[attr_name]
       serialized = json.dumps(merged_entry, separators=(",", ":"), ensure_ascii=False)
       word_dbm.Set(key, serialized)
       num_records += 1
@@ -583,7 +587,8 @@ class BuildUnionDBBatch:
     word_trans = collections.defaultdict(set)
     entry_tran_texts = collections.defaultdict(list)
     num_words = 0
-    poses = set()
+    poses = collections.defaultdict(set)
+    synonyms = collections.defaultdict(set)
     for label, word_dict in word_dicts:
       dict_entries = word_dict.get(key)
       if not dict_entries: continue
@@ -597,12 +602,18 @@ class BuildUnionDBBatch:
         if texts:
           text_score = len(texts) * 1.0
           for pos, text in texts:
-            poses.add(pos)
+            poses[word].add(pos)
             trans = self.ExtractTextLabelTrans(text)
             if trans:
               text_score += 0.5
               word_trans[word].update(trans)
           word_shares[word] += math.log2(1 + text_score)
+        expr = entry.get("synonym")
+        if expr:
+          for synonym in regex.split(r"[,;]", expr):
+            synonym = synonym.strip()
+            if regex.search(r"\p{Latin}", synonym) and synonym.lower() != word.lower():
+              synonyms[word].add(synonym)
       dict_entries = word_dict.get(key + "\ttranslation")
       if dict_entries:
         for entry in dict_entries:
@@ -673,7 +684,8 @@ class BuildUnionDBBatch:
       effective_labels = set()
       surfaces = set([word.lower()])
       is_keyword = word in aux_trans or word in aoa_words or word in keywords
-      for pos in poses:
+      word_poses = poses[word]
+      for pos in word_poses:
         for rule_pos, suffixes in (
             ("noun", noun_suffixes),
             ("verb", verb_suffixes),
@@ -691,7 +703,7 @@ class BuildUnionDBBatch:
                     if pos_stem in aux_trans or pos_stem in aoa_words or pos_stem in keywords:
                       is_keyword = True
                       break
-      if not is_keyword and "verb" in poses and regex.fullmatch(r"[a-z ]+", word):
+      if not is_keyword and "verb" in word_poses and regex.fullmatch(r"[a-z ]+", word):
         tokens = self.tokenizer.Tokenize("en", word, False, False)
         if len(tokens) >= 2 and tokens[0] in keywords:
           particle_suffix = True
@@ -820,6 +832,9 @@ class BuildUnionDBBatch:
       if scored_alternatives:
         scored_alternatives = sorted(scored_alternatives, key=lambda x: x[1], reverse=True)
         word_entry["alternative"] = [x[0] for x in scored_alternatives]
+      word_synonyms = synonyms[word]
+      if word_synonyms:
+        word_entry["_synonym"] = list(word_synonyms)
       merged_entry.append(word_entry)
     return merged_entry
 
@@ -1234,6 +1249,10 @@ class BuildUnionDBBatch:
       values = scores.get(rel_word) or []
       values.append((weight, label))
       scores[rel_word] = values
+    synonyms = word_entry.get("_synonym")
+    if synonyms:
+      for synonym in synonyms:
+        Vote(synonym, "meta", 0.1)
     parents = set()
     children = set()
     for label, entry in entries:
@@ -1567,7 +1586,7 @@ class BuildUnionDBBatch:
 
   def PropagateTranslations(self, entry, merged_dict, tran_prob_dbm, aux_last_trans):
     old_trans = entry.get("translation") or []
-    if len(old_trans) >= 3: return
+    if len(old_trans) >= 8: return
     word = entry["word"]
     is_capital = bool(regex.search(r"\p{Lu}", word))
     if len(word) <= 2: return
@@ -1670,6 +1689,21 @@ class BuildUnionDBBatch:
         if ("adverb" in poses and
             word.endswith("ly")):
           top_words.append((parent, "adjective", "adverb", True))
+    ent_synonyms = entry.get("_synonym")
+    if ent_synonyms:
+      for synonym in ent_synonyms:
+        norm_synonym = tkrzw_dict.NormalizeWord(synonym)
+        syn_entries = merged_dict.get(norm_synonym)
+        if syn_entries:
+          syn_pos = ""
+          for syn_entry in syn_entries:
+            if syn_entry["word"] != synonym: continue
+            for syn_item in syn_entry["item"]:
+              if syn_item["pos"] in poses:
+                syn_pos = syn_item["pos"]
+                break
+          if syn_pos:
+            synonyms.append((synonym, syn_pos))
     for synonym, pos in synonyms:
       top_words.append((synonym, pos, "", False))
     trans = []
@@ -1773,13 +1807,13 @@ class BuildUnionDBBatch:
       final_trans.append(tran)
     num_rank = 0
     for tran, score, prob_hit in scored_trans:
-      if len(final_trans) >= 3: break
+      if len(final_trans) >= 8: break
       norm_tran = tkrzw_dict.NormalizeWord(tran)
       if norm_tran in uniq_trans: continue
       num_rank += 1
       if not prob_hit:
         if num_rank > 3: continue
-        if num_rank > 2 and len(final_trans) >= 2: continue
+        if num_rank > 2 and len(final_trans) >= 3: continue
       uniq_trans.add(norm_tran)
       final_trans.append(tran)
     if final_trans:
