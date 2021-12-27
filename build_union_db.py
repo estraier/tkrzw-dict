@@ -249,6 +249,7 @@ class BuildUnionDBBatch:
           tran = regex.sub(r"[\p{Z}\p{C}]+", " ", tran).strip()
           norm_tran = tkrzw_dict.NormalizeWord(tran)
           if not tran or not norm_tran: continue
+          if regex.search(r"\p{Latin}.*の.*(形|分詞|級)", tran): continue
           if norm_tran in uniq_trans: continue
           uniq_trans.add(norm_tran)
           values.append(tran)
