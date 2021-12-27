@@ -738,7 +738,7 @@ def main():
   preferable_labels = set((tkrzw_dict.GetCommandFlag(
     args, "--preferable", 1) or "xa,wn,ox,we").split(","))
   trustable_labels = set((tkrzw_dict.GetCommandFlag(
-    args, "--trustable", 1) or "xa,ox").split(","))
+    args, "--trustable", 1) or "xa").split(","))
   title = tkrzw_dict.GetCommandFlag(args, "--title", 1) or "Union English-Japanese Dictionary"
   min_prob_normal = float(tkrzw_dict.GetCommandFlag(args, "--min_prob_normal", 1) or 0.0000001)
   min_prob_capital = float(tkrzw_dict.GetCommandFlag(args, "--min_prob_multi", 1) or 0.000001)
