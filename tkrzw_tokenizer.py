@@ -62,6 +62,7 @@ class Tokenizer:
     self.lemmatizer_wordnet = None
     self.regex_ja_sections = regex.compile(r"([\p{Hiragana}\p{Katakana}ー\p{Han}]+)")
     self.tagger_mecab = None
+    self.tagger_mecab_yomi = None
     pass
 
   def Tokenize(self, language, sentence, lowering, stemming):
@@ -389,3 +390,12 @@ class Tokenizer:
     if len(parsed) == len(tokens):
       return (word, "", "")
     return ("".join([x[0] for x in parsed]), prefix, suffix)
+
+  def InitMecabYomi(self):
+    mecab = importlib.import_module("MeCab")
+    if not self.tagger_mecab_yomi:
+      self.tagger_mecab_yomi = mecab.Tagger(r"-Oyomi")
+
+  def GetJaYomi(self, text):
+    self.InitMecabYomi()
+    return self.tagger_mecab_yomi.parse(text).strip()
