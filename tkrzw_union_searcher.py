@@ -118,11 +118,13 @@ class UnionSearcher:
     uniq_words = set()
     for en_word in en_words:
       if capacity < 1: break
-      entries = self.SearchBody(en_word)
+      norm_en_word = tkrzw_dict.NormalizeWord(en_word)
+      entries = self.SearchBody(norm_en_word)
       if entries:
         for entry in entries:
           if capacity < 1: break
           word = entry["word"]
+          if word != en_word: continue
           if word in uniq_words: continue
           uniq_words.add(word)
           match = False

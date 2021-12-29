@@ -2172,7 +2172,7 @@ def main():
   surfeit_labels = set((tkrzw_dict.GetCommandFlag(args, "--surfeit", 1) or "we").split(","))
   tran_list_labels = set((tkrzw_dict.GetCommandFlag(
     args, "--tran_list", 1) or "xa,wn,we").split(","))
-  supplement_labels = set((tkrzw_dict.GetCommandFlag(args, "--gross", 1) or "xs").split(","))
+  supplement_labels = set((tkrzw_dict.GetCommandFlag(args, "--supplement", 1) or "xs").split(","))
   phrase_prob_path = tkrzw_dict.GetCommandFlag(args, "--phrase_prob", 1) or ""
   tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
   tran_aux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or "").split(",")

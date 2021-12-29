@@ -35,9 +35,10 @@ logger = tkrzw_dict.GetLogger()
 
 
 class IndexTranslationsBatch:
-  def __init__(self, input_path, output_path, tran_prob_path):
+  def __init__(self, input_path, output_path, supplement_labels, tran_prob_path):
     self.input_path = input_path
     self.output_path = output_path
+    self.supplement_labels = supplement_labels
     self.tran_prob_path = tran_prob_path
     self.tokenizer = tkrzw_tokenizer.Tokenizer()
 
@@ -53,12 +54,14 @@ class IndexTranslationsBatch:
     it.First()
     num_entries = 0
     num_translations = 0
+    tran_dict = set()
     while True:
       record = it.GetStr()
       if not record: break
       key, serialized = record
       entry = json.loads(serialized)
       for word_entry in entry:
+        word = word_entry["word"]
         prob = max(float(word_entry.get("probability") or "0"), 0.0000001)
         aoa = min(float(word_entry.get("aoa") or "20"), 20.0)
         score = prob * ((30 - aoa) / 10)
@@ -91,9 +94,16 @@ class IndexTranslationsBatch:
           norm_tran = tkrzw_dict.NormalizeWord(tran)
           if norm_tran in uniq_trans: continue
           uniq_trans.add(norm_tran)
-          pair = "{}\t{:.8f}".format(key, score)
+          pair = "{}\t{:.8f}".format(word, score)
           score *= 0.98
           mem_index.Append(norm_tran, pair, "\t").OrDie()
+        for item in word_entry["item"]:
+          if item["label"] in self.supplement_labels:
+            for tran in item["text"].split(","):
+              tran = tran.strip()
+              if tran:
+                tran_dict_key = word + "\t" + tran
+                tran_dict.add(tran_dict_key)
         num_translations += len(uniq_trans)
       num_entries += 1
       if num_entries % 10000 == 0:
@@ -129,7 +139,11 @@ class IndexTranslationsBatch:
         uniq_words.add(word)
         if tran_prob_dbm:
           prob = self.GetTranProb(tran_prob_dbm, word, key)
-          score = (score * max(prob, 0.000001)) ** 0.5
+          tran_dict_key = word + "\t" + key
+          prob = max(prob, 0.000001)
+          if tran_dict_key in tran_dict:
+            prob += 0.1
+          score = (score * prob) ** 0.5
         scored_trans.append((word, score))
       scored_trans = sorted(scored_trans, key=lambda x: x[1], reverse=True)
       value = "\t".join([x[0] for x in scored_trans])
@@ -168,12 +182,13 @@ def main():
   args = sys.argv[1:]
   input_path = tkrzw_dict.GetCommandFlag(args, "--input", 1) or "union-body.tkh"
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-tran-index.tkh"
+  supplement_labels = set((tkrzw_dict.GetCommandFlag(args, "--supplement", 1) or "xs").split(","))
   tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
   if tkrzw_dict.GetCommandFlag(args, "--quiet", 0):
     logger.setLevel(logging.ERROR)
   if args:
     raise RuntimeError("unknown arguments: {}".format(str(args)))
-  IndexTranslationsBatch(input_path, output_path, tran_prob_path).Run()
+  IndexTranslationsBatch(input_path, output_path, supplement_labels, tran_prob_path).Run()
 
 
 if __name__=="__main__":
