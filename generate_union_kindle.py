@@ -703,7 +703,7 @@ class GenerateUnionEPUBBatch:
     return tokens
 
   def MergeShownItems(self, items, sub_items):
-    min_shown_items = 4
+    min_shown_items = 5
     mid_shown_items = 6
     max_shown_items = 10
     max_dup_score = 0.3
