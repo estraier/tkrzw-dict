@@ -81,7 +81,7 @@ class ExtractKeysBatch:
         if alternatives:
           for alternative in alternatives:
             alternative = tkrzw_dict.NormalizeWord(alternative)
-            if not regex.search(r"\p{Latin}", infl_value): continue
+            if not regex.search(r"\p{Latin}", alternative): continue
             if alternative == key: continue
             index[alternative].append((word, score * 0.1))
       num_entries += 1
