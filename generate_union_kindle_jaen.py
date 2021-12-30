@@ -4,10 +4,10 @@
 # Script to generate files to make a JaEn Kindle dictionary from the union dictionary
 #
 # Usage:
-#   generate_union_kindle.py [--input str] [--output str] [--quiet]
+#   generate_union_kindle_jaen.py [--input str] [--output str] [--tran_prob str] [--quiet]
 #
 # Example:
-#   ./generate_union_kindle.py --input union-body.tkh --output union-dict-epub
+#   ./generate_union_kindle_jaen.py --input union-body.tkh --output union-dict-epub
 #
 # Copyright 2020 Google LLC
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
