@@ -288,3 +288,35 @@ def ComputeNGramPresision(candidate, references, ngram):
       total_match_count += match_count
     sum_precision += total_match_count / total_count
   return sum_precision / n
+
+
+_hiragana = "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめも"
+_hiragana += "やゆよらりるれろわをんぁぃぅぇぉゃゅょっ"
+_hiragana += "がぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽゔ"
+_katakana = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモ"
+_katakana += "ヤユヨラリルレロワヲンァィゥェォャュョッ"
+_katakana += "ガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポヴ"
+_dict_h2k = None
+_dict_k2h = None
+def ConvertHiraganaToKatakana(text):
+  global _dict_h2k
+  if not _dict_h2k:
+    _dict_h2k = {}
+  for h, k in zip(_hiragana, _katakana):
+    _dict_h2k[h] = k
+  result = ""
+  for h in text:
+    result += _dict_h2k.get(h) or h
+  return result
+
+
+def ConvertKatakanaToHiragana(text):
+  global _dict_k2h
+  if not _dict_k2h:
+    _dict_k2h = {}
+  for k, h in zip(_katakana, _hiragana):
+    _dict_k2h[k] = h
+  result = ""
+  for k in text:
+    result += _dict_k2h.get(k) or k
+  return result

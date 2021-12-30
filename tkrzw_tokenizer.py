@@ -398,4 +398,4 @@ class Tokenizer:
 
   def GetJaYomi(self, text):
     self.InitMecabYomi()
-    return self.tagger_mecab_yomi.parse(text).strip()
+    return tkrzw_dict.ConvertKatakanaToHiragana(self.tagger_mecab_yomi.parse(text)).strip()
