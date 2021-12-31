@@ -144,11 +144,13 @@ def esc(expr):
 
 
 class GenerateUnionEPUBBatch:
-  def __init__(self, input_path, output_path, supplement_labels, tran_prob_path, title):
+  def __init__(self, input_path, output_path, supplement_labels,
+               tran_prob_path, yomi_path, title):
     self.input_path = input_path
     self.output_path = output_path
     self.supplement_labels = supplement_labels
     self.tran_prob_path = tran_prob_path
+    self.yomi_path = yomi_path
     self.title = title
     self.tokenizer = tkrzw_tokenizer.Tokenizer()
     self.num_words = 0
@@ -197,6 +199,9 @@ class GenerateUnionEPUBBatch:
       num_entries += 1
       if num_entries % 10000 == 0:
         logger.info("Reading entries: num_enties={}".format(num_entries))
+
+        break
+        
       entry = json.loads(serialized)
       for word_entry in entry:
         self.ReadEntry(word_dict, word_entry, tran_prob_dbm)
@@ -286,9 +291,19 @@ class GenerateUnionEPUBBatch:
       rank_score *= 0.8
 
   def MakeYomiDict(self, word_dict):
+    yomi_map = {}
+    if self.yomi_path:
+      with open(self.yomi_path) as input_file:
+        for line in input_file:
+          fields = line.strip().split("\t")
+          if len(fields) != 2: continue
+          kanji, yomi = fields
+          yomi_map[kanji] = yomi
     yomi_dict = collections.defaultdict(list)
     for word, items in word_dict.items():
-      yomi = self.tokenizer.GetJaYomi(word)
+      yomi = yomi_map.get(word)
+      if not yomi:
+        yomi = self.tokenizer.GetJaYomi(word)
       if not yomi: continue
       first = yomi[0]
       if regex.search(r"^[\p{Hiragana}]", first):
@@ -433,12 +448,14 @@ def main():
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-dict-jaen-kindle"
   supplement_labels = set((tkrzw_dict.GetCommandFlag(args, "--supplement", 1) or "xs").split(","))
   tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
+  yomi_path = tkrzw_dict.GetCommandFlag(args, "--yomi", 1) or ""
   title = tkrzw_dict.GetCommandFlag(args, "--title", 1) or "Union Japanese-English Dictionary"
   if not input_path:
     raise RuntimeError("an input path is required")
   if not output_path:
     raise RuntimeError("an output path is required")
-  GenerateUnionEPUBBatch(input_path, output_path, supplement_labels, tran_prob_path, title).Run()
+  GenerateUnionEPUBBatch(input_path, output_path, supplement_labels,
+                         tran_prob_path, yomi_path, title).Run()
 
 
 if __name__=="__main__":
