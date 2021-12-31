@@ -189,19 +189,9 @@ class GenerateUnionEPUBBatch:
       record = it.GetStr()
       if not record: break
       key, serialized = record
-
-      #if key not in (["step on it", "hotfoot", "trundle", "hie", "skitter", "rush along",
-      #                "run for", "belt along", "running", "run", "cannonball along",
-      #                "bucket along", "flit", "idiot", "moron", "retard", "stupid", "dolt"]):
-      #  it.Next()
-      #  continue
-
       num_entries += 1
       if num_entries % 10000 == 0:
         logger.info("Reading entries: num_enties={}".format(num_entries))
-
-        break
-        
       entry = json.loads(serialized)
       for word_entry in entry:
         self.ReadEntry(word_dict, word_entry, tran_prob_dbm)
