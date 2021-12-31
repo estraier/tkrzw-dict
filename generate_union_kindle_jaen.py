@@ -77,7 +77,7 @@ PACKAGE_FOOTER_TEXT = """</spine>
 STYLE_TEXT = """html,body { margin: 0; padding: 0; background: #fff; color: #000; font-size: 12pt; }
 span.word { font-weight: bold; }
 span.pron { font-size: 90%; color: #444; }
-span.pos,span.attr { font-size: 80%; color: #555; }
+span.gross { font-size: 90%; color: #444; }
 """
 NAVIGATION_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
@@ -141,8 +141,8 @@ def esc(expr):
   if expr is None:
     return ""
   return html.escape(str(expr), True)
-      
-  
+
+
 class GenerateUnionEPUBBatch:
   def __init__(self, input_path, output_path, supplement_labels, tran_prob_path, title):
     self.input_path = input_path
@@ -173,7 +173,7 @@ class GenerateUnionEPUBBatch:
     self.MakeMain(yomi_dict)
     self.MakeNavigation(yomi_dict)
     self.MakeOverview()
-    self.MakeStyle()    
+    self.MakeStyle()
     self.MakePackage(yomi_dict)
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
@@ -190,10 +190,10 @@ class GenerateUnionEPUBBatch:
 
       #if key not in (["step on it", "hotfoot", "trundle", "hie", "skitter", "rush along",
       #                "run for", "belt along", "running", "run", "cannonball along",
-      #                "bucket along", "flit"]):
+      #                "bucket along", "flit", "idiot", "moron", "retard", "stupid", "dolt"]):
       #  it.Next()
       #  continue
-      
+
       num_entries += 1
       if num_entries % 10000 == 0:
         logger.info("Reading entries: num_enties={}".format(num_entries))
@@ -214,7 +214,6 @@ class GenerateUnionEPUBBatch:
       label = item["label"]
       text = item["text"]
       if label in self.supplement_labels:
-        
         for tran in text.split(","):
           tran = tran.strip()
           if tran:
@@ -233,9 +232,21 @@ class GenerateUnionEPUBBatch:
     rank_score = 0.5
     for i, tran in enumerate(trans):
       tran_prob = tran_probs.get(tran) or 0
+      tran_stem, tran_prefix, tran_suffix = self.tokenizer.StripJaParticles(tran)
+      if tran_prefix:
+        new_tran = tran_stem + tran_suffix
+        new_prob = tran_probs.get(new_tran) or 0
+        if (tran_prefix == "を" or regex.search(r"^[\p{Han}\p{Katakana}]", tran_stem) or
+            (new_prob >= 0.01 and new_prob >= tran_prob)):
+          tran = new_tran
+          tran_prob = max(tran_prob, new_prob)
       if i == 0:
         pass
-      elif i <= 1 and tran_prob >= 0.034:
+      elif i <= 1 and tran_prob >= 0.03:
+        pass
+      elif i <= 2 and tran_prob >= 0.1:
+        pass
+      elif tran_prob >= 0.2:
         pass
       elif tran in dict_trans:
         pass
@@ -271,8 +282,6 @@ class GenerateUnionEPUBBatch:
                 tran_match = True
         if synset_id and tran_match:
           synsets.append((synset_id, gross, synonyms))
-
-      
       word_dict[tran].append((word, score, synsets))
       rank_score *= 0.8
 
@@ -315,15 +324,35 @@ class GenerateUnionEPUBBatch:
       print(args[0].format(*esc_args), end=end, file=out_file)
     self.num_words += 1
     yomi, word, trans = entry
-
+    variants = {}
+    variants[yomi] = True
+    stem, prefix, suffix = self.tokenizer.StripJaParticles(word)
+    if stem != word:
+      if prefix == "を" or regex.search(r"[\p{Han}\p{Katakana}]", stem):
+        prefix = ""
+      new_word = prefix + stem
+      variants[new_word] = True
+    for suffix in ("する", "した", "される", "された"):
+      if word.endswith(suffix):
+        stem = word[:-len(suffix)]
+        if self.tokenizer.IsJaWordSahenNoun(stem):
+          variants[stem] = True
+    for suffix in ("な", "に", "と"):
+      if word.endswith(suffix):
+        stem = word[:-len(suffix)]
+        if self.tokenizer.IsJaWordAdjvNoun(stem):
+          variants[stem] = True
+    if word in variants:
+      del variants[word]
     trans = sorted(trans, key=lambda x: x[1], reverse=True)
     P('<idx:entry name="en">')
     P('<div class="head">')
     P('<span class="word">')
     P('<idx:orth>{}', word)
-    if yomi != word:
+    if variants:
       P('<idx:infl>')
-      P('<idx:iform value="{}"/>', yomi)
+      for variant, _ in variants.items():
+        P('<idx:iform value="{}"/>', variant)
       P('</idx:infl>')
     P('</idx:orth>')
     P('</span>')
@@ -342,8 +371,9 @@ class GenerateUnionEPUBBatch:
         if syn_id in uniq_synsets: continue
         uniq_synsets.add(syn_id)
         hit_syn = True
-        P('<div>{}</div>', ", ".join([tran] + syn_words))
-        P('<div>・{}</div>', syn_gross)
+        P('<div>{}', ", ".join([tran] + syn_words), end="")
+        P(' <span class="gross">-- {}</span>', syn_gross, end="")
+        P('</div>')
         for synonym in syn_words:
           norm_syn = tkrzw_dict.NormalizeWord(synonym)
           uniq_trans.add(norm_syn)
@@ -351,7 +381,7 @@ class GenerateUnionEPUBBatch:
         P('<div>{}</div>', tran)
     P('</idx:entry>')
     P('<br/>')
-    
+
   def MakeNavigation(self, yomi_dict):
     out_path = os.path.join(self.output_path, "nav.xhtml")
     logger.info("Creating: {}".format(out_path))
@@ -365,14 +395,14 @@ class GenerateUnionEPUBBatch:
         print('<li><a href="{}">Words: {}</a></li>'.format(esc(page_path), esc(first)),
               file=out_file)
       print(NAVIGATION_FOOTER_TEXT, file=out_file, end="")
-    
+
   def MakeOverview(self):
     out_path = os.path.join(self.output_path, "overview.xhtml")
     logger.info("Creating: {}".format(out_path))
     with open(out_path, "w") as out_file:
       print(OVERVIEW_TEXT.format(esc(self.title), self.num_words, self.num_items),
             file=out_file, end="")
-    
+
   def MakeStyle(self):
     out_path = os.path.join(self.output_path, "style.css")
     logger.info("Creating: {}".format(out_path))
