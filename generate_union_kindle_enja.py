@@ -277,7 +277,7 @@ def SanitizeText(text):
 
 class GenerateUnionEPUBBatch:
   def __init__(self, input_path, output_path, keyword_path,
-               vetted_labels, preferable_labels, trustable_labels, title,
+               vetted_labels, preferable_labels, trustable_labels, supplement_labels, title,
                min_prob_normal, min_prob_capital, min_prob_multi, sufficient_prob):
     self.input_path = input_path
     self.output_path = output_path
@@ -285,6 +285,7 @@ class GenerateUnionEPUBBatch:
     self.vetted_labels = vetted_labels
     self.preferable_labels = preferable_labels
     self.trustable_labels = trustable_labels
+    self.supplement_labels = supplement_labels
     self.title = title
     self.min_prob_normal = min_prob_normal
     self.min_prob_capital = min_prob_capital
@@ -467,8 +468,14 @@ class GenerateUnionEPUBBatch:
     translations = entry.get("translation")
     is_major_word = prob >= 0.00001 and not regex.search("[A-Z]", word)
     poses = set()
-    for item in entry["item"][:8]:
-      poses.add(item["pos"])
+    sub_poses = set()
+    for item in entry["item"][:10]:
+      if item["label"] in self.supplement_labels:
+        sub_poses.add(item["pos"])
+      else:
+        poses.add(item["pos"])
+    if not poses:
+      poses = sub_poses
     infl_groups = collections.defaultdict(list)
     if not regex.search(r"[A-Z].*[A-Z]", word):
       for attr_list in INFLECTIONS:
@@ -623,6 +630,7 @@ class GenerateUnionEPUBBatch:
     P('</div>')
 
   def MakeMainEntryPhraseItem(self, P, phrase):
+    if phrase.get("i") != "1": return
     P('<div class="item">')
     P('<span class="attr">[句]</span>')
     P('<span class="text">{} : {}</span>', phrase["w"], ", ".join(phrase["x"]))
@@ -748,6 +756,7 @@ def main():
     args, "--preferable", 1) or "xa,wn,ox,we").split(","))
   trustable_labels = set((tkrzw_dict.GetCommandFlag(
     args, "--trustable", 1) or "xa").split(","))
+  supplement_labels = set((tkrzw_dict.GetCommandFlag(args, "--supplement", 1) or "xs").split(","))
   title = tkrzw_dict.GetCommandFlag(args, "--title", 1) or "Union English-Japanese Dictionary"
   min_prob_normal = float(tkrzw_dict.GetCommandFlag(args, "--min_prob_normal", 1) or 0.0000001)
   min_prob_capital = float(tkrzw_dict.GetCommandFlag(args, "--min_prob_multi", 1) or 0.000001)
@@ -759,7 +768,7 @@ def main():
     raise RuntimeError("an output path is required")
   GenerateUnionEPUBBatch(
     input_path, output_path, keyword_path,
-    vetted_labels, preferable_labels, trustable_labels,
+    vetted_labels, preferable_labels, trustable_labels, supplement_labels,
     title, min_prob_normal, min_prob_capital, min_prob_multi, sufficient_prob).Run()
 
 
