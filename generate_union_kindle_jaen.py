@@ -145,13 +145,13 @@ def esc(expr):
 
 class GenerateUnionEPUBBatch:
   def __init__(self, input_path, output_path, supplement_labels,
-               tran_prob_path, yomi_path, tran_aux_path, title):
+               tran_prob_path, yomi_path, tran_aux_paths, title):
     self.input_path = input_path
     self.output_path = output_path
     self.supplement_labels = supplement_labels
     self.tran_prob_path = tran_prob_path
     self.yomi_path = yomi_path
-    self.tran_aux_path = tran_aux_path
+    self.tran_aux_paths = tran_aux_paths
     self.title = title
     self.tokenizer = tkrzw_tokenizer.Tokenizer()
     self.num_words = 0
@@ -170,6 +170,7 @@ class GenerateUnionEPUBBatch:
       tran_prob_dbm.Open(self.tran_prob_path, False, dbm="HashDBM").OrDie()
     aux_trans = self.ReadAuxTrans()
     word_dict = self.ReadEntries(input_dbm, tran_prob_dbm, aux_trans)
+    self.AddAuxTrans(word_dict, tran_prob_dbm, aux_trans)
     if tran_prob_dbm:
       tran_prob_dbm.Close().OrDie()
     input_dbm.Close().OrDie()
@@ -183,13 +184,14 @@ class GenerateUnionEPUBBatch:
 
   def ReadAuxTrans(self):
     aux_trans = collections.defaultdict(list)
-    if not self.tran_aux_path: return aux_trans
-    with open(self.tran_aux_path) as input_file:
-      for line in input_file:
-        fields = line.strip().split("\t")
-        if len(fields) <= 2: continue
-        word, trans = fields[0], fields[1:]
-        aux_trans[word].extend(trans)
+    for path in self.tran_aux_paths:
+      if not path: continue
+      with open(path) as input_file:
+        for line in input_file:
+          fields = line.strip().split("\t")
+          if len(fields) <= 2: continue
+          word, trans = fields[0], fields[1:]
+          aux_trans[word].extend(trans)
     return aux_trans
 
   def ReadEntries(self, input_dbm, tran_prob_dbm, aux_trans):
@@ -219,8 +221,8 @@ class GenerateUnionEPUBBatch:
     if not trans: return
     word_aux_trans = aux_trans.get(word)
     if word_aux_trans:
-      trans.extend(word_aux_trans)
       word_aux_trans = set(word_aux_trans)
+      trans.extend(word_aux_trans)
     dict_trans = set()
     for item in entry["item"]:
       label = item["label"]
@@ -300,6 +302,33 @@ class GenerateUnionEPUBBatch:
           synsets.append((synset_id, gross, synonyms))
       word_dict[tran].append((word, score, synsets))
       rank_score *= 0.8
+
+  def AddAuxTrans(self, word_dict, tran_prob_dbm, aux_trans):
+    if not tran_prob_dbm: return
+    for word, trans in aux_trans.items():
+      trans = set(trans)
+      key = tkrzw_dict.NormalizeWord(word)
+      tsv = tran_prob_dbm.GetStr(key)
+      if not tsv: continue
+      tran_probs = {}
+      fields = tsv.split("\t")
+      for i in range(0, len(fields), 3):
+        src, trg, prob = fields[i], fields[i + 1], float(fields[i + 2])
+        if src != word: continue
+        tran_probs[trg] = prob
+      for tran, tran_prob in tran_probs.items():
+        if tran_prob < 0.1: continue
+        if tran not in trans: continue
+        tran_stem, tran_prefix, tran_suffix = self.tokenizer.StripJaParticles(tran)
+        if tran_prefix:
+          new_tran = tran_stem + tran_suffix
+          new_prob = tran_probs.get(new_tran) or 0
+          if (tran_prefix == "を" or regex.search(r"^[\p{Han}\p{Katakana}]", tran_stem) or
+              (new_prob >= 0.01 and new_prob >= tran_prob)):
+            tran = new_tran
+            tran_prob = max(tran_prob, new_prob)
+        score = tran_prob ** 0.5
+        word_dict[tran].append((word, score, []))
 
   def MakeYomiDict(self, word_dict):
     yomi_map = {}
@@ -399,7 +428,7 @@ class GenerateUnionEPUBBatch:
         uniq_synsets.add(syn_id)
         hit_syn = True
         P('<div>{}', ", ".join([tran] + syn_words), end="")
-        P(' <span class="gross">-- {}</span>', syn_gross, end="")
+        P(' <span class="gross">- {}</span>', syn_gross, end="")
         P('</div>')
         num_lines += 1
         for synonym in syn_words:
@@ -463,14 +492,15 @@ def main():
   supplement_labels = set((tkrzw_dict.GetCommandFlag(args, "--supplement", 1) or "xs").split(","))
   tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
   yomi_path = tkrzw_dict.GetCommandFlag(args, "--yomi", 1) or ""
-  tran_aux_path = tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or ""
+  tran_aux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or "").split(",")
+  tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or ""
   title = tkrzw_dict.GetCommandFlag(args, "--title", 1) or "Union Japanese-English Dictionary"
   if not input_path:
     raise RuntimeError("an input path is required")
   if not output_path:
     raise RuntimeError("an output path is required")
   GenerateUnionEPUBBatch(input_path, output_path, supplement_labels,
-                         tran_prob_path, yomi_path, tran_aux_path, title).Run()
+                         tran_prob_path, yomi_path, tran_aux_paths, title).Run()
 
 
 if __name__=="__main__":
