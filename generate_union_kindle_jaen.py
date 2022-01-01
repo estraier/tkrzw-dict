@@ -145,12 +145,13 @@ def esc(expr):
 
 class GenerateUnionEPUBBatch:
   def __init__(self, input_path, output_path, supplement_labels,
-               tran_prob_path, yomi_path, title):
+               tran_prob_path, yomi_path, tran_aux_path, title):
     self.input_path = input_path
     self.output_path = output_path
     self.supplement_labels = supplement_labels
     self.tran_prob_path = tran_prob_path
     self.yomi_path = yomi_path
+    self.tran_aux_path = tran_aux_path
     self.title = title
     self.tokenizer = tkrzw_tokenizer.Tokenizer()
     self.num_words = 0
@@ -167,7 +168,8 @@ class GenerateUnionEPUBBatch:
     if self.tran_prob_path:
       tran_prob_dbm = tkrzw.DBM()
       tran_prob_dbm.Open(self.tran_prob_path, False, dbm="HashDBM").OrDie()
-    word_dict = self.ReadEntries(input_dbm, tran_prob_dbm)
+    aux_trans = self.ReadAuxTrans()
+    word_dict = self.ReadEntries(input_dbm, tran_prob_dbm, aux_trans)
     if tran_prob_dbm:
       tran_prob_dbm.Close().OrDie()
     input_dbm.Close().OrDie()
@@ -179,7 +181,18 @@ class GenerateUnionEPUBBatch:
     self.MakePackage(yomi_dict)
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
-  def ReadEntries(self, input_dbm, tran_prob_dbm):
+  def ReadAuxTrans(self):
+    aux_trans = collections.defaultdict(list)
+    if not self.tran_aux_path: return aux_trans
+    with open(self.tran_aux_path) as input_file:
+      for line in input_file:
+        fields = line.strip().split("\t")
+        if len(fields) <= 2: continue
+        word, trans = fields[0], fields[1:]
+        aux_trans[word].extend(trans)
+    return aux_trans
+
+  def ReadEntries(self, input_dbm, tran_prob_dbm, aux_trans):
     logger.info("Reading entries: start")
     word_dict = collections.defaultdict(list)
     it = input_dbm.MakeIterator()
@@ -194,16 +207,20 @@ class GenerateUnionEPUBBatch:
         logger.info("Reading entries: num_enties={}".format(num_entries))
       entry = json.loads(serialized)
       for word_entry in entry:
-        self.ReadEntry(word_dict, word_entry, tran_prob_dbm)
+        self.ReadEntry(word_dict, word_entry, tran_prob_dbm, aux_trans)
       it.Next()
     logger.info("Reading entries: done")
     return word_dict
 
-  def ReadEntry(self, word_dict, entry, tran_prob_dbm):
+  def ReadEntry(self, word_dict, entry, tran_prob_dbm, aux_trans):
     word = entry["word"]
     word_prob = float(entry.get("probability") or 0)
     trans = entry.get("translation")
     if not trans: return
+    word_aux_trans = aux_trans.get(word)
+    if word_aux_trans:
+      trans.extend(word_aux_trans)
+      word_aux_trans = set(word_aux_trans)
     dict_trans = set()
     for item in entry["item"]:
       label = item["label"]
@@ -212,6 +229,7 @@ class GenerateUnionEPUBBatch:
         for tran in text.split(","):
           tran = tran.strip()
           if tran:
+            trans.append(tran)
             dict_trans.add(tran)
     tran_probs = {}
     if tran_prob_dbm:
@@ -237,9 +255,11 @@ class GenerateUnionEPUBBatch:
           tran_prob = max(tran_prob, new_prob)
       if i == 0:
         pass
-      elif i <= 1 and tran_prob >= 0.03:
+      elif i <= 1 and tran_prob >= 0.01:
         pass
-      elif i <= 2 and tran_prob >= 0.05:
+      elif i <= 2 and tran_prob >= 0.02:
+        pass
+      elif i <= 3 and tran_prob >= 0.04:
         pass
       elif tran_prob >= 0.1:
         pass
@@ -249,6 +269,7 @@ class GenerateUnionEPUBBatch:
         continue
       tran_prob_score = tran_prob ** 0.75
       dict_score = 0.1 if tran in dict_trans else 0.0
+      if word_aux_trans and tran in word_aux_trans: dict_score += 0.1
       score = word_prob_score + rank_score + tran_prob_score + dict_score
       synsets = []
       for item in entry["item"]:
@@ -366,6 +387,7 @@ class GenerateUnionEPUBBatch:
     P('</div>')
     uniq_trans = set()
     uniq_synsets = set()
+    num_lines = 0
     for tran, score, synsets in trans:
       norm_tran = tkrzw_dict.NormalizeWord(tran)
       if norm_tran in uniq_trans: continue
@@ -379,11 +401,13 @@ class GenerateUnionEPUBBatch:
         P('<div>{}', ", ".join([tran] + syn_words), end="")
         P(' <span class="gross">-- {}</span>', syn_gross, end="")
         P('</div>')
+        num_lines += 1
         for synonym in syn_words:
           norm_syn = tkrzw_dict.NormalizeWord(synonym)
           uniq_trans.add(norm_syn)
-      if not hit_syn:
+      if not hit_syn and num_lines < 8:
         P('<div>{}</div>', tran)
+        num_lines += 1
     P('</idx:entry>')
     P('<br/>')
 
@@ -439,13 +463,14 @@ def main():
   supplement_labels = set((tkrzw_dict.GetCommandFlag(args, "--supplement", 1) or "xs").split(","))
   tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
   yomi_path = tkrzw_dict.GetCommandFlag(args, "--yomi", 1) or ""
+  tran_aux_path = tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or ""
   title = tkrzw_dict.GetCommandFlag(args, "--title", 1) or "Union Japanese-English Dictionary"
   if not input_path:
     raise RuntimeError("an input path is required")
   if not output_path:
     raise RuntimeError("an output path is required")
   GenerateUnionEPUBBatch(input_path, output_path, supplement_labels,
-                         tran_prob_path, yomi_path, title).Run()
+                         tran_prob_path, yomi_path, tran_aux_path, title).Run()
 
 
 if __name__=="__main__":
