@@ -403,11 +403,19 @@ class AppendWordnetJPNBatch:
           if bare:
             num_items_rescued += 1
           if rev_prob_dbm or tran_prob_dbm:
-            final_item_trans, item_score, tran_scores = (self.SortWordsByScore(
+            sorted_item_trans, item_score, tran_scores = (self.SortWordsByScore(
               word, pos, scored_item_trans, hand_trans, rev_prob_dbm, tokenizer, tran_prob_dbm))
           else:
             scored_item_trans = sorted(scored_item_trans, key=lambda x: x[1], reverse=True)
-            final_item_trans = [x[0] for x in scored_item_trans]
+            sorted_item_trans = [x[0] for x in scored_item_trans]
+          final_item_trans = []
+          uniq_item_trans = set()
+          for tran in sorted_item_trans:
+            tran = regex.sub(r"^を.*", "", tran)
+            tran = regex.sub(r"・", "", tran)
+            if not tran or tran in uniq_item_trans: continue
+            uniq_item_trans.add(tran)
+            final_item_trans.append(tran)
           item["translation"] = final_item_trans[:MAX_TRANSLATIONS_PER_WORD]
           if tran_scores:
             tran_score_map = {}

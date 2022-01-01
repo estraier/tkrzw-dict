@@ -1209,8 +1209,10 @@ class BuildUnionDBBatch:
     final_translations = []
     max_elems = int(min(max(math.log2(len(entry["item"])), 2), 8) * 8)
     for tran, score in deduped_translations:
+      tran = regex.sub(r"^を.*", "", tran)
+      tran = regex.sub(r"・", "", tran)
       norm_tran = tkrzw_dict.NormalizeWord(tran)
-      if norm_tran in uniq_trans:
+      if not norm_tran or norm_tran in uniq_trans:
         continue
       uniq_trans.add(norm_tran)
       match = regex.search("(.*)(をする|をやる|する)$", norm_tran)
@@ -1222,6 +1224,8 @@ class BuildUnionDBBatch:
         final_translations.append(tran)
     sorted_aux_trans = sorted(count_aux_trans.items(), key=lambda x: -x[1])
     for aux_tran, count in sorted_aux_trans:
+      aux_tran = regex.sub(r"^を.*", "", aux_tran)
+      aux_tran = regex.sub(r"・", "", aux_tran)
       if pure_noun:
         aux_tran = self.MakeTranNoun(aux_tran)
       if pure_verb:
@@ -1232,7 +1236,7 @@ class BuildUnionDBBatch:
         aux_tran = self.MakeTranAdverb(aux_tran)
       if len(final_translations) >= max_elems: break
       norm_tran = tkrzw_dict.NormalizeWord(aux_tran)
-      if norm_tran in uniq_trans:
+      if not norm_tran or norm_tran in uniq_trans:
         continue
       uniq_trans.add(norm_tran)
       final_translations.append(aux_tran)
@@ -1844,7 +1848,7 @@ class BuildUnionDBBatch:
       tran = tran + "する"
     elif tran.endswith("い") and pos[1] == "形容詞":
       tran = tran[:-1] + "くする"
-    elif pos[1] == "名詞":
+    elif pos[1] == "名詞" and pos[2] == "形容動詞語幹":
       tran = tran + "にする"
     return tran
 
