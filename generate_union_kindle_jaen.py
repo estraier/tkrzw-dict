@@ -239,9 +239,9 @@ class GenerateUnionEPUBBatch:
         pass
       elif i <= 1 and tran_prob >= 0.03:
         pass
-      elif i <= 2 and tran_prob >= 0.1:
+      elif i <= 2 and tran_prob >= 0.05:
         pass
-      elif tran_prob >= 0.2:
+      elif tran_prob >= 0.1:
         pass
       elif tran in dict_trans:
         pass
