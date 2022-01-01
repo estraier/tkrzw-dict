@@ -1732,8 +1732,6 @@ class BuildUnionDBBatch:
           if tran_source in tran_sources: continue
           tran_sources.add(tran_source)
           trans.append((word_tran, trustable, rel_word, rank))
-    if not trans:
-      return
     prob_trans = {}
     key = tkrzw_dict.NormalizeWord(word)
     tsv = tran_prob_dbm.GetStr(key)
