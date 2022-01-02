@@ -565,9 +565,7 @@ class GenerateUnionEPUBBatch:
           infl = infl.strip()
           if not infl: continue
           infl_norm = tkrzw_dict.NormalizeWord(infl)
-          if inflections.get(infl_norm) != word:
-            print("BAD", word, pos, kind, infl, inflections.get(infl_norm))
-            continue
+          if inflections.get(infl_norm) != word: continue
           P('<idx:iform name="{}" value="{}"/>', kind, infl)
       P('</idx:infl>')
     alternatives = entry.get("alternative")
