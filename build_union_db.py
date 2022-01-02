@@ -1544,6 +1544,8 @@ class BuildUnionDBBatch:
                 continue
               phrase_infls = []
               for root_infl in regex.split(r"[,|]", root_infls):
+                root_infl = root_infl.strip()
+                if not root_infl: continue
                 root_infl_tokens = []
                 for token in tokens:
                   if root_infl and token == root_verb:
@@ -1836,7 +1838,9 @@ class BuildUnionDBBatch:
       tran = stem
     elif tran.endswith("い") and pos[1] == "形容詞":
       tran = tran[:-1] + "さ"
-    elif pos[1] in ("形容詞", "動詞"):
+    elif pos[1] in "動詞" and regex.search(r"[うくすつぬふむゆる]$", tran):
+      tran = tran + "こと"
+    elif pos[1] in "形容詞" and regex.search(r"[きい]$", tran):
       tran = tran + "こと"
     elif pos[0] in ("た", "な") and pos[1] == "助動詞":
       tran = tran + "こと"
