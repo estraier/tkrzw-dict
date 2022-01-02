@@ -416,19 +416,27 @@ class GenerateUnionEPUBBatch:
     return True
 
   def MakeMain(self, input_dbm, keys, words):
-    inflections = set()
+    infl_probs = {}
     for key in keys:
       serialized = input_dbm.GetStr(key)
       if not serialized: continue
       entries = json.loads(serialized)
       for entry in entries:
+        word = entry["word"]
+        prob = float(entry["probability"])
         for attr_list in INFLECTIONS:
           for name, label in attr_list:
             value = entry.get(name)
             if value:
-              value = tkrzw_dict.NormalizeWord(value)
-              if value:
-                inflections.add(value)
+              for infl in value.split(","):
+                infl_norm = tkrzw_dict.NormalizeWord(infl.strip())
+                if infl_norm:
+                  old_rec = infl_probs.get(infl_norm)
+                  if not old_rec or prob > old_rec[0]:
+                    infl_probs[infl_norm] = (prob, word)
+    inflections = {}
+    for infl_norm, pair in infl_probs.items():
+      inflections[infl_norm] = pair[1]
     out_files = {}
     for key in keys:
       key_prefix = GetKeyPrefix(key)
@@ -556,6 +564,10 @@ class GenerateUnionEPUBBatch:
         for infl in value.split(","):
           infl = infl.strip()
           if not infl: continue
+          infl_norm = tkrzw_dict.NormalizeWord(infl)
+          if inflections.get(infl_norm) != word:
+            print("BAD", word, pos, kind, infl, inflections.get(infl_norm))
+            continue
           P('<idx:iform name="{}" value="{}"/>', kind, infl)
       P('</idx:infl>')
     alternatives = entry.get("alternative")
