@@ -420,7 +420,10 @@ class AppendWordnetJPNBatch:
           if tran_scores:
             tran_score_map = {}
             for tran, tran_score in tran_scores[:MAX_TRANSLATIONS_PER_WORD]:
-              tran_score_map[tran] = "{:.6f}".format(tran_score).replace("0.", ".")
+              tran = regex.sub(r"^を.*", "", tran)
+              tran = regex.sub(r"・", "", tran)
+              if tran and tran not in tran_score_map:
+                tran_score_map[tran] = "{:.6f}".format(tran_score).replace("0.", ".")
             item["translation_score"] = tran_score_map
         item_score += spell_ratio * 0.5
         item["score"] = "{:.8f}".format(item_score).replace("0.", ".")
