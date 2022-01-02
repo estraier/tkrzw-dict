@@ -400,7 +400,7 @@ class GenerateUnionEPUBBatch:
     if word in variants:
       del variants[word]
     trans = sorted(trans, key=lambda x: x[1], reverse=True)
-    P('<idx:entry name="en">')
+    P('<idx:entry>')
     P('<div class="head">')
     P('<span class="word">')
     P('<idx:orth>{}', word)

@@ -554,7 +554,7 @@ class GenerateUnionEPUBBatch:
     if not items: return
     items = self.MergeShownItems(items, sub_items)
     self.num_words += 1
-    P('<idx:entry name="en">')
+    P('<idx:entry>')
     P('<div class="head">')
     P('<span class="word">')
     P('<idx:orth>{}', word)
