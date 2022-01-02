@@ -285,7 +285,9 @@ class XMLHandler(xml.sax.handler.ContentHandler):
             noun_plural = title[:-1] + "ies"
           else:
             noun_plural = title + "s"
-          if len(values) == 1 and values[0] == "es":
+          if len(values) == 1 and values[0] == "s":
+            noun_plural = title + "s"
+          elif len(values) == 1 and values[0] == "es":
             noun_plural = title + "es"
           elif len(values) == 1 and values[0] in ("~", "+"):
             pass
