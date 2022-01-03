@@ -278,7 +278,7 @@ def SanitizeText(text):
 class GenerateUnionEPUBBatch:
   def __init__(self, input_path, output_path, keyword_path,
                vetted_labels, preferable_labels, trustable_labels, supplement_labels, title,
-               min_prob_normal, min_prob_capital, min_prob_multi, sufficient_prob):
+               min_prob_normal, min_prob_capital, min_prob_multi, sufficient_prob, shrink):
     self.input_path = input_path
     self.output_path = output_path
     self.keyword_path = keyword_path
@@ -291,6 +291,7 @@ class GenerateUnionEPUBBatch:
     self.min_prob_capital = min_prob_capital
     self.min_prob_multi = min_prob_multi
     self.sufficient_prob = sufficient_prob
+    self.shrink = shrink
     self.num_words = 0
     self.num_trans = 0
     self.num_items = 0
@@ -721,9 +722,14 @@ class GenerateUnionEPUBBatch:
     return tokens
 
   def MergeShownItems(self, items, sub_items):
-    min_shown_items = 5
-    mid_shown_items = 6
-    max_shown_items = 10
+    if self.shrink:
+      min_shown_items = 3
+      mid_shown_items = 5
+      max_shown_items = 8
+    else:
+      min_shown_items = 5
+      mid_shown_items = 6
+      max_shown_items = 10
     max_dup_score = 0.3
     merged_items = []
     for item in items:
@@ -772,6 +778,7 @@ def main():
   min_prob_capital = float(tkrzw_dict.GetCommandFlag(args, "--min_prob_multi", 1) or 0.000001)
   min_prob_multi = float(tkrzw_dict.GetCommandFlag(args, "--min_prob_capital", 1) or 0.000001)
   sufficient_prob = float(tkrzw_dict.GetCommandFlag(args, "--sufficient_prob", 1) or 0.00001)
+  shrink = tkrzw_dict.GetCommandFlag(args, "--shrink", 0)
   if not input_path:
     raise RuntimeError("an input path is required")
   if not output_path:
@@ -779,7 +786,7 @@ def main():
   GenerateUnionEPUBBatch(
     input_path, output_path, keyword_path,
     vetted_labels, preferable_labels, trustable_labels, supplement_labels,
-    title, min_prob_normal, min_prob_capital, min_prob_multi, sufficient_prob).Run()
+    title, min_prob_normal, min_prob_capital, min_prob_multi, sufficient_prob, shrink).Run()
 
 
 if __name__=="__main__":
