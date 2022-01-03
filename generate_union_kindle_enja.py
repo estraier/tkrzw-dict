@@ -180,10 +180,10 @@ OVERVIEW_TEXT = """
 <p>In each word entry, the title word is shown in bold.  Some words have a pronounciation expression in the IPA format, bracketed as "/.../".  A list of translation can come next.  Then, definitions of the word come in English or Japanese.  Each definition is led by a part of speech label.  Additional information such as inflections and varints can come next.</p>
 <p>The number of words is {}.  The number of words with translations is {}.  The number of definition items is {}.</p>
 <h2>Copyright</h2>
-<div>WordNet Copyright© 2021 The Trustees of Princeton University.</div>
-<div>Japanese Wordnet Copyright© 2009-2011 NICT, 2012-2015 Francis Bond and 2016-2017 Francis Bond, Takayuki Kuribayashi.</div>
+<div>WordNet Copyright 2021 The Trustees of Princeton University.</div>
+<div>Japanese Wordnet Copyright 2009-2011 NICT, 2012-2015 Francis Bond and 2016-2017 Francis Bond, Takayuki Kuribayashi.</div>
 <div>Wiktionary data is copyrighted by each contributers and licensed under CC BY-SA and GFDL.</div>
-<div>EDict2 Copyright© 2017 The Electronic Dictionary Research and Development Group.</div>
+<div>EDict2 Copyright 2017 The Electronic Dictionary Research and Development Group.</div>
 </article>
 </body>
 </html>
@@ -197,6 +197,7 @@ MAIN_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <body epub:type="dictionary">
 <mbp:frameset>
 <h2>Words: {}</h2>
+<br/>
 """
 MAIN_FOOTER_TEXT = """</mbp:frameset>
 </body>

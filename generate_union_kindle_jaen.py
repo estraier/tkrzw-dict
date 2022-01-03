@@ -113,10 +113,10 @@ OVERVIEW_TEXT = """
 <p>In each word entry, the title word is shown in bold.  Some words have a pronounciation expression in hiragana, bracketed as "(...)".  A list of translation can come next.  Some have definitions of the words in English.</p>
 <p>The number of words is {}.  The number of items is {}.</p>
 <h2>Copyright</h2>
-<div>WordNet Copyright© 2021 The Trustees of Princeton University.</div>
-<div>Japanese Wordnet Copyright© 2009-2011 NICT, 2012-2015 Francis Bond and 2016-2017 Francis Bond, Takayuki Kuribayashi.</div>
+<div>WordNet Copyright 2021 The Trustees of Princeton University.</div>
+<div>Japanese Wordnet Copyright 2009-2011 NICT, 2012-2015 Francis Bond and 2016-2017 Francis Bond, Takayuki Kuribayashi.</div>
 <div>Wiktionary data is copyrighted by each contributers and licensed under CC BY-SA and GFDL.</div>
-<div>EDict2 Copyright© 2017 The Electronic Dictionary Research and Development Group.</div>
+<div>EDict2 Copyright 2017 The Electronic Dictionary Research and Development Group.</div>
 </article>
 </body>
 </html>
@@ -130,6 +130,7 @@ MAIN_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <body epub:type="dictionary">
 <mbp:frameset>
 <h2>Words: {}</h2>
+<br/>
 """
 MAIN_FOOTER_TEXT = """</mbp:frameset>
 </body>
