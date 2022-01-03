@@ -145,12 +145,15 @@ def esc(expr):
 
 class GenerateUnionEPUBBatch:
   def __init__(self, input_path, output_path, supplement_labels,
-               tran_prob_path, yomi_path, tran_aux_paths, title):
+               tran_prob_path, rev_prob_path, yomi_first_path, yomi_second_path,
+               tran_aux_paths, title):
     self.input_path = input_path
     self.output_path = output_path
     self.supplement_labels = supplement_labels
     self.tran_prob_path = tran_prob_path
-    self.yomi_path = yomi_path
+    self.rev_prob_path = rev_prob_path
+    self.yomi_first_path = yomi_first_path
+    self.yomi_second_path = yomi_second_path
     self.tran_aux_paths = tran_aux_paths
     self.title = title
     self.tokenizer = tkrzw_tokenizer.Tokenizer()
@@ -161,25 +164,31 @@ class GenerateUnionEPUBBatch:
     start_time = time.time()
     logger.info("Process started: input_path={}, output_path={}".format(
       str(self.input_path), self.output_path))
-    input_dbm = tkrzw.DBM()
-    input_dbm.Open(self.input_path, False, dbm="HashDBM").OrDie()
-    os.makedirs(self.output_path, exist_ok=True)
     tran_prob_dbm = None
     if self.tran_prob_path:
       tran_prob_dbm = tkrzw.DBM()
       tran_prob_dbm.Open(self.tran_prob_path, False, dbm="HashDBM").OrDie()
+    rev_prob_dbm = None
+    if self.rev_prob_path:
+      rev_prob_dbm = tkrzw.DBM()
+      rev_prob_dbm.Open(self.rev_prob_path, False, dbm="HashDBM").OrDie()
+    input_dbm = tkrzw.DBM()
+    input_dbm.Open(self.input_path, False, dbm="HashDBM").OrDie()
+    os.makedirs(self.output_path, exist_ok=True)
     aux_trans = self.ReadAuxTrans()
     word_dict = self.ReadEntries(input_dbm, tran_prob_dbm, aux_trans)
     self.AddAuxTrans(word_dict, tran_prob_dbm, aux_trans)
-    if tran_prob_dbm:
-      tran_prob_dbm.Close().OrDie()
     input_dbm.Close().OrDie()
-    yomi_dict = self.MakeYomiDict(word_dict)
+    yomi_dict = self.MakeYomiDict(word_dict, rev_prob_dbm)
     self.MakeMain(yomi_dict)
     self.MakeNavigation(yomi_dict)
     self.MakeOverview()
     self.MakeStyle()
     self.MakePackage(yomi_dict)
+    if rev_prob_dbm:
+      rev_prob_dbm.Close().OrDie()
+    if tran_prob_dbm:
+      tran_prob_dbm.Close().OrDie()
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
   def ReadAuxTrans(self):
@@ -330,31 +339,101 @@ class GenerateUnionEPUBBatch:
         score = tran_prob ** 0.5
         word_dict[tran].append((word, score, []))
 
-  def MakeYomiDict(self, word_dict):
-    yomi_map = {}
-    if self.yomi_path:
-      with open(self.yomi_path) as input_file:
-        for line in input_file:
-          fields = line.strip().split("\t")
-          if len(fields) != 2: continue
-          kanji, yomi = fields
-          yomi_map[kanji] = yomi
+  def MakeYomiDict(self, word_dict, rev_prob_dbm):
+    yomi_first_map = self.ReadYomiMap(self.yomi_first_path)
+    yomi_second_map = self.ReadYomiMap(self.yomi_second_path)
     yomi_dict = collections.defaultdict(list)
     for word, items in word_dict.items():
-      yomi = yomi_map.get(word)
-      if not yomi:
-        yomi = self.tokenizer.GetJaYomi(word)
-      if not yomi: continue
-      first = yomi[0]
+      word_yomi = ""
+      part_yomis = yomi_first_map.get(word)
+      if part_yomis:
+        word_yomi = self.ChooseBestYomi(word, part_yomis, False)
+      if not word_yomi:
+        part_yomis = yomi_second_map.get(word)
+        if part_yomis:
+          word_yomi = self.ChooseBestYomi(word, part_yomis, True)
+      if not word_yomi:
+        trg_word = word
+        stem, prefix, suffix = self.tokenizer.StripJaParticles(word)
+        if stem != word:
+          part_yomis = yomi_first_map.get(stem)
+          if part_yomis:
+            part_yomis = [prefix + x + suffix for x in part_yomis]
+            trg_word = self.ChooseBestYomi(word, part_yomis, True)
+          else:
+            part_yomis = yomi_second_map.get(stem)
+            if part_yomis:
+              part_yomis = [prefix + x + suffix for x in part_yomis]
+              trg_word = self.ChooseBestYomi(word, part_yomis, True)
+              word_yomi = self.tokenizer.GetJaYomi(trg_word)
+      if not word_yomi: continue
+      first = word_yomi[0]
       if regex.search(r"^[\p{Hiragana}]", first):
-        yomi_dict[first].append((yomi, word, items))
+        yomi_dict[first].append((word_yomi, word, items))
       else:
-        yomi_dict["他"].append((yomi, word, items))
+        yomi_dict["他"].append((word_yomi, word, items))
     sorted_yomi_dict = []
     for first, items in sorted(yomi_dict.items()):
       items = sorted(items)
       sorted_yomi_dict.append((first, items))
     return sorted_yomi_dict
+
+  def ReadYomiMap(self, path):
+    yomi_map = collections.defaultdict(list)
+    if path:
+      with open(path) as input_file:
+        for line in input_file:
+          fields = line.strip().split("\t")
+          if len(fields) != 2: continue
+          kanji, yomi = fields
+          yomi_map[kanji].append(yomi)
+    return yomi_map
+
+  def ChooseBestYomi(self, word, yomis, sort_by_length):
+    if len(yomis) == 1:
+      return yomis[0]
+    word_yomi = self.tokenizer.GetJaYomi(word)
+    if word_yomi in yomis:
+      return word_yomi
+    if sort_by_length:
+      yomis = sorted(yomis, key=lambda x: len(x))
+    return yomis[0]
+
+  def GetPhraseProb(self, prob_dbm, language, word):
+    base_prob = 0.000000001
+    tokens = self.tokenizer.Tokenize(language, word, False, True)
+    if not tokens: return base_prob
+    max_ngram = min(3, len(tokens))
+    fallback_penalty = 1.0
+    for ngram in range(max_ngram, 0, -1):
+      if len(tokens) <= ngram:
+        cur_phrase = " ".join(tokens)
+        prob = float(prob_dbm.GetStr(cur_phrase) or 0.0)
+        if prob:
+          return max(prob, base_prob)
+        fallback_penalty *= 0.1
+      else:
+        probs = []
+        index = 0
+        miss = False
+        while index <= len(tokens) - ngram:
+          cur_phrase = " ".join(tokens[index:index + ngram])
+          cur_prob = float(prob_dbm.GetStr(cur_phrase) or 0.0)
+          if not cur_prob:
+            miss = True
+            break
+          probs.append(cur_prob)
+          index += 1
+        if not miss:
+          inv_sum = 0
+          for cur_prob in probs:
+            inv_sum += 1 / cur_prob
+          prob = len(probs) / inv_sum
+          prob *= 0.3 ** (len(tokens) - ngram)
+          prob *= fallback_penalty
+          return max(prob, base_prob)
+        fallback_penalty *= 0.1
+    return base_prob
 
   def MakeMain(self, yomi_dict):
     page_id = 0
@@ -491,7 +570,9 @@ def main():
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-dict-jaen-kindle"
   supplement_labels = set((tkrzw_dict.GetCommandFlag(args, "--supplement", 1) or "xs").split(","))
   tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
-  yomi_path = tkrzw_dict.GetCommandFlag(args, "--yomi", 1) or ""
+  rev_prob_path = tkrzw_dict.GetCommandFlag(args, "--rev_prob", 1) or ""
+  yomi_first_path = tkrzw_dict.GetCommandFlag(args, "--yomi_first", 1) or ""
+  yomi_second_path = tkrzw_dict.GetCommandFlag(args, "--yomi_second", 1) or ""
   tran_aux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or "").split(",")
   tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or ""
   title = tkrzw_dict.GetCommandFlag(args, "--title", 1) or "Union Japanese-English Dictionary"
@@ -499,8 +580,9 @@ def main():
     raise RuntimeError("an input path is required")
   if not output_path:
     raise RuntimeError("an output path is required")
-  GenerateUnionEPUBBatch(input_path, output_path, supplement_labels,
-                         tran_prob_path, yomi_path, tran_aux_paths, title).Run()
+  GenerateUnionEPUBBatch(
+    input_path, output_path, supplement_labels, tran_prob_path, rev_prob_path,
+    yomi_first_path, yomi_second_path, tran_aux_paths, title).Run()
 
 
 if __name__=="__main__":
