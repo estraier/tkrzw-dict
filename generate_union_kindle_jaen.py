@@ -235,6 +235,7 @@ class GenerateUnionEPUBBatch:
 
   def ReadEntry(self, word_dict, entry, tran_prob_dbm, aux_trans):
     word = entry["word"]
+    norm_word = tkrzw_dict.NormalizeWord(word)
     word_prob = float(entry.get("probability") or 0)
     trans = entry.get("translation")
     if not trans: return
@@ -254,8 +255,7 @@ class GenerateUnionEPUBBatch:
             dict_trans.add(tran)
     tran_probs = {}
     if tran_prob_dbm:
-      key = tkrzw_dict.NormalizeWord(word)
-      tsv = tran_prob_dbm.GetStr(key)
+      tsv = tran_prob_dbm.GetStr(norm_word)
       if tsv:
         fields = tsv.split("\t")
         for i in range(0, len(fields), 3):
@@ -265,6 +265,8 @@ class GenerateUnionEPUBBatch:
     word_prob_score = max(0.1, (word_prob ** 0.5))
     rank_score = 0.5
     for i, tran in enumerate(trans):
+      if tkrzw_dict.NormalizeWord(tran) == norm_word:
+        continue
       tran_prob = tran_probs.get(tran) or 0
       tran_stem, tran_prefix, tran_suffix = self.tokenizer.StripJaParticles(tran)
       if tran_prefix:
@@ -291,7 +293,6 @@ class GenerateUnionEPUBBatch:
       tran_prob_score = tran_prob ** 0.75
       dict_score = 0.1 if tran in dict_trans else 0.0
       if word_aux_trans and tran in word_aux_trans: dict_score += 0.1
-      
       synsets = []
       for item in entry["item"]:
         if item["label"] != "wn": continue
