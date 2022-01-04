@@ -265,8 +265,7 @@ class GenerateUnionEPUBBatch:
     word_prob_score = max(0.1, (word_prob ** 0.5))
     rank_score = 0.5
     for i, tran in enumerate(trans):
-      if tkrzw_dict.NormalizeWord(tran) == norm_word:
-        continue
+      if tkrzw_dict.NormalizeWord(tran) == norm_word: continue
       tran_prob = tran_probs.get(tran) or 0
       tran_stem, tran_prefix, tran_suffix = self.tokenizer.StripJaParticles(tran)
       if tran_prefix:
@@ -329,9 +328,9 @@ class GenerateUnionEPUBBatch:
   def AddAuxTrans(self, word_dict, tran_prob_dbm, aux_trans):
     if not tran_prob_dbm: return
     for word, trans in aux_trans.items():
+      norm_word = tkrzw_dict.NormalizeWord(word)
       trans = set(trans)
-      key = tkrzw_dict.NormalizeWord(word)
-      tsv = tran_prob_dbm.GetStr(key)
+      tsv = tran_prob_dbm.GetStr(norm_word)
       if not tsv: continue
       tran_probs = {}
       fields = tsv.split("\t")
@@ -342,6 +341,7 @@ class GenerateUnionEPUBBatch:
       for tran, tran_prob in tran_probs.items():
         if tran_prob < 0.1: continue
         if tran not in trans: continue
+        if tkrzw_dict.NormalizeWord(tran) == norm_word: continue
         tran_stem, tran_prefix, tran_suffix = self.tokenizer.StripJaParticles(tran)
         if tran_prefix:
           new_tran = tran_stem + tran_suffix
