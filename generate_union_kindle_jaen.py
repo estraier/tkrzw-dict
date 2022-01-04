@@ -146,12 +146,13 @@ def esc(expr):
 
 class GenerateUnionEPUBBatch:
   def __init__(self, input_path, output_path, supplement_labels,
-               tran_prob_path, rev_prob_path, yomi_first_path, yomi_second_path,
+               tran_prob_path, phrase_prob_path, rev_prob_path, yomi_first_path, yomi_second_path,
                tran_aux_paths, title):
     self.input_path = input_path
     self.output_path = output_path
     self.supplement_labels = supplement_labels
     self.tran_prob_path = tran_prob_path
+    self.phrase_prob_path = phrase_prob_path
     self.rev_prob_path = rev_prob_path
     self.yomi_first_path = yomi_first_path
     self.yomi_second_path = yomi_second_path
@@ -169,6 +170,10 @@ class GenerateUnionEPUBBatch:
     if self.tran_prob_path:
       tran_prob_dbm = tkrzw.DBM()
       tran_prob_dbm.Open(self.tran_prob_path, False, dbm="HashDBM").OrDie()
+    phrase_prob_dbm = None
+    if self.phrase_prob_path:
+      phrase_prob_dbm = tkrzw.DBM()
+      phrase_prob_dbm.Open(self.phrase_prob_path, False, dbm="HashDBM").OrDie()
     rev_prob_dbm = None
     if self.rev_prob_path:
       rev_prob_dbm = tkrzw.DBM()
@@ -179,13 +184,17 @@ class GenerateUnionEPUBBatch:
     aux_trans = self.ReadAuxTrans()
     word_dict = self.ReadEntries(input_dbm, tran_prob_dbm, aux_trans)
     self.AddAuxTrans(word_dict, tran_prob_dbm, aux_trans)
+    if phrase_prob_dbm and rev_prob_dbm:
+      word_dict = self.FilterEntries(word_dict, phrase_prob_dbm, rev_prob_dbm)
     input_dbm.Close().OrDie()
-    yomi_dict = self.MakeYomiDict(word_dict, rev_prob_dbm)
+    yomi_dict = self.MakeYomiDict(word_dict)
     self.MakeMain(yomi_dict)
     self.MakeNavigation(yomi_dict)
     self.MakeOverview()
     self.MakeStyle()
     self.MakePackage(yomi_dict)
+    if phrase_prob_dbm:
+      phrase_prob_dbm.Close().OrDie()
     if rev_prob_dbm:
       rev_prob_dbm.Close().OrDie()
     if tran_prob_dbm:
@@ -282,7 +291,7 @@ class GenerateUnionEPUBBatch:
       tran_prob_score = tran_prob ** 0.75
       dict_score = 0.1 if tran in dict_trans else 0.0
       if word_aux_trans and tran in word_aux_trans: dict_score += 0.1
-      score = word_prob_score + rank_score + tran_prob_score + dict_score
+      
       synsets = []
       for item in entry["item"]:
         if item["label"] != "wn": continue
@@ -310,7 +319,10 @@ class GenerateUnionEPUBBatch:
                 tran_match = True
         if synset_id and tran_match:
           synsets.append((synset_id, gross, synonyms))
-      word_dict[tran].append((word, score, synsets))
+      if synsets:
+        dict_score += 0.1
+      score = word_prob_score + rank_score + tran_prob_score + dict_score
+      word_dict[tran].append((word, score, tran_prob, synsets))
       rank_score *= 0.8
 
   def AddAuxTrans(self, word_dict, tran_prob_dbm, aux_trans):
@@ -338,9 +350,33 @@ class GenerateUnionEPUBBatch:
             tran = new_tran
             tran_prob = max(tran_prob, new_prob)
         score = tran_prob ** 0.5
-        word_dict[tran].append((word, score, []))
+        word_dict[tran].append((word, score, tran_prob, []))
 
-  def MakeYomiDict(self, word_dict, rev_prob_dbm):
+  def FilterEntries(self, word_dict, phrase_prob_dbm, rev_prob_dbm):
+    logger.info("Filtering entries: before={}".format(len(word_dict)))
+    new_word_dict = collections.defaultdict(list)
+    num_entries = 0
+    for word, items in word_dict.items():
+      num_entries += 1
+      if num_entries % 10000 == 0:
+        logger.info("Filtering entries: num_enties={}".format(num_entries))
+      word_prob = self.GetPhraseProb(rev_prob_dbm, "ja", word)
+      max_tran_prob = 0
+      max_phrase_prob = 0
+      new_items = []
+      for tran, score, tran_prob, synsets in items:
+        max_tran_prob = max(max_tran_prob, tran_prob)
+        phrase_prob = self.GetPhraseProb(phrase_prob_dbm, "en", tran)
+        max_phrase_prob = max(max_phrase_prob, phrase_prob)
+        score += min(0.2, phrase_prob ** 0.33)
+        new_items.append((tran, score, tran_prob, synsets))
+      if word_prob < 0.000001 and max_phrase_prob < 0.000001 and max_tran_prob < 0.1:
+        continue
+      new_word_dict[word].extend(new_items)
+    logger.info("Filtering entries done: after={}".format(len(new_word_dict)))
+    return new_word_dict
+
+  def MakeYomiDict(self, word_dict):
     yomi_first_map = self.ReadYomiMap(self.yomi_first_path)
     yomi_second_map = self.ReadYomiMap(self.yomi_second_path)
     yomi_dict = collections.defaultdict(list)
@@ -497,7 +533,7 @@ class GenerateUnionEPUBBatch:
     uniq_trans = set()
     uniq_synsets = set()
     num_lines = 0
-    for tran, score, synsets in trans:
+    for tran, score, tran_prob, synsets in trans:
       norm_tran = tkrzw_dict.NormalizeWord(tran)
       if norm_tran in uniq_trans: continue
       uniq_trans.add(norm_tran)
@@ -571,6 +607,7 @@ def main():
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-dict-jaen-kindle"
   supplement_labels = set((tkrzw_dict.GetCommandFlag(args, "--supplement", 1) or "xs").split(","))
   tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
+  phrase_prob_path = tkrzw_dict.GetCommandFlag(args, "--phrase_prob", 1) or ""
   rev_prob_path = tkrzw_dict.GetCommandFlag(args, "--rev_prob", 1) or ""
   yomi_first_path = tkrzw_dict.GetCommandFlag(args, "--yomi_first", 1) or ""
   yomi_second_path = tkrzw_dict.GetCommandFlag(args, "--yomi_second", 1) or ""
@@ -582,7 +619,7 @@ def main():
   if not output_path:
     raise RuntimeError("an output path is required")
   GenerateUnionEPUBBatch(
-    input_path, output_path, supplement_labels, tran_prob_path, rev_prob_path,
+    input_path, output_path, supplement_labels, tran_prob_path, phrase_prob_path, rev_prob_path,
     yomi_first_path, yomi_second_path, tran_aux_paths, title).Run()
 
 
