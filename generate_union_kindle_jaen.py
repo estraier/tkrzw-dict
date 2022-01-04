@@ -366,7 +366,7 @@ class GenerateUnionEPUBBatch:
             if part_yomis:
               part_yomis = [prefix + x + suffix for x in part_yomis]
               trg_word = self.ChooseBestYomi(word, part_yomis, True)
-              word_yomi = self.tokenizer.GetJaYomi(trg_word)
+        word_yomi = self.tokenizer.GetJaYomi(trg_word)
       if not word_yomi: continue
       first = word_yomi[0]
       if regex.search(r"^[\p{Hiragana}]", first):
