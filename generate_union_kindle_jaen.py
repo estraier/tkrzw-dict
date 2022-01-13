@@ -521,12 +521,18 @@ class GenerateUnionEPUBBatch:
     variants = {}
     variants[yomi] = True
     pos = self.tokenizer.GetJaLastPos(word)
-    for focus_pos, conj_map in [("動詞", conj_verbs), ("形容詞", conj_adjs)]:
-      if pos[1] != focus_pos: continue
-      conjs = conj_map.get(word)
-      if conjs:
-        for conj in sorted(conjs):
-          variants[conj] = True
+    if word.endswith(pos[3]):
+      prefix = word[:-len(pos[3])]
+      for focus_pos, conj_map in [("動詞", conj_verbs), ("形容詞", conj_adjs)]:
+        if pos[1] != focus_pos: continue
+        conjs = conj_map.get(word)
+        if prefix and not conjs:
+          part_conjs = conj_map.get(pos[3])
+          if part_conjs:
+            conjs = [prefix + x for x in part_conjs]
+        if conjs:
+          for conj in sorted(conjs):
+            variants[conj] = True
     stem, prefix, suffix = self.tokenizer.StripJaParticles(word)
     if stem != word:
       if prefix == "を" or regex.search(r"[\p{Han}\p{Katakana}]", stem):
