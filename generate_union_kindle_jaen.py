@@ -147,7 +147,7 @@ def esc(expr):
 class GenerateUnionEPUBBatch:
   def __init__(self, input_path, output_path, supplement_labels,
                tran_prob_path, phrase_prob_path, rev_prob_path, yomi_first_path, yomi_second_path,
-               tran_aux_paths, title):
+               tran_aux_paths, conj_verb_path, conj_adj_path, title):
     self.input_path = input_path
     self.output_path = output_path
     self.supplement_labels = supplement_labels
@@ -157,6 +157,8 @@ class GenerateUnionEPUBBatch:
     self.yomi_first_path = yomi_first_path
     self.yomi_second_path = yomi_second_path
     self.tran_aux_paths = tran_aux_paths
+    self.conj_verb_path = conj_verb_path
+    self.conj_adj_path = conj_adj_path
     self.title = title
     self.tokenizer = tkrzw_tokenizer.Tokenizer()
     self.num_words = 0
@@ -182,13 +184,15 @@ class GenerateUnionEPUBBatch:
     input_dbm.Open(self.input_path, False, dbm="HashDBM").OrDie()
     os.makedirs(self.output_path, exist_ok=True)
     aux_trans = self.ReadAuxTrans()
+    conj_verbs = self.ReadConjWords(self.conj_verb_path)
+    conj_adjs = self.ReadConjWords(self.conj_adj_path)
     word_dict = self.ReadEntries(input_dbm, tran_prob_dbm, aux_trans)
     self.AddAuxTrans(word_dict, tran_prob_dbm, aux_trans)
     if phrase_prob_dbm and rev_prob_dbm:
       word_dict = self.FilterEntries(word_dict, phrase_prob_dbm, rev_prob_dbm)
     input_dbm.Close().OrDie()
     yomi_dict = self.MakeYomiDict(word_dict)
-    self.MakeMain(yomi_dict)
+    self.MakeMain(yomi_dict, conj_verbs, conj_adjs)
     self.MakeNavigation(yomi_dict)
     self.MakeOverview()
     self.MakeStyle()
@@ -212,6 +216,17 @@ class GenerateUnionEPUBBatch:
           word, trans = fields[0], fields[1:]
           aux_trans[word].extend(trans)
     return aux_trans
+
+  def ReadConjWords(self, path):
+    conjs = {}
+    if path:
+      with open(path) as input_file:
+        for line in input_file:
+          fields = line.strip().split("\t")
+          if len(fields) <= 2: continue
+          word, trans = fields[0], fields[1:]
+          conjs[word] = trans
+    return conjs
 
   def ReadEntries(self, input_dbm, tran_prob_dbm, aux_trans):
     logger.info("Reading entries: start")
@@ -264,7 +279,14 @@ class GenerateUnionEPUBBatch:
           tran_probs[trg] = prob
     word_prob_score = max(0.1, (word_prob ** 0.5))
     rank_score = 0.5
-    for i, tran in enumerate(trans):
+    uniq_trans = set()
+    norm_trans = []
+    for tran in trans:
+      tran = regex.sub("[・]", "", tran)
+      if tran and tran not in uniq_trans:
+        norm_trans.append(tran)
+        uniq_trans.add(tran)
+    for i, tran in enumerate(norm_trans):
       if tkrzw_dict.NormalizeWord(tran) == norm_word: continue
       tran_prob = tran_probs.get(tran) or 0
       tran_stem, tran_prefix, tran_suffix = self.tokenizer.StripJaParticles(tran)
@@ -473,7 +495,7 @@ class GenerateUnionEPUBBatch:
         fallback_penalty *= 0.1
     return base_prob
 
-  def MakeMain(self, yomi_dict):
+  def MakeMain(self, yomi_dict, conj_verbs, conj_adjs):
     page_id = 0
     for first, items in yomi_dict:
       page_id += 1
@@ -483,10 +505,10 @@ class GenerateUnionEPUBBatch:
         print(MAIN_HEADER_TEXT.format(esc(self.title), esc(first), esc(first)),
               file=out_file, end="")
         for item in items:
-          self.MakeMainEntry(out_file, item)
+          self.MakeMainEntry(out_file, item, conj_verbs, conj_adjs)
         print(MAIN_FOOTER_TEXT, file=out_file, end="")
 
-  def MakeMainEntry(self, out_file, entry):
+  def MakeMainEntry(self, out_file, entry, conj_verbs, conj_adjs):
     def P(*args, end="\n"):
       esc_args = []
       for arg in args[1:]:
@@ -498,6 +520,13 @@ class GenerateUnionEPUBBatch:
     yomi, word, trans = entry
     variants = {}
     variants[yomi] = True
+    pos = self.tokenizer.GetJaLastPos(word)
+    for focus_pos, conj_map in [("動詞", conj_verbs), ("形容詞", conj_adjs)]:
+      if pos[1] != focus_pos: continue
+      conjs = conj_map.get(word)
+      if conjs:
+        for conj in sorted(conjs):
+          variants[conj] = True
     stem, prefix, suffix = self.tokenizer.StripJaParticles(word)
     if stem != word:
       if prefix == "を" or regex.search(r"[\p{Han}\p{Katakana}]", stem):
@@ -613,7 +642,8 @@ def main():
   yomi_first_path = tkrzw_dict.GetCommandFlag(args, "--yomi_first", 1) or ""
   yomi_second_path = tkrzw_dict.GetCommandFlag(args, "--yomi_second", 1) or ""
   tran_aux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or "").split(",")
-  tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or ""
+  conj_verb_path = tkrzw_dict.GetCommandFlag(args, "--conj_verb", 1)
+  conj_adj_path = tkrzw_dict.GetCommandFlag(args, "--conj_adj", 1)
   title = tkrzw_dict.GetCommandFlag(args, "--title", 1) or "Union Japanese-English Dictionary"
   if not input_path:
     raise RuntimeError("an input path is required")
@@ -621,7 +651,7 @@ def main():
     raise RuntimeError("an output path is required")
   GenerateUnionEPUBBatch(
     input_path, output_path, supplement_labels, tran_prob_path, phrase_prob_path, rev_prob_path,
-    yomi_first_path, yomi_second_path, tran_aux_paths, title).Run()
+    yomi_first_path, yomi_second_path, tran_aux_paths, conj_verb_path, conj_adj_path, title).Run()
 
 
 if __name__=="__main__":
