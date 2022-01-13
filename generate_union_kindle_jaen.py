@@ -192,7 +192,7 @@ class GenerateUnionEPUBBatch:
       word_dict = self.FilterEntries(word_dict, phrase_prob_dbm, rev_prob_dbm)
     input_dbm.Close().OrDie()
     yomi_dict = self.MakeYomiDict(word_dict)
-    self.MakeMain(yomi_dict, conj_verbs, conj_adjs)
+    self.MakeMain(yomi_dict, conj_verbs, conj_adjs, rev_prob_dbm)
     self.MakeNavigation(yomi_dict)
     self.MakeOverview()
     self.MakeStyle()
@@ -495,7 +495,7 @@ class GenerateUnionEPUBBatch:
         fallback_penalty *= 0.1
     return base_prob
 
-  def MakeMain(self, yomi_dict, conj_verbs, conj_adjs):
+  def MakeMain(self, yomi_dict, conj_verbs, conj_adjs, rev_prob_dbm):
     page_id = 0
     for first, items in yomi_dict:
       page_id += 1
@@ -505,10 +505,10 @@ class GenerateUnionEPUBBatch:
         print(MAIN_HEADER_TEXT.format(esc(self.title), esc(first), esc(first)),
               file=out_file, end="")
         for item in items:
-          self.MakeMainEntry(out_file, item, conj_verbs, conj_adjs)
+          self.MakeMainEntry(out_file, item, conj_verbs, conj_adjs, rev_prob_dbm)
         print(MAIN_FOOTER_TEXT, file=out_file, end="")
 
-  def MakeMainEntry(self, out_file, entry, conj_verbs, conj_adjs):
+  def MakeMainEntry(self, out_file, entry, conj_verbs, conj_adjs, rev_prob_dbm):
     def P(*args, end="\n"):
       esc_args = []
       for arg in args[1:]:
@@ -521,12 +521,15 @@ class GenerateUnionEPUBBatch:
     variants = {}
     variants[yomi] = True
     pos = self.tokenizer.GetJaLastPos(word)
+    word_prob = 0
+    if rev_prob_dbm:
+      word_prob = self.GetPhraseProb(rev_prob_dbm, "ja", word)
     if word.endswith(pos[3]):
       prefix = word[:-len(pos[3])]
       for focus_pos, conj_map in [("動詞", conj_verbs), ("形容詞", conj_adjs)]:
         if pos[1] != focus_pos: continue
         conjs = conj_map.get(word)
-        if prefix and not conjs:
+        if prefix and not conjs and word_prob >= 0.00001:
           part_conjs = conj_map.get(pos[3])
           if part_conjs:
             conjs = [prefix + x for x in part_conjs]
