@@ -558,7 +558,7 @@ class GenerateUnionEPUBBatch:
         tran_items.append(item)
       elif label == best_label:
         items.append(item)
-      elif label in main_labels and is_major_word:
+      elif label in main_labels and is_major_word and not regex.search(r"\w{20,}", text):
         sub_items.append(item)
     if not items:
       items = sub_items
@@ -572,14 +572,18 @@ class GenerateUnionEPUBBatch:
     P('<span class="word">')
     P('<idx:orth>{}', word)
     for pos, values in infl_groups.items():
-      P('<idx:infl inflgrp="{}">', pos)
+      kind_infls = []
       for kind, value, label in values:
         for infl in value.split(","):
           infl = infl.strip()
           if not infl: continue
           infl_norm = tkrzw_dict.NormalizeWord(infl)
           if inflections.get(infl_norm) != word: continue
-          P('<idx:iform name="{}" value="{}"/>', kind, infl)
+          kind_infls.append((kind, infl))
+      if not kind_infls: continue
+      P('<idx:infl inflgrp="{}">', pos)
+      for kind, infl in kind_infls:
+        P('<idx:iform name="{}" value="{}"/>', kind, infl)
       P('</idx:infl>')
     alternatives = entry.get("alternative")
     if alternatives:
