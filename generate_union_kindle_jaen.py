@@ -74,7 +74,8 @@ PACKAGE_MIDDLE_TEXT = """</manifest>
 PACKAGE_FOOTER_TEXT = """</spine>
 </package>
 """
-STYLE_TEXT = """html,body { margin: 0; padding: 0; background: #fff; color: #000; font-size: 12pt; }
+STYLE_TEXT = """html,body { margin: 0; padding: 0; background: #fff; color: #000; font-size: 12pt;
+  text-align: left; text-justify: none; }
 span.word { font-weight: bold; }
 span.pron { font-size: 90%; color: #444; }
 span.gross { font-size: 90%; color: #444; }
@@ -100,7 +101,7 @@ NAVIGATION_FOOTER_TEXT = """</ol>
 </body>
 </html>
 """
-OVERVIEW_TEXT = """
+OVERVIEW_TEXT = """<?xml version="1.0" encoding="utf-8"?>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="ja">
 <head>
 <title>{}: Overview</title>
