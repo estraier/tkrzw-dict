@@ -97,6 +97,7 @@ TEXT_ATTRS = {
   "intransitive": "vi",
   "transitive": "vt",
 }
+ARTICLES = set (["a", "the", "an"])
 PARTICLES = set([
   "aback", "about", "above", "abroad", "across", "after", "against", "ahead", "along",
   "amid", "among", "apart", "around", "as", "at", "away", "back", "before", "behind",
@@ -279,11 +280,13 @@ def SanitizeText(text):
 
 class GenerateUnionEPUBBatch:
   def __init__(self, input_path, output_path, keyword_path,
-               vetted_labels, preferable_labels, trustable_labels, supplement_labels, title,
+               best_labels, vetted_labels, preferable_labels, trustable_labels,
+               supplement_labels, title,
                min_prob_normal, min_prob_capital, min_prob_multi, sufficient_prob, shrink):
     self.input_path = input_path
     self.output_path = output_path
     self.keyword_path = keyword_path
+    self.best_labels = best_labels
     self.vetted_labels = vetted_labels
     self.preferable_labels = preferable_labels
     self.trustable_labels = trustable_labels
@@ -508,15 +511,17 @@ class GenerateUnionEPUBBatch:
         main_labels.add(label)
       label_items[label].append(item)
     best_label = None
+    is_stop = word in ARTICLES or word in PARTICLES
     if len(main_labels) >= 2:
       min_cost = None
       for label in main_labels:
-        vetted = label in self.vetted_labels
+        is_best = label in self.best_labels
+        is_vetted = not is_stop and label in self.vetted_labels
         num_items = 0
         length_cost = 0
         for item in label_items[label]:
           text = item["text"]
-          if not vetted and not CheckSafeText(text):
+          if not is_best and not is_vetted and not CheckSafeText(text):
             length_cost += 10.0
           if text.startswith("[translation]:"): continue
           text = regex.sub(r" \[-+\] .*", "", text).strip()
@@ -524,11 +529,16 @@ class GenerateUnionEPUBBatch:
           num_items += 1
           text = regex.sub(r"[^-_\p{Latin}\d']+", " ", text).strip()
           num_words = text.count(" ") + 1
-          length_cost += abs(math.log(8) - math.log(num_words))
+          length_cost += abs(math.log(9) - math.log(num_words))
         if not num_items: continue
-        item_cost = abs(math.log(4) - math.log(num_items))
+        item_cost = abs(math.log(5) - math.log(num_items))
         length_cost = length_cost / num_items
-        quality_cost = 1.0 if vetted else 1.25
+        if is_best:
+          quality_cost = 0.8
+        elif is_vetted:
+          quality_cost = 1.0
+        else:
+          quality_cost = 1.25
         cost = (item_cost + 0.5) * (length_cost + 1.0) * quality_cost
         if not min_cost or cost < min_cost:
           best_label = label
@@ -715,12 +725,11 @@ class GenerateUnionEPUBBatch:
         print('<itemref idref="{}"/>'.format(main_id), file=out_file)
       print(PACKAGE_FOOTER_TEXT, file=out_file, end="")
 
-  _stop_words = set(("a", "the", "an"))
   def TokenizeForDupCheck(self, text):
     tokens = []
     for token in self.tokenizer.Tokenize("en", text, True, True):
       token = regex.sub(r"[^-_\p{Latin}\d']+", "", token).strip()
-      if not token or token in self._stop_words: continue
+      if not token or token in ARTICLES: continue
       tokens.append(token)
     return tokens
 
@@ -770,7 +779,8 @@ def main():
   input_path = tkrzw_dict.GetCommandFlag(args, "--input", 1) or "union-body.tkh"
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-dict-kindle"
   keyword_path = tkrzw_dict.GetCommandFlag(args, "--keyword", 1) or ""
-  vetted_labels = set((tkrzw_dict.GetCommandFlag(args, "--vetted", 1) or "xa,wn").split(","))
+  best_labels = set((tkrzw_dict.GetCommandFlag(args, "--best", 1) or "xa").split(","))
+  vetted_labels = set((tkrzw_dict.GetCommandFlag(args, "--vetted", 1) or "wn").split(","))
   preferable_labels = set((tkrzw_dict.GetCommandFlag(
     args, "--preferable", 1) or "xa,wn,ox,we").split(","))
   trustable_labels = set((tkrzw_dict.GetCommandFlag(
@@ -788,7 +798,7 @@ def main():
     raise RuntimeError("an output path is required")
   GenerateUnionEPUBBatch(
     input_path, output_path, keyword_path,
-    vetted_labels, preferable_labels, trustable_labels, supplement_labels,
+    best_labels, vetted_labels, preferable_labels, trustable_labels, supplement_labels,
     title, min_prob_normal, min_prob_capital, min_prob_multi, sufficient_prob, shrink).Run()
 
 
