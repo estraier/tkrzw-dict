@@ -558,7 +558,7 @@ class GenerateUnionEPUBBatch:
     items = self.MergeShownItems(items, sub_items)
     self.num_words += 1
     P('<idx:entry>')
-    P('<div class="head">')
+    P('<div>')
     P('<span class="word">')
     P('<idx:orth>{}', word)
     for pos, values in infl_groups.items():
@@ -591,7 +591,7 @@ class GenerateUnionEPUBBatch:
     P('</div>')
     if translations:
       self.num_trans += 1
-      P('<div class="tran">{}</div>', ", ".join(translations[:6]))
+      P('<div>{}</div>', ", ".join(translations[:6]))
     for item in items:
       self.MakeMainEntryItem(P, item)
     phrases = entry.get("phrase")
@@ -603,9 +603,9 @@ class GenerateUnionEPUBBatch:
       for parent in parents:
         self.MakeMainEntryParentItem(P, parent, input_dbm)
     for pos, values in infl_groups.items():
-      P('<div class="infl">')
+      P('<div>')
       for kind, value, label in values:
-        P('<span class="col"><span class="attr">[{}]</span> {}</span>', label, value)
+        P('<span class="attr">[{}]</span> {}', label, value)
       P('</div>')
     P('</idx:entry>')
     P('<br/>')
@@ -632,21 +632,22 @@ class GenerateUnionEPUBBatch:
     self.num_items += 1
     text = regex.sub(r" \[-+\] .*", "", text).strip()
     text = CutTextByWidth(text, 160)
-    P('<div class="item">')
+    P('<div>')
+    leader = ""
     if item.get("is_aux"):
-      P('<span class="attr">・</span>', POSES.get(pos) or pos)
+      leader = "+ "
       self.num_aux_items += 1
-    P('<span class="pos">[{}]</span>', POSES.get(pos) or pos)
+    P('<span class="pos">{}[{}]</span>', leader, POSES.get(pos) or pos)
     for annot in annots:
       P('<span class="attr">[{}]</span>', annot)
-    P('<span class="text">{}</span>', text)
+    P('{}', text)
     P('</div>')
 
   def MakeMainEntryPhraseItem(self, P, phrase):
     if phrase.get("i") != "1": return
-    P('<div class="item">')
+    P('<div>')
     P('<span class="attr">[句]</span>')
-    P('<span class="text">{} : {}</span>', phrase["w"], ", ".join(phrase["x"]))
+    P('{} : {}', phrase["w"], ", ".join(phrase["x"]))
     P('</div>')
 
   def MakeMainEntryParentItem(self, P, parent, input_dbm):
@@ -665,9 +666,9 @@ class GenerateUnionEPUBBatch:
         text = entry["item"][0]["text"]
         text = regex.sub(r" \[-+\] .*", "", text).strip()
       if text:
-        P('<div class="item">')
+        P('<div>')
         P('<span class="attr">[語幹]</span>')
-        P('<span class="text">{} : {}</span>', word, text)
+        P('<span>{} : {}</span>', word, text)
         P('</div>')
 
   def MakeNavigation(self, key_prefixes):

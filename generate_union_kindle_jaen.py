@@ -557,7 +557,7 @@ class GenerateUnionEPUBBatch:
       del variants[word]
     trans = sorted(trans, key=lambda x: x[1], reverse=True)
     P('<idx:entry>')
-    P('<div class="head">')
+    P('<div>')
     P('<span class="word">')
     P('<idx:orth>{}', word)
     if variants:
