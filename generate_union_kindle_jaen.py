@@ -147,7 +147,8 @@ def esc(expr):
 
 class GenerateUnionEPUBBatch:
   def __init__(self, input_path, output_path, supplement_labels,
-               tran_prob_path, phrase_prob_path, rev_prob_path, yomi_first_path, yomi_second_path,
+               tran_prob_path, phrase_prob_path, rev_prob_path,
+               yomi_first_paths, yomi_second_paths,
                tran_aux_paths, conj_verb_path, conj_adj_path, title):
     self.input_path = input_path
     self.output_path = output_path
@@ -155,8 +156,8 @@ class GenerateUnionEPUBBatch:
     self.tran_prob_path = tran_prob_path
     self.phrase_prob_path = phrase_prob_path
     self.rev_prob_path = rev_prob_path
-    self.yomi_first_path = yomi_first_path
-    self.yomi_second_path = yomi_second_path
+    self.yomi_first_paths = yomi_first_paths
+    self.yomi_second_paths = yomi_second_paths
     self.tran_aux_paths = tran_aux_paths
     self.conj_verb_path = conj_verb_path
     self.conj_adj_path = conj_adj_path
@@ -401,8 +402,14 @@ class GenerateUnionEPUBBatch:
     return new_word_dict
 
   def MakeYomiDict(self, word_dict):
-    yomi_first_map = self.ReadYomiMap(self.yomi_first_path)
-    yomi_second_map = self.ReadYomiMap(self.yomi_second_path)
+    yomi_first_map = collections.defaultdict(list)
+    for yomi_path in self.yomi_first_paths:
+      if not yomi_path: continue
+      self.ReadYomiMap(yomi_path, yomi_first_map)
+    yomi_second_map = collections.defaultdict(list)
+    for yomi_path in self.yomi_second_paths:
+      if not yomi_path: continue
+      self.ReadYomiMap(yomi_path, yomi_second_map)
     yomi_dict = collections.defaultdict(list)
     for word, items in word_dict.items():
       word_yomi = ""
@@ -439,15 +446,14 @@ class GenerateUnionEPUBBatch:
       sorted_yomi_dict.append((first, items))
     return sorted_yomi_dict
 
-  def ReadYomiMap(self, path):
-    yomi_map = collections.defaultdict(list)
+  def ReadYomiMap(self, path, yomi_map):
     if path:
       with open(path) as input_file:
         for line in input_file:
           fields = line.strip().split("\t")
-          if len(fields) != 2: continue
-          kanji, yomi = fields
-          yomi_map[kanji].append(yomi)
+          if len(fields) <= 2: continue
+          kanji, yomis = fields[0], fields[1:]
+          yomi_map[kanji].extend(yomis)
     return yomi_map
 
   def ChooseBestYomi(self, word, yomis, sort_by_length):
@@ -649,8 +655,12 @@ def main():
   tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
   phrase_prob_path = tkrzw_dict.GetCommandFlag(args, "--phrase_prob", 1) or ""
   rev_prob_path = tkrzw_dict.GetCommandFlag(args, "--rev_prob", 1) or ""
-  yomi_first_path = tkrzw_dict.GetCommandFlag(args, "--yomi_first", 1) or ""
-  yomi_second_path = tkrzw_dict.GetCommandFlag(args, "--yomi_second", 1) or ""
+  yomi_first_paths = (tkrzw_dict.GetCommandFlag(args, "--yomi_first", 1) or "").split(",")
+  yomi_second_paths = (tkrzw_dict.GetCommandFlag(args, "--yomi_second", 1) or "").split(",")
+
+  print(yomi_first_paths)
+  print(yomi_second_paths)
+  
   tran_aux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or "").split(",")
   conj_verb_path = tkrzw_dict.GetCommandFlag(args, "--conj_verb", 1)
   conj_adj_path = tkrzw_dict.GetCommandFlag(args, "--conj_adj", 1)
@@ -661,7 +671,8 @@ def main():
     raise RuntimeError("an output path is required")
   GenerateUnionEPUBBatch(
     input_path, output_path, supplement_labels, tran_prob_path, phrase_prob_path, rev_prob_path,
-    yomi_first_path, yomi_second_path, tran_aux_paths, conj_verb_path, conj_adj_path, title).Run()
+    yomi_first_paths, yomi_second_paths,
+    tran_aux_paths, conj_verb_path, conj_adj_path, title).Run()
 
 
 if __name__=="__main__":
