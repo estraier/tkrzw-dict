@@ -32,13 +32,19 @@ import tkrzw_tokenizer
 logger = tkrzw_dict.GetLogger()
 
 
-def Run(phrase_prob_path, tran_prob_path, tran_aux_paths, min_phrase_prob, min_tran_prob):
+def Run(phrase_prob_path, rev_prob_path,
+        tran_prob_path, tran_aux_paths, yomi_paths, min_phrase_prob, min_tran_prob):
   logger.info("Start the process")
   phrase_prob_dbm = None
   if phrase_prob_path:
     logger.info("Opening the phrase prob DB: " + phrase_prob_path)
     phrase_prob_dbm = tkrzw.DBM()
     phrase_prob_dbm.Open(phrase_prob_path, False, dbm="HashDBM").OrDie()
+  rev_prob_dbm = None
+  if rev_prob_path:
+    logger.info("Opening the reverse prob DB: " + rev_prob_path)
+    rev_prob_dbm = tkrzw.DBM()
+    rev_prob_dbm.Open(rev_prob_path, False, dbm="HashDBM").OrDie()
   tran_prob_dbm = None
   if tran_prob_path:
     logger.info("Opening the tran prob DB: " + tran_prob_path)
@@ -60,6 +66,16 @@ def Run(phrase_prob_path, tran_prob_path, tran_aux_paths, min_phrase_prob, min_t
             if uniq_key in uniq_keys: continue
             aux_trans[word].append(tran)
             uniq_keys.add(uniq_key)
+  yomis = set()
+  for yomi_path in yomi_paths.split(","):
+    yomi_path = yomi_path.strip()
+    if yomi_path:
+      logger.info("Reading the yomi file: " + yomi_path)
+      with open(yomi_path) as input_file:
+        for line in input_file:
+          fields = line.strip().split("\t")
+          if len(fields) < 1: continue
+          yomis.add(fields[0])
   logger.info("Processing the gross.")
   tokenizer = tkrzw_tokenizer.Tokenizer()
   word_dict = collections.defaultdict(list)
@@ -98,7 +114,7 @@ def Run(phrase_prob_path, tran_prob_path, tran_aux_paths, min_phrase_prob, min_t
   norm_word_dict = collections.defaultdict(list)
   for word, trans in word_dict.items():
     scored_trans, phrase_prob = ProcessWord(
-      word, trans, tokenizer, phrase_prob_dbm, tran_prob_dbm, aux_trans,
+      word, trans, tokenizer, phrase_prob_dbm, rev_prob_dbm, tran_prob_dbm, aux_trans, yomis,
       min_phrase_prob, min_tran_prob)
     if scored_trans:
       key = tkrzw_dict.NormalizeWord(word)
@@ -121,8 +137,8 @@ def Run(phrase_prob_path, tran_prob_path, tran_aux_paths, min_phrase_prob, min_t
   logger.info("Process done")
 
 
-def ProcessWord(word, trans, tokenizer, phrase_prob_dbm, tran_prob_dbm, aux_trans,
-                min_phrase_prob, min_tran_prob):
+def ProcessWord(word, trans, tokenizer, phrase_prob_dbm, rev_prob_dbm, tran_prob_dbm,
+                aux_trans, yomis, min_phrase_prob, min_tran_prob):
   phrase_prob = 0.0
   if phrase_prob_dbm:
     tokens = tokenizer.Tokenize("en", word, False, True)[:3]
@@ -163,8 +179,23 @@ def ProcessWord(word, trans, tokenizer, phrase_prob_dbm, tran_prob_dbm, aux_tran
       if count > 0:
         aux_hit = True
         tran_prob += count * 0.05
-    if not aux_hit and phrase_prob < min_phrase_prob: continue
-    if not aux_hit and tran_prob < min_tran_prob: continue
+    has_yomi = tran in yomis
+    if has_yomi:
+      tran_prob += 0.01
+    rev_prob = 0.0
+    if rev_prob_dbm:
+      tokens = tokenizer.Tokenize("ja", tran, False, True)[:3]
+      norm_phrase = " ".join(tokens)
+      rev_prob = float(rev_prob_dbm.GetStr(norm_phrase) or 0.0)
+      if rev_prob > 0:
+        tran_prob += min(rev_prob ** 0.5, 0.2)
+      else:
+        tran_prob *= 0.8
+    if tran_prob > 0.04 and (rev_prob > 0.0 or has_yomi):
+      pass
+    else:
+      if not aux_hit and phrase_prob < min_phrase_prob: continue
+      if not aux_hit and tran_prob < min_tran_prob: continue
     if regex.fullmatch(r"[\p{Katakana}ー]+", tran):
       tran_prob *= 0.7
     elif regex.fullmatch(r"[\p{Hiragana}\p{Katakana}ー]+", tran):
@@ -191,7 +222,7 @@ def PrintEntry(word, scored_trans):
   fields = []
   fields.append("word=" + word)
   for pos, score in final_scores:
-    items = score_poses[pos][:4]
+    items = score_poses[pos][:5]
     text = ", ".join([x[0] for x in items])
     fields.append(pos + "=" + text)
   print("\t".join(fields))
@@ -200,11 +231,14 @@ def PrintEntry(word, scored_trans):
 def main():
   args = sys.argv[1:]
   phrase_prob_path = tkrzw_dict.GetCommandFlag(args, "--phrase_prob", 1) or ""
+  rev_prob_path = tkrzw_dict.GetCommandFlag(args, "--rev_prob", 1) or ""
   tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
   tran_aux_paths = tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or ""
+  yomi_paths = tkrzw_dict.GetCommandFlag(args, "--yomi", 1) or ""
   min_phrase_prob = float(tkrzw_dict.GetCommandFlag(args, "--min_phrase_prob", 1) or .000001)
   min_tran_prob = float(tkrzw_dict.GetCommandFlag(args, "--min_tran_prob", 1) or 0.1)
-  Run(phrase_prob_path, tran_prob_path, tran_aux_paths, min_phrase_prob, min_tran_prob)
+  Run(phrase_prob_path, rev_prob_path, tran_prob_path,
+      tran_aux_paths, yomi_paths, min_phrase_prob, min_tran_prob)
 
 
 if __name__=="__main__":
