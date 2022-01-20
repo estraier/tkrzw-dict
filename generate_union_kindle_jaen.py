@@ -657,10 +657,6 @@ def main():
   rev_prob_path = tkrzw_dict.GetCommandFlag(args, "--rev_prob", 1) or ""
   yomi_first_paths = (tkrzw_dict.GetCommandFlag(args, "--yomi_first", 1) or "").split(",")
   yomi_second_paths = (tkrzw_dict.GetCommandFlag(args, "--yomi_second", 1) or "").split(",")
-
-  print(yomi_first_paths)
-  print(yomi_second_paths)
-  
   tran_aux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or "").split(",")
   conj_verb_path = tkrzw_dict.GetCommandFlag(args, "--conj_verb", 1)
   conj_adj_path = tkrzw_dict.GetCommandFlag(args, "--conj_adj", 1)
