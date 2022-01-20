@@ -589,6 +589,7 @@ class BuildUnionDBBatch:
     num_words = 0
     poses = collections.defaultdict(set)
     synonyms = collections.defaultdict(set)
+    core = None
     for label, word_dict in word_dicts:
       dict_entries = word_dict.get(key)
       if not dict_entries: continue
@@ -614,6 +615,8 @@ class BuildUnionDBBatch:
             synonym = synonym.strip()
             if regex.search(r"\p{Latin}", synonym) and synonym.lower() != word.lower():
               synonyms[word].add(synonym)
+        if not core:
+          core = entry.get("core")
       dict_entries = word_dict.get(key + "\ttranslation")
       if dict_entries:
         for entry in dict_entries:
@@ -683,7 +686,8 @@ class BuildUnionDBBatch:
       stem = " ".join(self.tokenizer.Tokenize("en", word, False, True))
       effective_labels = set()
       surfaces = set([word.lower()])
-      is_keyword = word in aux_trans or word in aoa_words or word in keywords
+      is_keyword = (word in aux_trans or word in aoa_words or word in keywords or
+                    (core and core in keywords))
       word_poses = poses[word]
       for pos in word_poses:
         for rule_pos, suffixes in (
@@ -799,7 +803,7 @@ class BuildUnionDBBatch:
                     norm_text = regex.sub(r"^(to|a|an|the) +([\p{Latin}])", r"\2", norm_text)
                     dist = tkrzw.Utility.EditDistanceLev(key, norm_text)
                     dist /= max(len(key), len(norm_text))
-                    if dist > 0.5:
+                    if dist > 0.5 or word in aux_trans or (core and core in aux_trans):
                       min_prob = 0.0
                   if prob < min_prob:
                     is_good_item = False
