@@ -775,6 +775,17 @@ class BuildUnionDBBatch:
           word_entry["item"] = items
       if "item" not in word_entry:
         continue
+      num_eff_items = 0
+      for item in word_entry["item"]:
+        text = item["text"]
+        if regex.search(r" (of|for) +\"", text) and len(text) < 50:
+          continue
+        if (regex.search(r"\p{Latin}.*の.*(単数|複数|現在|過去|比較|最上).*(形|級|分詞)", text) and
+            len(text) < 30):
+          continue
+        num_eff_items += 1
+      if num_eff_items == 0:
+        continue
       prob = None
       if phrase_prob_dbm:
         prob = self.GetPhraseProb(phrase_prob_dbm, "en", word)
