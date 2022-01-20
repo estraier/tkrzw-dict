@@ -435,14 +435,14 @@ class GenerateUnionEPUBBatch:
             value = entry.get(name)
             if value:
               for infl in value.split(","):
-                infl_norm = tkrzw_dict.NormalizeWord(infl.strip())
-                if infl_norm:
-                  old_rec = infl_probs.get(infl_norm)
+                infl = infl.strip()
+                if infl:
+                  old_rec = infl_probs.get(infl)
                   if not old_rec or prob > old_rec[0]:
-                    infl_probs[infl_norm] = (prob, word)
+                    infl_probs[infl] = (prob, word)
     inflections = {}
-    for infl_norm, pair in infl_probs.items():
-      inflections[infl_norm] = pair[1]
+    for infl, pair in infl_probs.items():
+      inflections[infl] = pair[1]
     out_files = {}
     for key in keys:
       key_prefix = GetKeyPrefix(key)
@@ -577,8 +577,7 @@ class GenerateUnionEPUBBatch:
         for infl in value.split(","):
           infl = infl.strip()
           if not infl: continue
-          infl_norm = tkrzw_dict.NormalizeWord(infl)
-          if inflections.get(infl_norm) != word: continue
+          if inflections.get(infl) != word: continue
           kind_infls.append((kind, infl))
       if not kind_infls: continue
       P('<idx:infl inflgrp="{}">', pos)
