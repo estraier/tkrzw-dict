@@ -86,10 +86,11 @@ particles = set([
 ])
 misc_stop_words = set([
   "the", "a", "an", "I", "my", "me", "mine", "you", "your", "yours", "he", "his", "him",
-  "she", "her", "hers", "we", "our", "us", "ours", "some", "any", "one", "someone", "something",
+  "she", "her", "hers", "it", "its", "they", "their", "them", "theirs",
+  "we", "our", "us", "ours", "some", "any", "one", "someone", "something",
   "who", "whom", "whose", "what", "where", "when", "why", "how", "and", "but", "not", "no",
   "never", "ever", "time", "place", "people", "person", "this", "that", "other", "another",
-  "back", "much", "many", "more", "most", "good", "well", "better", "best",
+  "back", "much", "many", "more", "most", "good", "well", "better", "best", "all",
 ])
 
 

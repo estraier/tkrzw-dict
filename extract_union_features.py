@@ -5,9 +5,10 @@
 #
 # Usage:
 #   extract_union_features.py data_prefix
+#   (It prints the result on the standard output.)
 #
 # Example
-#   ./extract_union_feedback_tran.py union
+#   ./extract_union_feedback_tran.py union > union-features.tsv
 #
 # Copyright 2020 Google LLC
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
@@ -26,6 +27,15 @@ import sys
 import tkrzw_union_searcher
 
 
+def GetFeatures(searcher, entry):
+  features = {}
+  for label, score in searcher.GetFeatures(entry).items():
+    if not regex.fullmatch("[a-z]+", label):
+      score *= 0.5
+    features[label] = score
+  return features
+
+
 def AddFeatures(searcher, word, weight, core_prob, features):
   entries = searcher.SearchBody(word)
   if not entries: return
@@ -33,7 +43,7 @@ def AddFeatures(searcher, word, weight, core_prob, features):
     if entry["word"] != word: continue
     prob = max(float(entry.get("probability") or 0.0), 0.000001)
     ratio = min(prob / core_prob, 1.0)
-    for label, score in searcher.GetFeatures(entry).items():
+    for label, score in GetFeatures(searcher, entry).items():
       if label.startswith("__"): continue
       features[label] = (features.get(label) or 0) + score * weight * (ratio ** 0.5)
 
@@ -50,8 +60,9 @@ def main():
     if not result: break
     for entry in result:
       word = entry["word"]
+      top_word = word
       prob = max(float(entry.get("probability") or 0.0), 0.000001)
-      features = searcher.GetFeatures(entry)
+      features = GetFeatures(searcher, entry)
       rel_words = {}
       parents = entry.get("parent")
       if parents:
@@ -59,6 +70,7 @@ def main():
         for parent in parents:
           rel_words[parent] = max(rel_words.get(parent) or 0, weight)
           weight *= 0.9
+        top_word = parents[0]
       children = entry.get("child")
       if children:
         weight = 1 / (min(len(children) + 2, 5))
@@ -80,7 +92,7 @@ def main():
         score /= max_score
         mod_features.append((label, score))
       mod_features = sorted(mod_features, key=lambda x: x[1], reverse=True)
-      fields = [word]
+      fields = [word, top_word]
       for label, score in mod_features[:100]:
         fields.append(label)
         fields.append("{:.3f}".format(score))

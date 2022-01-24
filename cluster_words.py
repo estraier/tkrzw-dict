@@ -122,19 +122,40 @@ class ClusterGenerator():
       best_id = 0
       best_score = -1
       for i, cluster in enumerate(self.clusters):
-        if len(cluster) > cap: continue
+        if len(cluster) >= cap: continue
         features =  self.cluster_features[i]
         score = GetSimilarity(features, item)
         if score > best_score:
           best_id = i
           best_score = score
       self.clusters[best_id].append((word, item, best_score))
+
+  def FinishClusters(self):
+    for i, cluster in enumerate(self.clusters):
+      if not cluster: continue
+      features = self.cluster_features[i]
+      best_id = i + 1
+      best_score = -1
+      for j in range(i + 1, len(self.clusters)):
+        cand_cluster = self.clusters[j]
+        cand_features = self.cluster_features[j]
+        score = GetSimilarity(features, cand_features)
+        if score > best_score:
+          best_id = j
+          best_score = score
+      if best_id != i + 1:
+        tmp_cluster = self.clusters[best_id]
+        self.clusters[best_id] = self.clusters[i + 1]
+        self.clusters[i + 1] = tmp_cluster
+        tmp_features = self.cluster_features[best_id]
+        self.cluster_features[best_id] = self.cluster_features[i + 1]
+        self.cluster_features[i + 1] = tmp_features
     for i, cluster in enumerate(self.clusters):
       if not cluster: continue
       cluster = sorted(cluster, key=lambda x: x[2], reverse=True)
       for j in range(len(cluster) - 1):
         word, item, score = cluster[j]
-        best_id = 0
+        best_id = j + 1
         best_score = -1
         for k in range(j + 1, len(cluster)):
           cand_word, cand_item, cand_score = cluster[k]
@@ -151,7 +172,8 @@ class ClusterGenerator():
 
 
 class ClusterBatch():
-  def __init__(self, num_clusters, num_rounds, num_items, num_item_features, num_cluster_features):
+  def __init__(self, num_clusters, num_rounds, num_items,
+               num_item_features, num_cluster_features):
     self.num_clusters = num_clusters
     self.num_rounds = num_rounds
     self.num_items = num_items
@@ -175,9 +197,9 @@ class ClusterBatch():
       if len(word) <= 2: continue
       if word in STOP_WORDS: continue
       if not regex.fullmatch("[a-z]+", word): continue
-      fields = fields[:self.num_item_features]
       features = {}
       for i in range(0, len(fields) - 1, 2):
+        if len(features) >= self.num_item_features: break
         label = fields[i]
         score = float(fields[i + 1])
         features[label] = score
@@ -188,12 +210,14 @@ class ClusterBatch():
     for round_id in range(self.num_rounds):
       if (self.num_rounds > 9 and
           (round_id in (int(self.num_rounds / 3), int(self.num_rounds / 3 * 2)))):
-        logger.info("Smooting")
+        logger.info("Smoothing")
         generator.SmoothClusters()
       logger.info("Processing: Round {}".format(round_id + 1))
       generator.MakeClusters()
-    logger.info("Smooting")
+    logger.info("Smoothing")
     generator.SmoothClusters()
+    logger.info("Finishing")
+    generator.FinishClusters()
     logger.info("Outputing")
     for i in range(self.num_clusters):
       items = generator.GetClusterItems(i)
@@ -208,8 +232,8 @@ class ClusterBatch():
 
 def main():
   args = sys.argv[1:]
-  num_clusters = int(tkrzw_dict.GetCommandFlag(args, "--clusters", 1) or 200)
-  num_rounds = int(tkrzw_dict.GetCommandFlag(args, "--rounds", 1) or 100)
+  num_clusters = int(tkrzw_dict.GetCommandFlag(args, "--clusters", 1) or 400)
+  num_rounds = int(tkrzw_dict.GetCommandFlag(args, "--rounds", 1) or 30)
   num_items = int(tkrzw_dict.GetCommandFlag(args, "--items", 1) or 10000)
   num_item_features = int(tkrzw_dict.GetCommandFlag(args, "--item_features", 1) or 32)
   num_cluster_features = int(tkrzw_dict.GetCommandFlag(args, "--cluster_features", 1) or 128)
