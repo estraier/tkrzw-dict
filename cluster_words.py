@@ -49,6 +49,8 @@ STOP_WORDS = set([
   "back", "much", "many", "more", "most", "good", "well", "better", "best", "all",
   "are",
   "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+  "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "nineteen",
+  "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety", "hundred",
 ])
 
 
@@ -86,12 +88,21 @@ class ClusterGenerator():
       self.clusters[i % self.num_clusters].append((item[0], item[1], 0))
 
   def MakeClusters(self):
+    cap = math.ceil(len(self.items) / self.num_clusters)
+    mid = cap / 2
+    mid_decay = 1.0 - 1.0 / cap
     self.cluster_features = []
     for cluster in self.clusters:
       features = collections.defaultdict(float)
+      weight = 1.0
+      num_items = 0
       for word, item, _ in cluster:
+        if num_items >= cap: break
+        if num_items > mid:
+          weight *= mid_decay
         for label, score in item.items():
-          features[label] += score
+          features[label] += score * weight
+        num_items += 1
       features = sorted(features.items(), key=lambda x: x[1], reverse=True)[:self.num_features]
       top_features = {}
       for label, score in features:
@@ -109,13 +120,14 @@ class ClusterGenerator():
           best_id = i
           best_score = score
       self.clusters[best_id].append((word, item, best_score))
+    for i, cluster in enumerate(self.clusters):
+      self.clusters[i] = sorted(cluster, key=lambda x: x[2], reverse=True)
 
   def SmoothClusters(self):
     cap = math.ceil(len(self.items) / self.num_clusters)
     extra_items = []
     for i, cluster in enumerate(self.clusters):
       if len(cluster) <= cap: continue
-      cluster = sorted(cluster, key=lambda x: x[2], reverse=True)
       extra_items.extend(cluster[cap:])
       self.clusters[i] = cluster[:cap]
     for word, item, _ in extra_items:
@@ -194,7 +206,7 @@ class ClusterBatch():
       top_word = fields[1]
       if word != top_word: continue
       fields = fields[2:]
-      if len(word) <= 2: continue
+      if len(word) <= 2 and word not in ("go", "ax", "ox", "pi"): continue
       if word in STOP_WORDS: continue
       if not regex.fullmatch("[a-z]+", word): continue
       features = {}
@@ -232,7 +244,7 @@ class ClusterBatch():
 
 def main():
   args = sys.argv[1:]
-  num_clusters = int(tkrzw_dict.GetCommandFlag(args, "--clusters", 1) or 400)
+  num_clusters = int(tkrzw_dict.GetCommandFlag(args, "--clusters", 1) or 500)
   num_rounds = int(tkrzw_dict.GetCommandFlag(args, "--rounds", 1) or 30)
   num_items = int(tkrzw_dict.GetCommandFlag(args, "--items", 1) or 10000)
   num_item_features = int(tkrzw_dict.GetCommandFlag(args, "--item_features", 1) or 32)
