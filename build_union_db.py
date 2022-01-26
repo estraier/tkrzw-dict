@@ -488,6 +488,7 @@ class BuildUnionDBBatch:
     for key, merged_entry in merged_entries:
       for word_entry in merged_entry:
         self.CompensateInflections(word_entry, merged_dict, verb_words)
+        self.CompensateAlternatives(word_entry, merged_dict)
         self.PropagateTranslations(word_entry, merged_dict, tran_prob_dbm, aux_last_trans)
       num_entries += 1
       if num_entries % 1000 == 0:
@@ -1330,6 +1331,14 @@ class BuildUnionDBBatch:
     extra_word_base = extra_word_bases.get(word)
     if extra_word_base:
       parents.add(extra_word_base)
+    alternatives = word_entry.get("alternative")
+    if alternatives:
+      for alternative in alternatives:
+        parents.discard(alternative)
+        children.discard(alternative)
+    for variant in self.GetSpellVariants(word):
+      parents.discard(variant)
+      children.discard(variant)
     translations = list(word_entry.get("translation") or [])
     if tran_prob_dbm:
       tsv = tran_prob_dbm.GetStr(norm_word)
@@ -1572,6 +1581,67 @@ class BuildUnionDBBatch:
                 phrase_infls.append(" ".join(root_infl_tokens))
               if phrase_infls:
                 entry[infl_name] = ", ".join(phrase_infls)
+
+  def CompensateAlternatives(self, word_entry, merged_dict):
+    word = word_entry["word"]
+    alternatives = word_entry.get("alternative") or []
+    variants = self.GetSpellVariants(word)
+    wn_count = 0
+    for item in word_entry["item"]:
+      if item["label"] != "wn": continue
+      wn_count += 1
+      for section in item["text"].split("[-]"):
+        section = section.strip()
+        match = regex.search(r"\[synonym\]: (.*)", section)
+        if match:
+          for synonym in match.group(1).split(","):
+            synonym = synonym.strip()
+            dist = tkrzw.Utility.EditDistanceLev(word, synonym)
+            similar = False
+            if dist == 1 and word[:3] != synonym[:3]:
+              similar = True
+            elif dist == 2 and word[:5] == synonym[:5] and word[-2:] == synonym[-2:]:
+              similar = True
+            if similar and synonym not in variants:
+              variants.add(synonym)
+    for variant in variants:
+      if word[:2] != variant[:2]: continue
+      if variant in alternatives: continue
+      variant_entries = merged_dict.get(variant)
+      if not variant_entries: continue
+      for variant_entry in variant_entries:
+        if variant_entry["word"] != variant: continue
+        var_wn_count = 0
+        var_wn_counts = collections.defaultdict(int)
+        for item in variant_entry["item"]:
+          if item["label"] != "wn": continue
+          var_wn_count += 1
+          for section in item["text"].split("[-]"):
+            section = section.strip()
+            match = regex.search(r"\[synonym\]: (.*)", section)
+            if match:
+              for synonym in match.group(1).split(","):
+                synonym = synonym.strip()
+                if synonym:
+                  var_wn_counts[synonym] += 1
+        hits = var_wn_counts[word]
+        if (wn_count > 0 and var_wn_count == wn_count and hits == wn_count) or hits >= 4:
+          alternatives.append(variant)
+    if alternatives:
+      word_entry["alternative"] = alternatives
+
+  def GetSpellVariants(self, word):
+    variants = set()
+    suffix_pairs = [("se", "ze"), ("ce", "se"), ("isation", "ization"),
+                    ("our", "or"), ("og", "ogue"), ("re", "er"), ("l", "ll")]
+    for suffix1, suffix2 in suffix_pairs:
+      if word.endswith(suffix1):
+        variant = word[:-len(suffix1)] + suffix2
+        variants.add(variant)
+      if word.endswith(suffix2):
+        variant = word[:-len(suffix2)] + suffix1
+        variants.add(variant)
+    return variants
 
   def GetEntryTranslations(self, merged_dict, word, is_capital, best_pos):
     key = tkrzw_dict.NormalizeWord(word)
