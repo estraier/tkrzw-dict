@@ -75,7 +75,7 @@ adjective_suffixes = [
 adverb_suffixes = [
   "ly",
 ]
-particles = set([
+particles = {
   "aback", "about", "above", "abroad", "across", "after", "against", "ahead", "along",
   "amid", "among", "apart", "around", "as", "at", "away", "back", "before", "behind",
   "below", "beneath", "between", "beside", "beyond", "by", "despite", "during", "down",
@@ -83,16 +83,22 @@ particles = set([
   "onto", "out", "outside", "over", "per", "re", "since", "than", "through", "throughout",
   "till", "to", "together", "toward", "under", "until", "up", "upon", "with", "within",
   "without", "via",
-])
-misc_stop_words = set([
+}
+misc_stop_words = {
   "the", "a", "an", "I", "my", "me", "mine", "you", "your", "yours", "he", "his", "him",
   "she", "her", "hers", "it", "its", "they", "their", "them", "theirs",
   "we", "our", "us", "ours", "some", "any", "one", "someone", "something",
+  "myself", "yourself", "yourselves", "himself", "herself", "itself", "themselves",
   "who", "whom", "whose", "what", "where", "when", "why", "how", "and", "but", "not", "no",
   "never", "ever", "time", "place", "people", "person", "this", "that", "other", "another",
   "back", "much", "many", "more", "most", "good", "well", "better", "best", "all",
-])
-
+}
+no_parents = {
+  "number", "ground", "red", "happen", "letter", "monitor", "feed", "found", "winter",
+  "partner", "sister", "environment", "moment", "gun", "shower", "trigger", "wound", "bound",
+  "weed", "saw", "copper", "buffer", "lump", "wary", "stove", "doctor", "hinder", "crazy",
+  "tower", "poetry", "parity",
+}
 
 class BuildUnionDBBatch:
   def __init__(self, input_confs, output_path, core_labels, gross_labels,
@@ -1339,6 +1345,8 @@ class BuildUnionDBBatch:
     for variant in self.GetSpellVariants(word):
       parents.discard(variant)
       children.discard(variant)
+    if word in no_parents:
+      parents.clear()
     translations = list(word_entry.get("translation") or [])
     if tran_prob_dbm:
       tsv = tran_prob_dbm.GetStr(norm_word)
