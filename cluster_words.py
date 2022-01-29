@@ -43,14 +43,19 @@ STOP_WORDS = set([
   "without", "via",
   "the", "a", "an", "I", "my", "me", "mine", "you", "your", "yours", "he", "his", "him",
   "she", "her", "hers", "it", "its", "they", "their", "them", "theirs",
+  "myself", "yourself", "yourselves", "himself", "herself", "itself", "themselves",
   "we", "our", "us", "ours", "some", "any", "one", "someone", "something",
   "who", "whom", "whose", "what", "where", "when", "why", "how", "and", "but", "not", "no",
   "never", "ever", "time", "place", "people", "person", "this", "that", "other", "another",
   "back", "much", "many", "more", "most", "good", "well", "better", "best", "all",
-  "are",
+  "are", "grey", "towards",
   "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
   "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "nineteen",
   "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety", "hundred",
+  "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth",
+  "eleventh", "twelfth", "thirteenth", "fourteenth", "fifteenth", "sixteenth", "seventeenth",
+  "nineteenth", "twenties", "thirties", "forties", "fifties", "sixties", "seventies", "eighties",
+  "nineties", "hundredth",
 ])
 
 
@@ -145,13 +150,22 @@ class ClusterGenerator():
   def FinishClusters(self):
     for i, cluster in enumerate(self.clusters):
       if not cluster: continue
-      features = self.cluster_features[i]
+      features = collections.defaultdict(float)
+      weight = 1.0
+      for j in range(i, max(-1, i - 3), -1):
+        for label, score in self.cluster_features[j].items():
+          features[label] += score * weight
+        weight *= 0.7
+      features = sorted(features.items(), key=lambda x: x[1], reverse=True)[:self.num_features]
+      top_features = {}
+      for label, score in features:
+        top_features[label] = score
       best_id = i + 1
       best_score = -1
       for j in range(i + 1, len(self.clusters)):
         cand_cluster = self.clusters[j]
         cand_features = self.cluster_features[j]
-        score = GetSimilarity(features, cand_features)
+        score = GetSimilarity(top_features, cand_features)
         if score > best_score:
           best_id = j
           best_score = score
@@ -166,12 +180,22 @@ class ClusterGenerator():
       if not cluster: continue
       cluster = sorted(cluster, key=lambda x: x[2], reverse=True)
       for j in range(len(cluster) - 1):
-        word, item, score = cluster[j]
+        features = collections.defaultdict(float)
+        weight = 1.0
+        for k in range(j, max(-1, j - 3), -1):
+          _, item, _ = cluster[k]
+          for label, score in item.items():
+            features[label] += score * weight
+          weight *= 0.7
+        top_features = {}
+        features = sorted(features.items(), key=lambda x: x[1], reverse=True)[:self.num_features]
+        for label, score in features:
+          top_features[label] = score
         best_id = j + 1
         best_score = -1
         for k in range(j + 1, len(cluster)):
-          cand_word, cand_item, cand_score = cluster[k]
-          score = GetSimilarity(item, cand_item) + cand_score
+          _, cand_item, cand_score = cluster[k]
+          score = GetSimilarity(top_features, cand_item) + cand_score
           if score > best_score:
             best_id = k
             best_score = score
@@ -197,15 +221,19 @@ class ClusterBatch():
     logger.info("Process started: clusters={}, rounds={}, items={}".format(
       self.num_clusters, self.num_rounds, self.num_items))
     generator = ClusterGenerator(self.num_clusters, self.num_cluster_features)
-    num_items = 0
+    max_read_items = self.num_items * 2.0 + 100
+    all_items = []
+    ranks = {}
     for line in sys.stdin:
-      if num_items >= self.num_items: break
+      if len(all_items) >= max_read_items: break
       fields = line.strip().split("\t")
-      if len(fields) < 4: continue
+      if len(fields) < 6: continue
       word = fields[0]
-      top_word = fields[1]
-      if word != top_word: continue
-      fields = fields[2:]
+      normals = fields[1]
+      parents = fields[2]
+      children = fields[3]
+      if normals: continue
+      fields = fields[4:]
       if len(word) <= 2 and word not in ("go", "ax", "ox", "pi"): continue
       if word in STOP_WORDS: continue
       if not regex.fullmatch("[a-z]+", word): continue
@@ -215,7 +243,27 @@ class ClusterBatch():
         label = fields[i]
         score = float(fields[i + 1])
         features[label] = score
+      all_items.append((word, parents, features))
+      ranks[word] = len(all_items)
+    num_items = 0
+    num_skipped = 0
+    adopted_words = set()
+    for word, parents, features in all_items:
+      if num_items >= self.num_items: break
+      is_dup = False
+      for parent in parents.split(","):
+        parent = parent.strip()
+        if not parent: continue
+        if parent in adopted_words:
+          is_dup = True
+        parent_rank = ranks.get(parent)
+        if parent_rank and parent_rank <= self.num_items + num_skipped:
+          is_dup = True
+      if is_dup:
+        num_skipped += 1
+        continue
       generator.AddItem(word, features)
+      adopted_words.add(word)
       num_items += 1
     logger.info("Initializing")
     generator.InitClusters()
@@ -231,15 +279,17 @@ class ClusterBatch():
     logger.info("Finishing")
     generator.FinishClusters()
     logger.info("Outputing")
+    num_output_words = 0
     for i in range(self.num_clusters):
       items = generator.GetClusterItems(i)
       if not items: continue
       words = []
       for word, features, score in items:
         words.append(word)
+        num_output_words += 1
       print("\t".join(words))
-    logger.info("Process done: elapsed_time={:.2f}s".format(
-      time.time() - start_time))
+    logger.info("Process done: elapsed_time={:.2f}s, words={}".format(
+      time.time() - start_time, num_output_words))
 
 
 def main():
