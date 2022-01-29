@@ -322,7 +322,8 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         value = regex.sub(r".*\{\{en-verb[a-z]*\|?([^\}]*)\}\}.*", r"\1", line).strip()
         value = regex.sub(r"\[\[:en:#[^\]]*?\|(.*?)\]\]", r"\1", value)
         values = value.split("|") if value else []
-        values = self.TrimInflections(values)
+        value_attrs = {}
+        values = self.TrimInflections(values, value_attrs)
         stop = False
         if values and values[0].startswith("head="):
           if values[0][5:] != title:
@@ -457,6 +458,12 @@ class XMLHandler(xml.sax.handler.ContentHandler):
             verb_present_participle = values[1]
             verb_past = values[2]
             verb_past_participle = values[3]
+        past_alt = value_attrs.get("past2")
+        if past_alt:
+          if verb_past:
+            verb_past = verb_past + ", " + past_alt
+          if verb_past_participle:
+            verb_past_participle = verb_past_participle + ", " + past_alt
       if regex.search(r"\{\{en-adj\|?([^\}]*)\}\}", line):
         if "adjective" in infl_modes: continue
         infl_modes.add("adjective")
@@ -477,6 +484,8 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           if value in ("+", "-", "~", "?", "!"):
             stop = True
         if not stop:
+          if len(values) >= 2 and values[-1] == "further":
+            values = values[:-1]
           adjective_comparative = None
           adjective_superlative = None
           stem = title
@@ -544,6 +553,8 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           if value in ("+", "-", "~", "?", "!"):
             stop = True
         if not stop:
+          if len(values) >= 2 and values[-1] == "further":
+            values = values[:-1]
           adverb_comparative = None
           adverb_superlative = None
           stem = title
@@ -728,7 +739,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
   def IsGoodInflection(self, text):
     if not text: return False
     if text in ("-" or "~"): return False
-    if regex.search("[\?\!=,/\(\)]", text): return False
+    if regex.search("[\?\!=/\(\)]", text): return False
     return True
 
   def OutputTranslation(self, mode, translation, output):
@@ -819,7 +830,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     text = unicodedata.normalize('NFKC', text)
     return regex.sub(r"\s+", " ", text).strip()
 
-  def TrimInflections(self, values):
+  def TrimInflections(self, values, attrs=None):
     trimmed_values = []
     for value in values:
       value = regex.sub(r"\[\[([^\]]+)\]\]", r"\1", value)
@@ -829,6 +840,12 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         value = regex.sub(" or .*", "", value)
       value = regex.sub(r"^sup=", "", value)
       value = regex.sub(r",.*", "", value)
+      match = regex.search(r"^(past[0-9])=(.*)", value)
+      if match:
+        attr_value = match.group(2).strip()
+        if attrs != None and attr_value:
+          attrs[match.group(1)] = attr_value
+        continue
       if regex.search(r"^[a-z_]+[234]([a-z0-9_]+)?=", value):
         continue
       if regex.search(r"^(past|pres)[a-z0-9_]*=", value):
