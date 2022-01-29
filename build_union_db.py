@@ -1195,16 +1195,18 @@ class BuildUnionDBBatch:
       if (pure_verb or pure_adjective or pure_adverb):
         if len(tran) <= 1:
           score *= 0.8
-        if regex.search(r"[\p{Katakana}ー]", tran):
+        if regex.search(r"[\p{Katakana}]", tran):
+          score *= 0.7
+          if regex.fullmatch(r"[\p{Katakana}ー]+", tran):
+            score *= 0.7
+        elif regex.fullmatch(r"[\p{Hiragana}ー]+", tran):
+          score *= 0.9
+      else:
+        if regex.search(r"[\p{Katakana}]", tran):
           score *= 0.8
           if regex.fullmatch(r"[\p{Katakana}ー]+", tran):
             score *= 0.8
         elif regex.fullmatch(r"[\p{Hiragana}ー]+", tran):
-          score *= 0.9
-      else:
-        if regex.fullmatch(r"[\p{Hiragana}\p{Katakana}ー]", tran):
-          score *= 0.8
-        elif regex.fullmatch(r"[\p{Hiragana}\p{Katakana}ー]+", tran):
           score *= 0.95
       sorted_translations.append((tran, score))
     sorted_translations = sorted(sorted_translations, key=lambda x: x[1], reverse=True)
