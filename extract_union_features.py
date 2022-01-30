@@ -69,8 +69,7 @@ def main():
       rel_words = {}
       normals = []
       alternatives = entry.get("alternative") or []
-      suffix_pairs = [("se", "ze"), ("sing", "zing"), ("sed", "zed"), ("ser", "zer"),
-                      ("sation", "zation"), ("ence", "ense"),
+      suffix_pairs = [("se", "ze"), ("ence", "ense"), ("isation", "ization"),
                       ("our", "or"), ("og", "ogue"), ("re", "er"), ("l", "ll")]
       for gb_suffix, us_suffix in suffix_pairs:
         if word.endswith(gb_suffix):
