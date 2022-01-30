@@ -330,7 +330,7 @@ class BuildUnionDBBatch:
         for entry in word_dict[key]:
           word = entry["word"]
           if not regex.fullmatch("[a-z]+", word): continue
-          stems = self.GetDerivativeStems(entry)
+          stems = self.GetDerivativeStems(entry, word_dict)
           if stems:
             valid_stems = set()
             for stem in stems:
@@ -540,23 +540,31 @@ class BuildUnionDBBatch:
     logger.info("Saving records done: num_records={}, elapsed_time={:.2f}s".format(
       len(merged_entries), time.time() - start_time))
 
-  def GetDerivativeStems(self, entry):
+  def GetDerivativeStems(self, entry, word_dict):
     word = entry["word"]
+    def GetMetadata(in_entry, out_poses, out_deris, out_trans):
+      for pos, text in in_entry["text"]:
+        out_poses.add(pos)
+        for part in text.split("[-]"):
+          part = part.strip()
+          match = regex.search(r"^\[(synonym|derivative)\]: (.*)", part)
+          if match:
+            expr = regex.sub(r"\[-.*", "", match.group(2))
+            for deri in expr.split(","):
+              deri = deri.strip()
+              if regex.fullmatch("[a-z]+", deri):
+                out_deris.add(deri)
+          match = regex.search(r"^\[translation\]: (.*)", part)
+          if match:
+            expr = regex.sub(r"\[-.*", "", match.group(1))
+            for tran in expr.split(","):
+              tran = regex.sub(r"[^\p{Han}]", "", tran)
+              if tran:
+                out_trans.add(tran)
     poses = set()
     deris = set()
-    for pos, text in entry["text"]:
-      poses.add(pos)
-      while True:
-        match = regex.search(r"\[(synonym|derivative)\]: ", text)
-        if match:
-          text = text[match.end():]
-          expr = regex.sub(r"\[-.*", "", text)
-          for deri in expr.split(","):
-            deri = deri.strip()
-            if regex.fullmatch("[a-z]+", deri):
-              deris.add(deri)
-        else:
-          break
+    trans = set()
+    GetMetadata(entry, poses, deris, trans)
     stems = set()
     for pos in poses:
       for rule_pos, suffixes in (
@@ -570,10 +578,26 @@ class BuildUnionDBBatch:
               stem = word[:-len(suffix)]
               if len(stem) >= 2:
                 stems.add(stem)
+                if len(suffix) >= 2 and stem[-1] == suffix[0]:
+                  stems.add(stem + suffix[0])
+                if len(suffix) >= 2 and stem[-1] == "i":
+                  stems.add(stem[:-1] + "y")
+                if len(suffix) >= 2 and suffix[0] == "i":
+                  stems.add(stem + "e")
     valid_stems = set()
     for stem in stems:
       if len(stem) >= 8:
         valid_stems.add(stem)
+        continue
+      if stem.find(" ") < 0 and len(stem) >= 4 and trans:
+        for stem_entry in word_dict.get(stem) or []:
+          stem_poses = set()
+          stem_deris = set()
+          stem_trans = set()
+          GetMetadata(stem_entry, stem_poses, stem_deris, stem_trans)
+          for stem_tran in stem_trans:
+            if stem_tran in trans:
+              valid_stems.add(stem)
       for deri in deris:
         if len(word) < len(deri):
           continue
@@ -1042,6 +1066,8 @@ class BuildUnionDBBatch:
     translations = {}
     tran_labels = {}
     def Vote(tran, weight, label):
+      if regex.search(r"^(noun|verb|adj|adv|[0-9])[^\p{Latin}]", tran):
+        return
       norm_tran = tkrzw_dict.NormalizeWord(tran)
       score = 0.00001
       if rev_prob_dbm:
@@ -1201,6 +1227,8 @@ class BuildUnionDBBatch:
             score *= 0.7
         elif regex.fullmatch(r"[\p{Hiragana}ー]+", tran):
           score *= 0.9
+        elif not regex.search(r"[\p{Han}\p{Hiragana}\p{Katakana}]+", tran):
+          score *= 0.7
       else:
         if regex.search(r"[\p{Katakana}]", tran):
           score *= 0.8
@@ -1208,6 +1236,8 @@ class BuildUnionDBBatch:
             score *= 0.8
         elif regex.fullmatch(r"[\p{Hiragana}ー]+", tran):
           score *= 0.95
+        elif not regex.search(r"[\p{Han}\p{Hiragana}\p{Katakana}]+", tran):
+          score *= 0.8
       sorted_translations.append((tran, score))
     sorted_translations = sorted(sorted_translations, key=lambda x: x[1], reverse=True)
     deduped_translations = []
@@ -1642,7 +1672,8 @@ class BuildUnionDBBatch:
 
   def GetSpellVariants(self, word):
     variants = set()
-    suffix_pairs = [("se", "ze"), ("ce", "se"), ("isation", "ization"),
+    suffix_pairs = [("se", "ze"), ("sing", "zing"), ("sed", "zed"), ("ser", "zer"),
+                    ("sation", "zation"), ("ce", "se"),
                     ("our", "or"), ("og", "ogue"), ("re", "er"), ("l", "ll")]
     for suffix1, suffix2 in suffix_pairs:
       if word.endswith(suffix1):
