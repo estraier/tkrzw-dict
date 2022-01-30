@@ -133,19 +133,23 @@ class ClusterGenerator():
     extra_items = []
     for i, cluster in enumerate(self.clusters):
       if len(cluster) <= cap: continue
-      extra_items.extend(cluster[cap:])
+      rank = 0
+      for word, item_features, score in cluster[cap:]:
+        extra_items.append((word, item_features, rank + score))
+        rank += 1
       self.clusters[i] = cluster[:cap]
-    for word, item, _ in extra_items:
+    extra_items = sorted(extra_items, key=lambda x: x[2])
+    for word, item_features, _ in extra_items:
       best_id = 0
       best_score = -1
       for i, cluster in enumerate(self.clusters):
         if len(cluster) >= cap: continue
         features =  self.cluster_features[i]
-        score = GetSimilarity(features, item)
+        score = GetSimilarity(features, item_features)
         if score > best_score:
           best_id = i
           best_score = score
-      self.clusters[best_id].append((word, item, best_score))
+      self.clusters[best_id].append((word, item_features, best_score))
 
   def FinishClusters(self):
     for i, cluster in enumerate(self.clusters):
