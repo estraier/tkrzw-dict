@@ -1556,13 +1556,15 @@ class BuildUnionDBBatch:
       phrase_prob = self.GetPhraseProb(phrase_prob_dbm, "en", token)
       word_idf = math.log(phrase_prob) * -1
       word_weight = word_idf ** 2
-      max_word_weight = max(max_word_weight, word_weight)      
+      max_word_weight = max(max_word_weight, word_weight)
       tsv = cooc_prob_dbm.GetStr(token)
       if tsv:
         for field in tsv.split("\t")[:32]:
           cooc_word, cooc_prob = field.split(" ", 1)
-          if cooc_word not in tokens:
-            cooc_words[cooc_word] += float(cooc_prob) * word_weight
+          cooc_tokens = self.tokenizer.Tokenize("en", cooc_word, True, True)
+          for cooc_token in cooc_tokens:
+            if cooc_token and cooc_word not in tokens:
+              cooc_words[cooc_token] += float(cooc_prob) * word_weight
     def_token_labels = collections.defaultdict(set)
     for item in word_entry["item"]:
       label = item["label"]
@@ -1577,6 +1579,7 @@ class BuildUnionDBBatch:
       for def_token in def_tokens:
         if not regex.fullmatch(r"[\p{Latin}]{2,}", def_token): continue
         if def_token in particles or def_token in misc_stop_words: continue
+        if def_token in tokens: continue
         def_token_labels[def_token].add(label)
     for def_token, labels in def_token_labels.items():
       cooc_words[def_token] += 0.01 * len(labels) * max_word_weight
