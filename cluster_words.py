@@ -46,7 +46,8 @@ STOP_WORDS = set([
   "myself", "yourself", "yourselves", "himself", "herself", "itself", "themselves",
   "we", "our", "us", "ours", "some", "any", "one", "someone", "something",
   "who", "whom", "whose", "what", "where", "when", "why", "how", "and", "but", "not", "no",
-  "never", "ever", "time", "place", "people", "person", "this", "that", "other", "another",
+  "never", "ever", "time", "place", "people", "person", "this", "these", "that", "those",
+  "other", "another", "yes",
   "back", "much", "many", "more", "most", "good", "well", "better", "best", "all",
   "are", "grey", "towards",
   "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
@@ -87,17 +88,28 @@ class ClusterGenerator():
 
   def InitClusters(self):
     self.clusters = []
+    self.cluster_features = []
     for i in range(self.num_clusters):
       self.clusters.append([])
+      self.cluster_features.append({})
     for i, item in enumerate(self.items.items()):
-      self.clusters[i % self.num_clusters].append((item[0], item[1], 0))
+      self.clusters[i % self.num_clusters].append((item[0], item[1], 0.5))
 
   def MakeClusters(self):
     cap = math.ceil(len(self.items) / self.num_clusters)
+    cluster_weights = []
+    for cluster in self.clusters:
+      if cluster:
+        tail_items = cluster[-cap:]
+        mean_score = sum([x[2] for x in tail_items]) / len(tail_items)
+      else:
+        mean_score = 0.5
+      cluster_weight = mean_score + 0.2
+      cluster_weights.append(cluster_weight)
     mid = cap / 2
     mid_decay = 1.0 - 1.0 / cap
-    self.cluster_features = []
-    for cluster in self.clusters:
+    cluster_features = []
+    for i, cluster in enumerate(self.clusters):
       features = collections.defaultdict(float)
       weight = 1.0
       num_items = 0
@@ -108,28 +120,54 @@ class ClusterGenerator():
         for label, score in item.items():
           features[label] += score * weight
         num_items += 1
-      features = sorted(features.items(), key=lambda x: x[1], reverse=True)[:self.num_features]
+      mod_features = collections.defaultdict(float)
+      if features:
+        max_score = max([x[1] for x in features.items()])
+        for label, score in features.items():
+          mod_features[label] = score / max_score
+      for label, score in self.cluster_features[i].items():
+        mod_features[label] += score * 0.2
+      features = sorted(mod_features.items(),
+                        key=lambda x: x[1], reverse=True)[:self.num_features]
+      max_score = max([x[1] for x in features])
       top_features = {}
       for label, score in features:
-        top_features[label] = score
-      self.cluster_features.append(top_features)
+        top_features[label] = score / max_score
+      cluster_features.append(top_features)
+    self.cluster_features = cluster_features
     self.clusters = []
     for i in range(self.num_clusters):
       self.clusters.append([])
     for word, item in self.items.items():
       best_id = 0
       best_score = -1
+      best_mod_score = -1
       for i, features in enumerate(self.cluster_features):
         score = GetSimilarity(features, item)
-        if score > best_score:
+        mod_score = score * cluster_weights[i]
+        if mod_score > best_mod_score:
           best_id = i
           best_score = score
+          best_mod_score = mod_score
       self.clusters[best_id].append((word, item, best_score))
+    num_overs = 0
     for i, cluster in enumerate(self.clusters):
+      if len(cluster) > cap:
+        num_overs += len(cluster) - cap
       self.clusters[i] = sorted(cluster, key=lambda x: x[2], reverse=True)
 
   def SmoothClusters(self):
     cap = math.ceil(len(self.items) / self.num_clusters)
+    mid = math.ceil(len(self.items) / self.num_clusters / 2)
+    cluster_weights = []
+    for cluster in self.clusters:
+      if cluster:
+        tail_items = cluster[-mid:]
+        mean_score = sum([x[2] for x in tail_items]) / len(tail_items)
+      else:
+        mean_score = 0.5
+      cluster_weight = mean_score + 0.2
+      cluster_weights.append(cluster_weight)
     extra_items = []
     for i, cluster in enumerate(self.clusters):
       if len(cluster) <= cap: continue
@@ -142,13 +180,16 @@ class ClusterGenerator():
     for word, item_features, _ in extra_items:
       best_id = 0
       best_score = -1
+      best_mod_score = -1
       for i, cluster in enumerate(self.clusters):
         if len(cluster) >= cap: continue
         features =  self.cluster_features[i]
         score = GetSimilarity(features, item_features)
-        if score > best_score:
+        mod_score = score * cluster_weights[i]
+        if mod_score > best_mod_score:
           best_id = i
           best_score = score
+          best_mod_score = mod_score
       self.clusters[best_id].append((word, item_features, best_score))
 
   def FinishClusters(self):
@@ -301,8 +342,8 @@ def main():
   num_clusters = int(tkrzw_dict.GetCommandFlag(args, "--clusters", 1) or 500)
   num_rounds = int(tkrzw_dict.GetCommandFlag(args, "--rounds", 1) or 30)
   num_items = int(tkrzw_dict.GetCommandFlag(args, "--items", 1) or 10000)
-  num_item_features = int(tkrzw_dict.GetCommandFlag(args, "--item_features", 1) or 32)
-  num_cluster_features = int(tkrzw_dict.GetCommandFlag(args, "--cluster_features", 1) or 128)
+  num_item_features = int(tkrzw_dict.GetCommandFlag(args, "--item_features", 1) or 40)
+  num_cluster_features = int(tkrzw_dict.GetCommandFlag(args, "--cluster_features", 1) or 160)
   if tkrzw_dict.GetCommandFlag(args, "--quiet", 0):
     logger.setLevel(logging.ERROR)
   if args:
