@@ -90,7 +90,8 @@ misc_stop_words = {
   "we", "our", "us", "ours", "some", "any", "one", "someone", "something",
   "myself", "yourself", "yourselves", "himself", "herself", "itself", "themselves",
   "who", "whom", "whose", "what", "where", "when", "why", "how", "and", "but", "not", "no",
-  "never", "ever", "time", "place", "people", "person", "this", "that", "other", "another",
+  "never", "ever", "time", "place", "people", "person", "this", "these", "that", "those",
+  "other", "another", "yes",
   "back", "much", "many", "more", "most", "good", "well", "better", "best", "all",
 }
 no_parents = {
@@ -101,13 +102,14 @@ no_parents = {
 }
 
 class BuildUnionDBBatch:
-  def __init__(self, input_confs, output_path, core_labels, gross_labels,
+  def __init__(self, input_confs, output_path, core_labels, full_def_labels, gross_labels,
                surfeit_labels, top_labels, slim_labels, tran_list_labels, supplement_labels,
                phrase_prob_path, tran_prob_path, tran_aux_paths, tran_aux_last_paths,
                rev_prob_path, cooc_prob_path, aoa_paths, keyword_path, min_prob_map):
     self.input_confs = input_confs
     self.output_path = output_path
     self.core_labels = core_labels
+    self.full_def_labels = full_def_labels
     self.gross_labels = gross_labels
     self.surfeit_labels = surfeit_labels
     self.top_labels = top_labels
@@ -584,6 +586,8 @@ class BuildUnionDBBatch:
                   stems.add(stem[:-1] + "y")
                 if len(suffix) >= 2 and suffix[0] == "i":
                   stems.add(stem + "e")
+                if len(suffix) >= 2 and suffix[0] == "e":
+                  stems.add(stem + "e")
     valid_stems = set()
     for stem in stems:
       if len(stem) >= 8:
@@ -595,9 +599,15 @@ class BuildUnionDBBatch:
           stem_deris = set()
           stem_trans = set()
           GetMetadata(stem_entry, stem_poses, stem_deris, stem_trans)
+          if word in stem_deris:
+            valid_stems.add(stem)
           for stem_tran in stem_trans:
             if stem_tran in trans:
               valid_stems.add(stem)
+            if len(stem_tran) >= 2:
+              for tran in trans:
+                if tran.find(stem_tran) >= 0:
+                  valid_stems.add(stem)
       for deri in deris:
         if len(word) < len(deri):
           continue
@@ -1377,6 +1387,8 @@ class BuildUnionDBBatch:
     for variant in self.GetSpellVariants(word):
       parents.discard(variant)
       children.discard(variant)
+    for child in children:
+      parents.discard(child)
     if word in no_parents:
       parents.clear()
     translations = list(word_entry.get("translation") or [])
@@ -1538,18 +1550,36 @@ class BuildUnionDBBatch:
     word = word_entry["word"]
     norm_word = tkrzw_dict.NormalizeWord(word)
     tokens = self.tokenizer.Tokenize("en", word, True, True)
-    cooc_words = {}
+    cooc_words = collections.defaultdict(float)
+    max_word_weight = 0.0
     for token in tokens:
       phrase_prob = self.GetPhraseProb(phrase_prob_dbm, "en", token)
       word_idf = math.log(phrase_prob) * -1
       word_weight = word_idf ** 2
+      max_word_weight = max(max_word_weight, word_weight)      
       tsv = cooc_prob_dbm.GetStr(token)
       if tsv:
-        for field in tsv.split("\t")[:24]:
+        for field in tsv.split("\t")[:32]:
           cooc_word, cooc_prob = field.split(" ", 1)
           if cooc_word not in tokens:
-            old_score = cooc_words.get(cooc_word) or 0.0
-            cooc_words[cooc_word] = old_score + float(cooc_prob) * word_weight
+            cooc_words[cooc_word] += float(cooc_prob) * word_weight
+    def_token_labels = collections.defaultdict(set)
+    for item in word_entry["item"]:
+      label = item["label"]
+      if label not in self.full_def_labels: continue
+      text = item["text"]
+      text = regex.sub(r" \[-.*", "", text).strip()
+      if regex.search(r"^\[-.*", text): continue
+      text = regex.sub(r"\(.*?\)", "", text)
+      text = regex.sub(r"\[.*?\]", "", text)
+      if not text: continue
+      def_tokens = self.tokenizer.Tokenize("en", text, True, True)
+      for def_token in def_tokens:
+        if not regex.fullmatch(r"[\p{Latin}]{2,}", def_token): continue
+        if def_token in particles or def_token in misc_stop_words: continue
+        def_token_labels[def_token].add(label)
+    for def_token, labels in def_token_labels.items():
+      cooc_words[def_token] += 0.01 * len(labels) * max_word_weight
     merged_cooc_words = sorted(cooc_words.items(), key=lambda x: x[1], reverse=True)
     weighed_cooc_words = []
     for cooc_word, cooc_score in merged_cooc_words:
@@ -2299,6 +2329,8 @@ def main():
   args = sys.argv[1:]
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-body.tkh"
   core_labels = set((tkrzw_dict.GetCommandFlag(args, "--core", 1) or "xa,wn").split(","))
+  full_def_labels = set((tkrzw_dict.GetCommandFlag(
+    args, "--full_def", 1) or "ox,wn,we").split(","))
   gross_labels = set((tkrzw_dict.GetCommandFlag(args, "--gross", 1) or "wj").split(","))
   top_labels = set((tkrzw_dict.GetCommandFlag(args, "--top", 1) or "we,lx,xa").split(","))
   slim_labels = set((tkrzw_dict.GetCommandFlag(args, "--slim", 1) or "ox,we,wj").split(","))
@@ -2334,7 +2366,7 @@ def main():
     if len(input_conf) != 2:
       raise RuntimeError("invalid input: " + input)
     input_confs.append(input_conf)
-  BuildUnionDBBatch(input_confs, output_path, core_labels, gross_labels,
+  BuildUnionDBBatch(input_confs, output_path, core_labels, full_def_labels, gross_labels,
                     surfeit_labels, top_labels, slim_labels, tran_list_labels, supplement_labels,
                     phrase_prob_path, tran_prob_path, tran_aux_paths, tran_aux_last_paths,
                     rev_prob_path, cooc_prob_path, aoa_paths, keyword_path,
