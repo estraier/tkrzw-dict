@@ -7,7 +7,8 @@
 #   extract_union_tran_thes.py [--input str] [--wnsyn str] [--quiet]
 #
 # Example:
-#   ./extract_union_tran_thes.py --input wordnet-body.tkh > union-tran-thes.txt
+#   ./extract_union_tran_thes.py --input union-body.tkh \
+#     --wnnsyn wnjpn-synonyms.tab > union-tran-thes.tsv
 #
 # Copyright 2020 Google LLC
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
