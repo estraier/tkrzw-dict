@@ -32,6 +32,10 @@ import tkrzw_dict
 
 
 logger = tkrzw_dict.GetLogger()
+inflection_names = ("noun_plural","verb_singular", "verb_present_participle",
+                    "verb_past", "verb_past_participle",
+                    "adjective_comparative", "adjective_superlative",
+                    "adverb_comparative", "adverb_superlative")
 
 
 class ExtractKeysBatch:
@@ -46,7 +50,6 @@ class ExtractKeysBatch:
     it = input_dbm.MakeIterator()
     it.First()
     num_entries = 0
-
     while True:
       record = it.GetStr()
       if not record: break
@@ -54,9 +57,18 @@ class ExtractKeysBatch:
       entry = json.loads(serialized)
       for word_entry in entry:
         word = word_entry["word"]
+        infls = []
+        for infl_name in inflection_names:
+          infl_value = word_entry.get(infl_name)
+          if infl_value:
+            for infl in infl_value.split(","):
+              infl = infl.strip()
+              if infl and infl != word and infl not in infls:
+                infls.append(infl_value)
         parents = word_entry.get("parent") or []
         children = word_entry.get("child") or []
-        synonyms = []
+        synonym_scores = collections.defaultdict(float)
+        synonym_weight = 1.0
         for item in word_entry["item"]:
           text = item["text"]
           for part in text.split("[-]"):
@@ -65,11 +77,14 @@ class ExtractKeysBatch:
             if match:
               for synonym in match.group(1).split(","):
                 synonym = synonym.strip()
-                if synonym and synonym not in synonyms:
-                  synonyms.append(synonym)
-        if not parents and not children and not synonyms: continue
-        print("{}\t{}\t{}\t{}".format(
-          word, ",".join(parents), ",".join(children), ",".join(synonyms)))
+                if synonym and synonym != word:
+                  synonym_scores[synonym] += synonym_weight
+                  synonym_weight *= 0.98
+        synonym_scores = sorted(synonym_scores.items(), key=lambda x: x[1], reverse=True)
+        synonyms = [x[0] for x in synonym_scores]
+        if not infls and not parents and not children and not synonyms: continue
+        print("{}\t{}\t{}\t{}\t{}".format(
+          word, ",".join(infls), ",".join(parents), ",".join(children), ",".join(synonyms)))
       num_entries += 1
       if num_entries % 10000 == 0:
         logger.info("Reading: entries={}".format(num_entries))
