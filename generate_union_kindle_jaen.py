@@ -348,6 +348,16 @@ class GenerateUnionEPUBBatch:
       score = word_prob_score + rank_score + tran_prob_score + dict_score
       word_dict[tran].append((word, score, tran_prob, synsets))
       rank_score *= 0.8
+    phrases = entry.get("phrase")
+    if phrases:
+      for phrase in phrases:
+        phrase_word = phrase.get("w")
+        if not phrase_word or phrase.get("p") or phrase.get("i"): continue
+        score = word_prob_score + rank_score
+        for phrase_tran in phrase.get("x"):
+          phrase_tran = regex.sub(r"\(.*?\)", "", phrase_tran).strip()
+          if phrase_tran:
+            word_dict[phrase_tran].append((phrase_word, score, 0.05, []))
 
   def AddAuxTrans(self, word_dict, tran_prob_dbm, aux_trans):
     if not tran_prob_dbm: return

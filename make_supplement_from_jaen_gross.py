@@ -182,6 +182,16 @@ def ProcessWord(word, trans, tokenizer, phrase_prob_dbm, rev_prob_dbm, tran_prob
     has_yomi = tran in yomis
     if has_yomi:
       tran_prob += 0.01
+    is_known_word = False
+    tran_tokens = tokenizer.Tokenize("ja", tran, False, True)
+    if len(tran_tokens) == 2 and tran_tokens[-1] in ("する", "な"):
+      tran_tokens = tran_tokens[:1]
+    if len(tran_tokens) == 1:
+      tran_last_pos = tokenizer.GetJaLastPos(tran)
+      if tran_last_pos[1] in ("動詞", "形容詞", "副詞"):
+        is_known_word = True
+      elif tokenizer.IsJaWordSahenNoun(tran) or tokenizer.IsJaWordAdjvNoun(tran):
+        is_known_word = True
     rev_prob = 0.0
     if rev_prob_dbm:
       tokens = tokenizer.Tokenize("ja", tran, False, True)[:3]
@@ -192,6 +202,8 @@ def ProcessWord(word, trans, tokenizer, phrase_prob_dbm, rev_prob_dbm, tran_prob
       else:
         tran_prob *= 0.8
     if tran_prob > 0.04 and (rev_prob > 0.0 or has_yomi):
+      pass
+    elif tran_prob > 0.01 and is_known_word:
       pass
     else:
       if not aux_hit and phrase_prob < min_phrase_prob: continue

@@ -258,8 +258,10 @@ def PrintResult(entries, mode, query, searcher):
         phrases = entry.get("phrase")
         if phrases:
           for phrase in phrases:
-            pp_expr = "{:.3f}".format(float(phrase["p"]) * 100)
-            text = "[句] {} : {}  ({}%)".format(phrase["w"], ", ".join(phrase["x"]), pp_expr)
+            text = "[句] {} : {}".format(phrase["w"], ", ".join(phrase["x"]))
+            pp =phrase.get("p")
+            if pp:
+              text += " ({:.3f}%)".format(float(pp) * 100)
             PrintWrappedText(text, 4)
         parents = entry.get("parent")
         if parents:
@@ -855,8 +857,10 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
               tran_expr = esc(ptran)
             tran_exprs.append(tran_expr)
           print(", ".join(tran_exprs))
-          pp_expr = "{:.2f}".format(float(phrase["p"]) * 100)
-          P('<span class="annot">({}%)</span>', pp_expr)
+          pp = phrase.get("p")
+          if pp:
+            pp_expr = "{:.2f}".format(float(pp) * 100)
+            P('<span class="annot">({}%)</span>', pp_expr)
           P('</span>')
           P('</div>')
       parents = entry.get("parent")

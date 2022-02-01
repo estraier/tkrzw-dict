@@ -53,7 +53,6 @@ class ExtractKeysBatch:
     while True:
       record = it.GetStr()
       if not record: break
-      if not record: break
       key, serialized = record
       entry = json.loads(serialized)
       for word_entry in entry:

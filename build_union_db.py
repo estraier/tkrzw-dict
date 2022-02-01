@@ -357,7 +357,6 @@ class BuildUnionDBBatch:
     verb_words = set()
     adj_words = set()
     adv_words = set()
-    core_words = set()
     for label, word_dict in word_dicts:
       if label in self.core_labels:
         for key in keys:
@@ -368,9 +367,8 @@ class BuildUnionDBBatch:
               if pos == "verb": verb_words.add(word)
               if pos == "adjective": adj_words.add(word)
               if pos == "adverb": adv_words.add(word)
-              core_words.add(word)
-    logger.info("Checking POS of words done: num_core_words={}, elapsed_time={:.2f}s".format(
-      len(core_words), time.time() - start_time))
+    logger.info("Checking POS of words done: elapsed_time={:.2f}s".format(
+      time.time() - start_time))
     start_time = time.time()
     logger.info("Indexing base forms")
     extra_word_bases = {}
@@ -442,7 +440,7 @@ class BuildUnionDBBatch:
     merged_entries = []
     for key in keys:
       merged_entry = self.MergeRecord(
-        key, word_dicts, aux_trans, aoa_words, keywords, core_words,
+        key, word_dicts, aux_trans, aoa_words, keywords,
         phrase_prob_dbm, tran_prob_dbm, rev_prob_dbm, cooc_prob_dbm)
       if not merged_entry: continue
       merged_entries.append((key, merged_entry))
@@ -507,6 +505,7 @@ class BuildUnionDBBatch:
         self.SetPhraseTranslations(word_entry, merged_dict, aux_trans, aux_last_trans,
                                    tran_prob_dbm, phrase_prob_dbm, noun_words, verb_words,
                                    live_words, rev_live_words)
+        self.AbsorbInflections(word_entry, merged_dict)
       num_entries += 1
       if num_entries % 1000 == 0:
         logger.info("Finishing entries R2: num_records={}".format(num_entries))
@@ -529,11 +528,16 @@ class BuildUnionDBBatch:
                   align_pow=0, num_buckets=num_buckets)
     num_records = 0
     for key, merged_entry in merged_entries:
+      final_entry = []
       for word_entry in merged_entry:
+        if word_entry.get("deleted"):
+          continue
         for attr_name in list(word_entry.keys()):
           if attr_name.startswith("_"):
             del word_entry[attr_name]
-      serialized = json.dumps(merged_entry, separators=(",", ":"), ensure_ascii=False)
+        final_entry.append(word_entry)
+      if not final_entry: continue
+      serialized = json.dumps(final_entry, separators=(",", ":"), ensure_ascii=False)
       word_dbm.Set(key, serialized)
       num_records += 1
       if num_records % 1000 == 0:
@@ -622,7 +626,7 @@ class BuildUnionDBBatch:
           valid_stems.add(deri)
     return list(valid_stems)
 
-  def MergeRecord(self, key, word_dicts, aux_trans, aoa_words, keywords, core_words,
+  def MergeRecord(self, key, word_dicts, aux_trans, aoa_words, keywords,
                   phrase_prob_dbm, tran_prob_dbm, rev_prob_dbm, cooc_prob_dbm):
     word_entries = {}
     word_shares = collections.defaultdict(float)
@@ -864,8 +868,6 @@ class BuildUnionDBBatch:
                 new_items.append(item)
             word_entry["item"] = new_items
       if not word_entry.get("item"):
-        continue
-      if stem != word and stem in core_words and word not in core_words:
         continue
       share_ratio = share / share_sum
       if share_ratio < 1:
@@ -2326,6 +2328,50 @@ class BuildUnionDBBatch:
           map_phrase["i"] = "1"
         map_phrases.append(map_phrase)
       entry["phrase"] = map_phrases
+
+  def AbsorbInflections(self, word_entry, merged_dict):
+    word = word_entry["word"]
+    infls = []
+    for infl_name in inflection_names:
+      infl_value = word_entry.get(infl_name)
+      if infl_value:
+        for infl in infl_value.split(","):
+          infl = infl.strip()
+          if infl and infl != word and infl not in infls:
+            infls.append(infl)
+    phrases = []
+    for infl in infls:
+      infl_entries = merged_dict.get(infl)
+      if not infl_entries: continue
+      for infl_entry in infl_entries:
+        if infl_entry["word"] != infl: continue
+        is_core = False
+        good_labels = set()
+        num_good_items = 0
+        for infl_item in infl_entry["item"]:
+          label = infl_item["label"]
+          text = infl_item["text"]
+          if label in self.supplement_labels: continue
+          if regex.search(r"^\[\w+]:", text): continue
+          good_labels.add(label)
+          if label in self.core_labels:
+            is_core = True
+          num_good_items += 1
+        alive = True
+        if len(good_labels) < 2 and not is_core and num_good_items < 3:
+          infl_entry["deleted"] = True
+          alive = False
+        infl_trans = infl_entry.get("translation")
+        if infl_trans:
+          phrase = {"w": infl, "x": infl_trans[:4]}
+          if alive:
+            phrase["i"] = "1"
+          phrases.append(phrase)
+    if phrases:
+      old_phrases = word_entry.get("phrase")
+      if old_phrases:
+        phrases = phrases + old_phrases
+      word_entry["phrase"] = phrases
 
 
 def main():

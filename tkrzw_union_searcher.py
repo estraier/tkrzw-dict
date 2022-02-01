@@ -137,6 +137,15 @@ class UnionSearcher:
                   match = True
                   break
               if match: break
+          if not match:
+            phrases = entry.get("phrase")
+            for phrase in phrases:
+              for tran in phrase["x"]:
+                tran = tkrzw_dict.NormalizeWord(tran)
+                for ja_word in ja_words:
+                  if tran.find(ja_word) >= 0:
+                    match = True
+                    break
           if match:
             result.append(entry)
             capacity -= 1

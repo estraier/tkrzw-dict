@@ -66,35 +66,46 @@ class IndexTranslationsBatch:
         aoa = min(float(word_entry.get("aoa") or "20"), 20.0)
         score = prob * ((30 - aoa) / 10)
         word_trans = word_entry.get("translation") or []
-        dup_word_trans = word_trans
-        for word_tran in word_trans:
-          match = regex.search(
-            r"([\p{Han}\p{Katakana}ー]{2,})(する|すること|される|されること|をする)$", word_tran)
-          if match:
-            short_word_tran = word_tran[:-len(match.group(2))]
-            if short_word_tran:
-              dup_word_trans.append(short_word_tran)
-          short_word_tran = self.tokenizer.CutJaWordNounParticle(word_tran)
-          if short_word_tran != word_tran:
-            dup_word_trans.append(short_word_tran)
-          match = regex.search(
-            r"([\p{Han}\p{Katakana}ー]{2,})(的|的な|的に)$", word_tran)
-          if match:
-            short_word_tran = word_tran[:-len(match.group(2))]
-            if short_word_tran:
-              dup_word_trans.append(short_word_tran)
-          match = regex.search(
-            r"([\p{Han}]{2,})(が|の|を|に|へ|と|より|から|で|や|な|なる|たる)$", word_tran)
-          if match:
-            short_word_tran = word_tran[:-len(match.group(2))]
-            if short_word_tran:
-              dup_word_trans.append(short_word_tran)
+        phrase_trans = []
+        phrases = word_entry.get("phrase")
+        if phrases:
+          for phrase in phrases:
+            if phrase.get("p") or phrase.get("i"): continue
+            for phrase_tran in phrase.get("x"):
+              phrase_tran = regex.sub(r"\(.*?\)", "", phrase_tran).strip()
+              if phrase_tran:
+                phrase_trans.append(phrase_tran)
+        weight_word_trans = []
+        for trans, weight in [(word_trans, 1.0), (phrase_trans, 0.5)]:
+          for word_tran in trans:
+            weight_word_trans.append((word_tran, weight))
+            match = regex.search(
+              r"([\p{Han}\p{Katakana}ー]{2,})(する|すること|される|されること|をする)$", word_tran)
+            if match:
+              short_word_tran = word_tran[:-len(match.group(2))]
+              if short_word_tran:
+                weight_word_trans.append((short_word_tran, weight * 0.8))
+            short_word_tran = self.tokenizer.CutJaWordNounParticle(word_tran)
+            if short_word_tran != word_tran:
+              weight_word_trans.append((short_word_tran, weight * 0.8))
+            match = regex.search(
+              r"([\p{Han}\p{Katakana}ー]{2,})(的|的な|的に)$", word_tran)
+            if match:
+              short_word_tran = word_tran[:-len(match.group(2))]
+              if short_word_tran:
+                weight_word_trans.append((short_word_tran, weight * 0.8))
+            match = regex.search(
+              r"([\p{Han}]{2,})(が|の|を|に|へ|と|より|から|で|や|な|なる|たる)$", word_tran)
+            if match:
+              short_word_tran = word_tran[:-len(match.group(2))]
+              if short_word_tran:
+                weight_word_trans.append((short_word_tran, weight * 0.8))
         uniq_trans = set()
-        for tran in dup_word_trans:
+        for tran, weight in weight_word_trans:
           norm_tran = tkrzw_dict.NormalizeWord(tran)
           if norm_tran in uniq_trans: continue
           uniq_trans.add(norm_tran)
-          pair = "{}\t{:.8f}".format(word, score)
+          pair = "{}\t{:.8f}".format(word, score * weight)
           score *= 0.98
           mem_index.Append(norm_tran, pair, "\t").OrDie()
         for item in word_entry["item"]:
