@@ -37,17 +37,14 @@ def GetFeatures(searcher, entry):
   return features
 
 
-def AddFeatures(searcher, word, weight, core_prob, features):
+def AddFeatures(searcher, word, weight, features):
   entries = searcher.SearchBody(word)
   if not entries: return
   for entry in entries:
     if entry["word"] != word: continue
-    prob = max(float(entry.get("probability") or 0.0), 0.000001)
-    ratio = min(prob / core_prob, 1.0)
     for label, score in GetFeatures(searcher, entry).items():
       if label.startswith("__"): continue
-      features[label] = (features.get(label) or 0) + score * weight * (ratio ** 0.5)
-
+      features[label] = (features.get(label) or 0) + score * weight
 
 def main():
   args = sys.argv[1:]
@@ -103,28 +100,76 @@ def main():
           continue
         parents.append(parent)
       if parents:
-        weight = 1 / (min(len(parents) + 1, 5))
+        weight = 1 / (min(len(parents), 5) + 1)
         for parent in parents:
           rel_words[parent] = max(rel_words.get(parent) or 0, weight)
           weight *= 0.9
       children = entry.get("child") or []
       if children:
-        weight = 1 / (min(len(children) + 2, 5))
+        weight = 1 / (min(len(parents), 5) + 2)
         for child in children:
           rel_words[child] = max(rel_words.get(child) or 0, weight)
           weight *= 0.9
       related = entry.get("related") or []
       if related:
-        weight = 1 / (min(len(related) + 2, 5))
+        weight = 1 / (min(len(parents), 5) + 2)
         for rel_word in related:
           rel_words[rel_word] = max(rel_words.get(rel_word) or 0, weight)
           weight *= 0.9
+      hypernyms = set()
+      synonyms = set()
+      antonyms = set()
+      similars = set()
+      for item in entry["item"]:
+        if item["label"] != "wn": continue
+        text = item["text"]
+        for part in text.split("[-]"):
+          match = regex.search(r"\[([a-z]+)\]: (.*)", part.strip())
+          if match:
+            if match.group(1) == "hypernym":
+              res_words = hypernyms
+            elif match.group(1) == "synonym":
+              res_words = synonyms
+            elif match.group(1) == "antonym":
+              res_words = antonyms
+            elif match.group(1) == "similar":
+              res_words = similars
+            else:
+              continue
+            for rel_word in match.group(2).split(","):
+              rel_word = rel_word.strip()
+              if rel_word:
+                res_words.add(rel_word)
+      voted_words = set()
+      for cand_words, penalty, propagate in [
+          (hypernyms, 1, True), (synonyms, 2, True), (antonyms, 3, False), (similars, 3, False)]:
+        if not cand_words: continue
+        weight = 1 / (math.log(len(cand_words)) + penalty)
+        for cand_word in cand_words:
+          if cand_word in voted_words: continue
+          voted_words.add(cand_word)
+          features[cand_word] = (features.get(cand_word) or 0) + weight * 0.5
+          if propagate:
+            rel_words[cand_word] = max(rel_words.get(cand_word) or 0, weight)
       for rel_word, weight in rel_words.items():
-        AddFeatures(searcher, rel_word, weight, prob, features)
+        AddFeatures(searcher, rel_word, weight, features)
+      if word in features:
+        del features[word]
       features = [x for x in features.items() if not x[0].startswith("__")]
+      gb_words = set()
+      rel_words = [x[0] for x in features]
+      rel_words.append(word)
+      for rel_word in rel_words:
+        for gb_suffix, us_suffix in suffix_pairs:
+          if rel_word.endswith(us_suffix):
+            gb_word = rel_word[:-len(us_suffix)] + gb_suffix
+            gb_words.add(gb_word)
+      if not features: continue
       max_score = max(features, key=lambda x: x[1])[1]
       mod_features = []
-      for label, score in features[:100]:
+      for label, score in features:
+        if len(mod_features) >= 128: break
+        if label in gb_words: continue
         score /= max_score
         mod_features.append((label, score))
       mod_features = sorted(mod_features, key=lambda x: x[1], reverse=True)

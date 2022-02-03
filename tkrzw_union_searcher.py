@@ -257,6 +257,7 @@ class UnionSearcher:
         if rel_word not in features:
           score *= SCORE_DECAY
           features[rel_word] = score
+    score = max(score, 0.4)
     trans = entry.get("translation")
     if trans:
       for tran in trans[:20]:
@@ -267,6 +268,7 @@ class UnionSearcher:
         if tran not in features:
           score *= SCORE_DECAY
           features[tran] = score
+    score = max(score, 0.2)
     coocs = entry.get("cooccurrence")
     if coocs:
       for cooc in coocs[:20]:

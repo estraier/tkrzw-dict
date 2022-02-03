@@ -104,6 +104,8 @@ def Run(phrase_prob_path, rev_prob_path,
         tran = regex.sub(r"^to ", "", tran)
       if pos == "noun":
         tran = regex.sub(r"^(a|an|the) ", "", tran)
+      tran = regex.sub("^[-~] ", "", tran)
+      tran = regex.sub(" [-~]$", "", tran)
       if not regex.fullmatch(r"[-_\p{Latin}0-9'. ]+", tran): continue
       tokens = tran.split(" ")
       if len(tokens) < 1 or len(tokens) > 4: continue
