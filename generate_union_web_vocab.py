@@ -91,7 +91,7 @@ INFLECTIONS = [
 ]
 STYLE_TEXT = """html,body,article,p,pre,code,li,dt,dd,td,th,div { font-size: 12pt; }
 html { margin: 0; padding: 0; background: #eee; }
-body { width: 100%; margin: 0; padding: 0; background: #eee; text-align: center; }
+body { width: 100%; margin: 0; padding: 0; background: #eee; text-align: center; color: #111; }
 article { display: inline-block; width: 100ex; overflow: hidden; text-align: left; }
 a { text-decoration: none; color: #000; }
 div.navi { margin: 2ex 0; padding: 0; width: 100%; text-align: right; }
@@ -103,7 +103,7 @@ div.navi span { color: #999; background: #eee; }
 h1 { font-size: 135%; margin: 1ex; padding: 0; }
 section { position: relative; border: solid 1px #ddd; border-radius: 0.5ex;
    background: #fff; margin: 3ex 0; padding: 1.5ex 2ex; }
-div.num { position: absolute; top: 2ex; right: 2ex; font-size: 80%; color: #777; }
+div.num { position: absolute; top: 2ex; right: 2ex; font-size: 80%; color: #888; }
 div.head { margin-bottom: 0.5ex; }
 span.pron { display: inline-block; margin-left: 2ex; font-size: 90%; color: #333; }
 span.pron:before, span.pron:after { content: "/"; font-size: 90%; color: #888; }
@@ -118,9 +118,7 @@ div.aux { margin-left: 3.5ex; margin-top: -0.2ex; font-size: 90%; color: #333; }
 span.auxattr { color: #999; }
 span.metavalue { display: inline-block; margin-right: 0.5ex }
 span.childtrans { font-size: 90%; color: #333; }
-a.subword { font-weight: bold; }
-a.exword { font-weight: bold; }
-h2.subtitle { font-size: 110%; font-weight: bold; margin: 0 0 0.5ex 0; padding 0; }
+span.subword { font-weight: bold; color: #000; }
 div.control { text-align: right; mergin}
 div.control span { display: inline-block;
   text-align: center; margin: 0 0.5ex; padding: 0; width: 20ex;
@@ -134,7 +132,7 @@ tr.check_line_active, tr.check_line_active:hover { background: #ffffee; }
 td.check_num { width: 2ex; text-align: right; font-size: 80%; color: #555; }
 td.check_title { width: 20ex; overflow: hidden; white-space: nowrap; font-weight: bold; }
 td.check_text { overflow: hidden; white-space: nowrap; font-size: 90%; }
-a.check_word { display: inline-block; font-size: 105%; }
+a.check_word { display: inline-block; font-size: 105%; color: #000; }
 span.check_trans { display: inline-block; width: 82ex; }
 table.check_mode_0 span.check_trans { opacity: 0; }
 table.check_mode_0 tr.check_line_active span.check_trans { opacity: 1; }
@@ -543,7 +541,7 @@ class GenerateUnionVocabBatch:
           for child_pos in child_poses[:2]:
             P('<span class="attr subattr">{}</span>', POSES.get(child_pos) or child_pos)
           child_id = ConvertWordToID(child)
-          P('<a href="#{}" id="{}" class="subword">{}</a>', child_id, child_id, child)
+          P('<span id="{}" class="subword">{}</span>', child_id, child_id, child)
           P('<span class="childtrans">: {}</span>', ", ".join(child_trans[:4]))
           P('</div>')
       if phrases:
@@ -572,7 +570,7 @@ class GenerateUnionVocabBatch:
           for phrase_pos in phrase_poses[:2]:
             P('<span class="attr subattr">{}</span>', POSES.get(phrase_pos) or phrase_pos)
           phrase_id = ConvertWordToID(phrase_word)
-          P('<a href="#{}" id="{}" class="subword">{}</a>', phrase_id, phrase_id, phrase_word)
+          P('<span href="#{}" id="{}" class="subword">{}</span>', phrase_id, phrase_id, phrase_word)
           P('<span class="childtrans">: {}</span>', ", ".join(phrase_trans[:4]))
           P('</div>')
       infls = []
@@ -631,7 +629,7 @@ class GenerateUnionVocabBatch:
       for extra_word, extra_trans, extra_poses in extra_words:
         P('<div class="extra">')
         word_id = ConvertWordToID(extra_word)
-        P('<a href="#{}" id="{}" class="exword">{}</a> :', word_id, word_id, extra_word)
+        P('<span id="{}" class="subword">{}</span> :', word_id, word_id, extra_word)
         for extra_pos in extra_poses[:2]:
           P('<span class="attr subattr">{}</span>', POSES.get(extra_pos) or extra_pos)
         P('<span class="childtrans">{}</span>', ", ".join(extra_trans))
