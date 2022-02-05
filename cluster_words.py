@@ -135,27 +135,38 @@ class ClusterGenerator():
       scale_items.append((item, sum_score))
     scale_items = sorted(scale_items, key=lambda x: x[1], reverse=True)
     scale_items = [x[0] for x in scale_items]
-    cands = scale_items[:self.num_clusters * 4]
+    max_cands = int(self.num_clusters * 4)
+    cands = scale_items[:max_cands]
     seeds = []
-    seeds.append(cands[0])
-    seed_words = {cands[0][0]}
+    first_cand = cands[0]
+    seeds.append(first_cand)
+    seed_words = {first_cand[0]}
+    seed_features = collections.defaultdict(float)
+    for label, score in first_cand[1].items():
+      seed_features[label] = score
     while len(seeds) < self.num_clusters:
       best_cand = None
       min_cost = None
       for cand in cands:
         cand_word, cand_features = cand
         if cand_word in seed_words: continue
-
-        cost = 0
-        for seed in seeds:
-          seed_word, seed_features = seed
-          cost += GetSimilarity(seed_features, cand_features)
+        cost = GetSimilarity(seed_features, cand_features)
         if min_cost == None or cost < min_cost:
           best_cand = cand
           min_cost = cost
       cand_word, cand_features = best_cand
       seeds.append(best_cand)
       seed_words.add(cand_word)
+      for label, score in cand_features.items():
+        seed_features[label] += score
+      if len(seeds) >= 100:
+        _, del_features = seeds[len(seeds) - 100]
+        for label, score in del_features.items():
+          old_score = seed_features[label] - score
+          if old_score < 0.01:
+            del seed_features[label]
+          else:
+            seed_features[label] = score
     num_items = 0
     for item in seeds:
       word, features = item

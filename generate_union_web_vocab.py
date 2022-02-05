@@ -101,8 +101,9 @@ div.navi a, div.navi span { display: inline-block;
 div.navi a:hover { background: #def; }
 div.navi span { color: #999; background: #eee; }
 h1 { font-size: 135%; margin: 1ex; padding: 0; }
-section { border: solid 1px #ddd; border-radius: 0.5ex;
+section { position: relative; border: solid 1px #ddd; border-radius: 0.5ex;
    background: #fff; margin: 3ex 0; padding: 1.5ex 2ex; }
+div.num { position: absolute; top: 2ex; right: 2ex; font-size: 80%; color: #777; }
 div.head { margin-bottom: 0.5ex; }
 span.pron { display: inline-block; margin-left: 2ex; font-size: 90%; color: #333; }
 span.pron:before, span.pron:after { content: "/"; font-size: 90%; color: #888; }
@@ -126,13 +127,13 @@ div.control span { display: inline-block;
   border: 1px solid #ddd; border-radius: 0.5ex; color: #333; background: #ddd; }
 div.control span:hover { background: #def; }
 table.check_table { border-collapse: collapse; }
+table.check_table td { border: solid 1px #ddd; padding: 0.5ex 1ex; }
 tr.check_line_even { background: #f8f8f8; }
 tr.check_line:hover { background: #eef8ff; }
 tr.check_line_active, tr.check_line_active:hover { background: #ffffee; }
-td.check_title { width: 20ex; overflow: hidden; white-space: nowrap; font-weight: bold;
-  border: solid 1px #ddd; padding: 0.5ex 1ex; }
-td.check_text { overflow: hidden; white-space: nowrap; font-size: 90%;
-  border: solid 1px #ddd; padding: 0.5ex 1ex; }
+td.check_num { width: 2ex; text-align: right; font-size: 80%; color: #555; }
+td.check_title { width: 20ex; overflow: hidden; white-space: nowrap; font-weight: bold; }
+td.check_text { overflow: hidden; white-space: nowrap; font-size: 90%; }
 a.check_word { display: inline-block; font-size: 105%; }
 span.check_trans { display: inline-block; width: 82ex; }
 table.check_mode_0 span.check_trans { opacity: 0; }
@@ -154,6 +155,13 @@ div.index_head { font-size: 110%; font-weight: bold; margin: 1.5ex 0 0.6ex 0; }
 div.intro_head { font-size: 110%; font-weight: bold; margin: 1.5ex 0 0.6ex 0; }
 div.intro_quote { font-size: 90%; line-height: 110%; margin-left: 1ex; }
 div.intro_text { text-indent: 2ex; margin: 0.5ex 0; }
+@media only screen and (max-width: 600px) {
+html,body,article,p,pre,code,li,dt,dd,td,th,div { font-size: 10pt; }
+article { width: 49ex; }
+section { margin: 2ex 0; padding: 1ex 1ex; }
+div.num { top: 1ex; right: 1ex; }
+div.aux { margin-left: 1ex; }
+}
 """
 CHECKSCRIPT_TEXT = """'use strict';
 let check_mode = 0;
@@ -409,6 +417,8 @@ class GenerateUnionVocabBatch:
     P('<!DOCTYPE html>')
     P('<html xmlns="http://www.w3.org/1999/xhtml">')
     P('<head>')
+    P('<meta charset="UTF-8"/>')
+    P('<meta name="viewport" content="width=device-width"/>')
     P('<title>{}: Chapter {} Study</title>', self.title, num_sections)
     P('<link rel="stylesheet" href="style.css"/>')
     P('</head>')
@@ -416,6 +426,7 @@ class GenerateUnionVocabBatch:
     P('<article>')
     PrintNavi()
     P('<h1><a href="">Chapter {} Study</a></h1>', num_sections)
+    num_words = 0
     for surface, aliases in main_words:
       data = body_dbm.GetStr(surface) or ""
       entries = json.loads(data)
@@ -428,8 +439,10 @@ class GenerateUnionVocabBatch:
         P('<p>Warning: no data for {}</p>', surface)
         continue
       uniq_words.add(surface)
+      num_words += 1
       word_id = ConvertWordToID(surface)
-      P('<section id="{}">', word_id)
+      P('<section id="{}" class="entry">', word_id)
+      P('<div class="num">{:02d}</div>', num_words)
       P('<div class="head">')
       P('<a href="#{}" class="word">{}</a>', word_id, surface)
       pron = entry.get("pronunciation")
@@ -613,8 +626,8 @@ class GenerateUnionVocabBatch:
         uniq_words.add(extra_word)
         num_extra_words += 1
     if extra_words:
-      P('<section>')
-      P('<h2 class="subtitle">Bonus Words</h2>')
+      P('<section class="entry">')
+      P('<div class="num">Bonus Words</div>')
       for extra_word, extra_trans, extra_poses in extra_words:
         P('<div class="extra">')
         word_id = ConvertWordToID(extra_word)
@@ -661,6 +674,8 @@ class GenerateUnionVocabBatch:
     P('<!DOCTYPE html>')
     P('<html xmlns="http://www.w3.org/1999/xhtml">')
     P('<head>')
+    P('<meta charset="UTF-8"/>')
+    P('<meta name="viewport" content="width=device-width"/>')
     P('<title>{}: Chapter {} Check</title>', self.title, num_sections)
     P('<link rel="stylesheet" href="style.css"/>')
     P('<script src="checkscript.js"></script>')
@@ -697,6 +712,7 @@ class GenerateUnionVocabBatch:
       word_url = "study-{:03d}.xhtml#{}".format(num_sections, ConvertWordToID(word))
       line_class_suffix = "even" if num_line % 2 == 0 else "odd"
       P('<tr class="check_line check_line_{}" onclick="change_item(this);">', line_class_suffix)
+      P('<td class="check_num">{:02d}</td>', num_line + 1)
       P('<td class="check_title">')
       P('<a href="{}" class="check_word">{}</a>', word_url, word)
       P('</td>')
@@ -742,6 +758,8 @@ class GenerateUnionVocabBatch:
       P('<!DOCTYPE html>')
       P('<html xmlns="http://www.w3.org/1999/xhtml">')
       P('<head>')
+      P('<meta charset="UTF-8"/>')
+      P('<meta name="viewport" content="width=device-width"/>')
       P('<title>{}: TOC</title>', self.title)
       P('<link rel="stylesheet" href="style.css"/>')
       P('</head>')
@@ -790,6 +808,8 @@ class GenerateUnionVocabBatch:
       P('<!DOCTYPE html>')
       P('<html xmlns="http://www.w3.org/1999/xhtml">')
       P('<head>')
+      P('<meta charset="UTF-8"/>')
+      P('<meta name="viewport" content="width=device-width"/>')
       P('<title>{}: Intro</title>', self.title)
       P('<link rel="stylesheet" href="style.css"/>')
       P('</head>')
@@ -845,6 +865,8 @@ class GenerateUnionVocabBatch:
       P('<!DOCTYPE html>')
       P('<html xmlns="http://www.w3.org/1999/xhtml">')
       P('<head>')
+      P('<meta charset="UTF-8"/>')
+      P('<meta name="viewport" content="width=device-width"/>')
       P('<title>{}: Intro</title>', self.title)
       P('<link rel="stylesheet" href="style.css"/>')
       P('</head>')
