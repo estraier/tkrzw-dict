@@ -105,6 +105,12 @@ def main():
           rel_words[parent] = max(rel_words.get(parent) or 0, weight)
           weight *= 0.9
       children = entry.get("child") or []
+      if len(word) >= 5:
+        for phrase in entry.get("phrase") or []:
+          phrase_word = phrase["w"]
+          if not phrase_word.startswith(word): continue
+          if phrase_word.endswith("ing") or phrase_word.endswith("ed"):
+            children.append(phrase_word)
       if children:
         weight = 1 / (min(len(parents), 5) + 2)
         for child in children:
