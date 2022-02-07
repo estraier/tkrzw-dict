@@ -61,7 +61,7 @@ rel_weights = {"synonym": 1.0,
                "derivative": 0.7,
                "relation": 0.5}
 noun_suffixes = [
-  "ment", "age", "tion", "ics", "ness", "ity", "ism", "or", "er", "ist",
+  "es", "s", "ment", "age", "tion", "ics", "ness", "ity", "ism", "or", "er", "ist",
   "ian", "ee", "tion", "sion", "ty", "ance", "ence", "ency", "cy", "ry",
   "al", "age", "dom", "hood", "ship", "nomy", "ing", "ication", "icator",
 ]
