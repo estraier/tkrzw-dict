@@ -63,14 +63,14 @@ rel_weights = {"synonym": 1.0,
 noun_suffixes = [
   "ment", "age", "tion", "ics", "ness", "ity", "ism", "or", "er", "ist",
   "ian", "ee", "tion", "sion", "ty", "ance", "ence", "ency", "cy", "ry",
-  "al", "age", "dom", "hood", "ship", "nomy",
+  "al", "age", "dom", "hood", "ship", "nomy", "ing", "ication", "icator",
 ]
 verb_suffixes = [
   "ify", "en", "ize", "ise", "fy", "ate",
 ]
 adjective_suffixes = [
   "some", "able", "ible", "ic", "ical", "ive", "ful", "less", "ly", "ous", "y",
-  "ised", "ing", "ed", "ish", "al",
+  "ised", "ing", "ed", "ish", "al", "icable",
 ]
 adverb_suffixes = [
   "ly",
@@ -94,12 +94,16 @@ misc_stop_words = {
   "other", "another", "yes",
   "back", "much", "many", "more", "most", "good", "well", "better", "best", "all",
 }
+wiki_stop_words = {
+  "wikipedia", "encyclopedia", "page", "pages", "edit", "edits", "comment", "comments",
+}
 no_parents = {
   "number", "ground", "red", "happen", "letter", "monitor", "feed", "found", "winter",
   "partner", "sister", "environment", "moment", "gun", "shower", "trigger", "wound", "bound",
   "weed", "saw", "copper", "buffer", "lump", "wary", "stove", "doctor", "hinder", "crazy",
   "tower", "poetry", "parity",
 }
+
 
 class BuildUnionDBBatch:
   def __init__(self, input_confs, output_path, core_labels, full_def_labels, gross_labels,
@@ -327,12 +331,12 @@ class BuildUnionDBBatch:
     logger.info("Indexing stems")
     stem_index = collections.defaultdict(list)
     for label, word_dict in word_dicts:
-      if label not in self.core_labels: continue
+      if label in self.supplement_labels: continue
       for key in keys:
         for entry in word_dict[key]:
           word = entry["word"]
           if not regex.fullmatch("[a-z]+", word): continue
-          stems = self.GetDerivativeStems(entry, word_dict)
+          stems = self.GetDerivativeStems(entry, word_dict, aux_trans)
           if stems:
             valid_stems = set()
             for stem in stems:
@@ -340,7 +344,7 @@ class BuildUnionDBBatch:
                 stem_index[stem].append(word)
                 valid_stems.add(stem)
             if valid_stems:
-              entry["stem"] = list(valid_stems)
+              entry["stem"] = list(valid_stems.union(set(entry.get("stem") or [])))
     for label, word_dict in word_dicts:
       if label not in self.core_labels: continue
       for key in keys:
@@ -546,9 +550,11 @@ class BuildUnionDBBatch:
     logger.info("Saving records done: num_records={}, elapsed_time={:.2f}s".format(
       len(merged_entries), time.time() - start_time))
 
-  def GetDerivativeStems(self, entry, word_dict):
+  def GetDerivativeStems(self, entry, word_dict, aux_trans):
     word = entry["word"]
+    texts = entry.get("text") or []
     def GetMetadata(in_entry, out_poses, out_deris, out_trans):
+      in_word = in_entry["word"]
       for pos, text in in_entry["text"]:
         out_poses.add(pos)
         for part in text.split("[-]"):
@@ -567,6 +573,12 @@ class BuildUnionDBBatch:
               tran = regex.sub(r"[^\p{Han}]", "", tran)
               if tran:
                 out_trans.add(tran)
+      in_aux_trans = aux_trans.get(in_word)
+      if in_aux_trans:
+        for tran in in_aux_trans:
+          tran = regex.sub(r"[^\p{Han}]", "", tran)
+          if tran:
+            out_trans.add(tran)
     poses = set()
     deris = set()
     trans = set()
@@ -592,7 +604,16 @@ class BuildUnionDBBatch:
                   stems.add(stem + "e")
                 if len(suffix) >= 2 and suffix[0] == "e":
                   stems.add(stem + "e")
+                if len(stem) >= 4 and stem.endswith("rr"):
+                  stems.add(stem[:-1])
     valid_stems = set()
+    for pos, text in texts:
+      match = regex.search(
+        r'^[" ]*([\p{Latin}]+)[" ]*の(複数形|三人称|動名詞|現在分詞|過去形|過去分詞)', text)
+      if match:
+        stem = match.group(1)
+        if len(stem) >= 4 and word.startswith(stem):
+          valid_stems.add(stem)
     for stem in stems:
       if len(stem) >= 8:
         valid_stems.add(stem)
@@ -1585,6 +1606,7 @@ class BuildUnionDBBatch:
         def_token_labels[def_token].add(label)
     for def_token, labels in def_token_labels.items():
       cooc_words[def_token] += 0.01 * len(labels) * max_word_weight
+    is_wiki_word = "wikipedia" in cooc_words or "encyclopedia" in cooc_words
     merged_cooc_words = sorted(cooc_words.items(), key=lambda x: x[1], reverse=True)
     weighed_cooc_words = []
     for cooc_word, cooc_score in merged_cooc_words:
@@ -1596,6 +1618,10 @@ class BuildUnionDBBatch:
           cooc_score *= 0.3
         else:
           cooc_score *= 0.1
+      elif cooc_word in particles or cooc_word in misc_stop_words:
+        cooc_score *= 0.5
+      elif is_wiki_word and cooc_word in wiki_stop_words:
+        cooc_score *= 0.5
       weighed_cooc_words.append((cooc_word, cooc_score))
     sorted_cooc_words = sorted(weighed_cooc_words, key=lambda x: x[1], reverse=True)
     final_cooc_words = []
