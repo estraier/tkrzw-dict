@@ -606,6 +606,8 @@ class BuildUnionDBBatch:
                   stems.add(stem + "e")
                 if len(stem) >= 4 and stem.endswith("rr"):
                   stems.add(stem[:-1])
+                if len(stem) >= 8 and stem.endswith("tic"):
+                  stems.add(stem + "s")
     valid_stems = set()
     for pos, text in texts:
       match = regex.search(
