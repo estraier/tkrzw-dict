@@ -20,6 +20,7 @@
 # and limitations under the License.
 #--------------------------------------------------------------------------------------------------
 
+import collections
 import json
 import math
 import regex
@@ -46,6 +47,7 @@ def AddFeatures(searcher, word, weight, features):
       if label.startswith("__"): continue
       features[label] = (features.get(label) or 0) + score * weight
 
+
 def main():
   args = sys.argv[1:]
   if len(args) < 2:
@@ -55,6 +57,7 @@ def main():
   searcher = tkrzw_union_searcher.UnionSearcher(data_prefix)
   phrase_dbm = tkrzw.DBM()
   phrase_dbm.Open(phrase_path, False, dbm="HashDBM").OrDie()
+  parent_index = collections.defaultdict(list)
   page_index = 1
   while True:
     result = searcher.SearchByGrade(100, page_index, True)
@@ -62,6 +65,12 @@ def main():
     for entry in result:
       word = entry["word"]
       prob = max(float(entry.get("probability") or 0.0), 0.000001)
+      item_labels = []
+      for item in entry["item"]:
+        label = item["label"]
+        if not label in item_labels:
+          item_labels.append(label)
+      if "wn" not in item_labels: continue
       features = GetFeatures(searcher, entry)
       rel_words = {}
       normals = []
@@ -99,6 +108,9 @@ def main():
         if parent_prob < prob * 0.1:
           continue
         parents.append(parent)
+      for parent in parent_index.get(word) or []:
+        if parent not in parents:
+          parents.append(parent)
       if parents:
         weight = 1 / (min(len(parents), 5) + 1)
         for parent in parents:
@@ -115,6 +127,7 @@ def main():
         weight = 1 / (min(len(parents), 5) + 2)
         for child in children:
           rel_words[child] = max(rel_words.get(child) or 0, weight)
+          parent_index[child].append(word)
           weight *= 0.9
       related = entry.get("related") or []
       if related:
@@ -159,9 +172,15 @@ def main():
             rel_words[cand_word] = max(rel_words.get(cand_word) or 0, weight)
       for rel_word, weight in rel_words.items():
         AddFeatures(searcher, rel_word, weight, features)
-      if word in features:
-        del features[word]
-      features = [x for x in features.items() if not x[0].startswith("__")]
+      features.pop(word, None)
+      features.pop("wikipedia", None)
+      merged_features = {}
+      for label, score in features.items():
+        label = regex.sub(r"[\p{Hiragana}]*(\p{Han})[\p{Hiragana}]*(\p{Han}).*", r"\1\2", label)
+        label = regex.sub(r"([\p{Katakana}ー]{2,})\p{Hiragana}.*", r"\1", label)
+        label = regex.sub(r"\p{Hiragana}+([\p{Katakana}ー]{2,})", r"\1", label)
+        merged_features[label] = max(merged_features.get(label) or 0, score)
+      features = [x for x in merged_features.items() if not x[0].startswith("__")]
       gb_words = set()
       rel_words = [x[0] for x in features]
       rel_words.append(word)
@@ -183,6 +202,7 @@ def main():
       fields.append(",".join(normals))
       fields.append(",".join(parents))
       fields.append(",".join(children))
+      fields.append("{:.6f}".format(prob))
       for label, score in mod_features[:100]:
         fields.append(label)
         fields.append("{:.3f}".format(score))

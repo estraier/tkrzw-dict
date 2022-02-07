@@ -101,7 +101,7 @@ no_parents = {
   "number", "ground", "red", "happen", "letter", "monitor", "feed", "found", "winter",
   "partner", "sister", "environment", "moment", "gun", "shower", "trigger", "wound", "bound",
   "weed", "saw", "copper", "buffer", "lump", "wary", "stove", "doctor", "hinder", "crazy",
-  "tower", "poetry", "parity",
+  "tower", "poetry", "parity", "fell", "lay", "wound", "bit",
 }
 
 

@@ -701,7 +701,7 @@ class GenerateUnionVocabBatch:
         else:
           for item in entry["item"]:
             if not tran_html:
-              for part in item["text"].strip("[-]"):
+              for part in item["text"].split("[-]"):
                 part = part.strip()
                 if part:
                   tran_html = esc(part)

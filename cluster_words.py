@@ -22,6 +22,8 @@
 
 
 import collections
+import functools
+import heapq
 import logging
 import math
 import os
@@ -31,7 +33,6 @@ import sys
 import time
 import tkrzw
 import tkrzw_dict
-
 
 STOP_WORDS = set([
   "aback", "about", "above", "abroad", "across", "after", "against", "ahead", "along",
@@ -49,7 +50,7 @@ STOP_WORDS = set([
   "never", "ever", "time", "place", "people", "person", "this", "these", "that", "those",
   "other", "another", "yes",
   "back", "much", "many", "more", "most", "good", "well", "better", "best", "all",
-  "is", "are", "was", "were", "being", "had", "grey", "towards",
+  "bes", "is", "are", "was", "were", "being", "had", "grey", "towards",
   "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
   "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "nineteen",
   "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety", "hundred",
@@ -57,7 +58,14 @@ STOP_WORDS = set([
   "eleventh", "twelfth", "thirteenth", "fourteenth", "fifteenth", "sixteenth", "seventeenth",
   "nineteenth", "twenties", "thirties", "forties", "fifties", "sixties", "seventies", "eighties",
   "nineties", "hundredth",
+  "math", "maths"
 ])
+no_parents = {
+  "number", "ground", "red", "happen", "letter", "monitor", "feed", "found", "winter",
+  "partner", "sister", "environment", "moment", "gun", "shower", "trigger", "wound", "bound",
+  "weed", "saw", "copper", "buffer", "lump", "wary", "stove", "doctor", "hinder", "crazy",
+  "tower", "poetry", "parity", "fell", "lay", "wound", "bit",
+}
 
 
 logger = tkrzw_dict.GetLogger()
@@ -78,14 +86,24 @@ def GetSimilarity(seed_features, cand_features):
 
 
 class ClusterGenerator():
-  def __init__(self, num_clusters, num_item_features, num_cluster_features):
+  def __init__(self, num_clusters, num_rounds, num_item_features, num_cluster_features):
     self.num_clusters = num_clusters
+    self.num_rounds = num_rounds
     self.num_item_features = num_item_features
     self.num_cluster_features = num_cluster_features
     self.items = {}
 
   def AddItem(self, label, features):
     self.items[label] = features
+
+  def Run(self):
+    self.InitClusters()
+    for round_id in range(self.num_rounds):
+      num_init_items = None
+      if round_id < self.num_rounds and round_id < 5:
+        num_init_items = round_id + 1
+      self.MakeClusters(round_id, num_init_items)
+    self.FinishClusters()
 
   def InitClusters(self):
     start_time = time.time()
@@ -120,11 +138,9 @@ class ClusterGenerator():
     self.items = items
     self.clusters = []
     self.cluster_features = []
-    self.cluster_frozen_items = []
     for i in range(self.num_clusters):
       self.clusters.append([])
       self.cluster_features.append({})
-      self.cluster_frozen_items.append({})
     scale_items = []
     for item in self.items.items():
       sum_score = 0
@@ -182,28 +198,20 @@ class ClusterGenerator():
     elapsed_time = time.time() - start_time
     logger.info("Initializing done: {:.3f} sec".format(elapsed_time))
 
-  def UpdateClusterFeatures(self, first_mode):
+  def UpdateClusterFeatures(self, num_init_items):
     for i, cluster in enumerate(self.clusters):
       self.clusters[i] = sorted(cluster, key=lambda x: x[2], reverse=True)
     cap = math.ceil(len(self.items) / self.num_clusters)
-    if first_mode:
-      cap = 1
-    mid = cap / 2
-    mid_decay = 1.0 - 1.0 / cap
+    if num_init_items:
+      cap = num_init_items
     cluster_features = []
     for i, cluster in enumerate(self.clusters):
-      if self.cluster_frozen_items[i]:
-        cluster_features.append(self.cluster_features[i])
-        continue
       features = collections.defaultdict(float)
-      weight = 1.0
       num_items = 0
       for word, item, _ in cluster:
         if num_items >= cap: break
-        if num_items > mid:
-          weight *= mid_decay
         for label, score in item.items():
-          features[label] += score * weight
+          features[label] += score
         num_items += 1
       mod_features = collections.defaultdict(float)
       if features:
@@ -221,160 +229,70 @@ class ClusterGenerator():
       cluster_features.append(top_features)
     self.cluster_features = cluster_features
 
-  def MakeClusters(self, round_id):
+  def MakeClusters(self, round_id, num_init_items):
     start_time = time.time()
     logger.info("Clustering: round={}".format(round_id + 1))
     cap = math.ceil(len(self.items) / self.num_clusters)
-    self.UpdateClusterFeatures(round_id == 0)
-    cluster_weights = []
-    for cluster in self.clusters:
-      if cluster:
-        tail_items = cluster[-cap:]
-        mean_score = sum([x[2] for x in tail_items]) / len(tail_items)
-      else:
-        mean_score = 0.5
-      cluster_weight = mean_score + 0.2
-      cluster_weights.append(cluster_weight)
+    self.UpdateClusterFeatures(num_init_items)
     self.clusters = []
     for i in range(self.num_clusters):
       self.clusters.append([])
-    for word, item in self.items.items():
-      best_id = 0
-      best_score = -1
-      best_mod_score = -1
-      for i, features in enumerate(self.cluster_features):
-        frozen_items = self.cluster_frozen_items[i]
-        if frozen_items:
-          score = frozen_items.get(word)
-          if score != None:
-            best_id = i
-            best_score = score
-            break
-          else:
-            continue
-        score = GetSimilarity(features, item)
-        mod_score = score * cluster_weights[i]
-        if mod_score > best_mod_score:
-          best_id = i
-          best_score = score
-          best_mod_score = mod_score
-      self.clusters[best_id].append((word, item, best_score))
-    num_overs = 0
-    for i, cluster in enumerate(self.clusters):
-      if len(cluster) > cap:
-        num_overs += len(cluster) - cap
-      self.clusters[i] = sorted(cluster, key=lambda x: x[2], reverse=True)
-    elapsed_time = time.time() - start_time
-    logger.info("Clustering done: {:.3f} sec".format(elapsed_time))
-
-  def SmoothClusters(self, freeze):
-    start_time = time.time()
-    logger.info("Smoothing: freeze={}".format(freeze))
-    self.UpdateClusterFeatures(False)
-    cap = math.ceil(len(self.items) / self.num_clusters)
-    mid = math.ceil(len(self.items) / self.num_clusters / 2)
-    cluster_weights = []
-    for cluster in self.clusters:
-      if cluster:
-        tail_items = cluster[-mid:]
-        mean_score = sum([x[2] for x in tail_items]) / len(tail_items)
-      else:
-        mean_score = 0.5
-      cluster_weight = mean_score + 0.2
-      cluster_weights.append(cluster_weight)
-    extra_items = []
-    for i, cluster in enumerate(self.clusters):
-      if len(cluster) <= cap: continue
-      if freeze:
-        frozen_items = self.cluster_frozen_items[i]
-        if not frozen_items:
-          for word, _, score in cluster[:cap]:
-            frozen_items[word] = score
-          self.cluster_frozen_items[i] = frozen_items
-      rank = 0
-      for word, item_features, score in cluster[cap:]:
-        extra_items.append((word, item_features, rank + score))
-        rank += 1
-      self.clusters[i] = cluster[:cap]
-    extra_items = sorted(extra_items, key=lambda x: x[2])
-    uniq_extra_words = set()
-    for word, item_features, _ in extra_items:
-      uniq_extra_words.add(word)
-    scored_items = []
-    for word, item_features, _ in extra_items:
-      for i, cluster in enumerate(self.clusters):
-        if len(cluster) >= cap: continue
-        features =  self.cluster_features[i]
-        score = GetSimilarity(features, item_features)
-        mod_score = score * cluster_weights[i]
-        scored_items.append((word, item_features, i, score, mod_score))
-    scored_items = sorted(scored_items, key=lambda x: x[4], reverse=True)
-    num_appends = 0
-    for word, item_features, cluster_id, score, mod_score in scored_items:
-      if word not in uniq_extra_words: continue
-      cluster = self.clusters[cluster_id]
-      if len(cluster) >= cap: continue
-      cluster.append((word, item_features, score))
-      uniq_extra_words.discard(word)
-      num_appends += 1
-    elapsed_time = time.time() - start_time
-    logger.info("Smoothing done: {:.3f} sec".format(elapsed_time))
-
-  def ShuffleClusters(self, round_id):
-    start_time = time.time()
-    logger.info("Shuffling: Round {}".format(round_id + 1))
-    self.UpdateClusterFeatures(False)
-    cap = math.ceil(len(self.items) / self.num_clusters)
-    mid = math.ceil(len(self.items) / self.num_clusters * 0.666)
-    score_cache = {}
-    def GetCurrentScore(cluster_id, item_id):
-      cache_id = cluster_id * self.num_clusters + item_id
-      score = score_cache.get(cache_id)
-      if score != None:
-        return score
-      score = GetSimilarity(
-        self.cluster_features[cluster_id], self.clusters[cluster_id][item_id][1])
-      score_cache[cache_id] = score
-      return score
-    done_words = set()
+    items = self.items.items()
+    score_matrix = []
+    for word, item_features in items:
+      item_scores = []
+      for cluster_id, cluster_features in enumerate(self.cluster_features):
+        score = GetSimilarity(cluster_features, item_features)
+        item_scores.append((score, cluster_id))
+      item_scores = sorted(item_scores, reverse=True)
+      score_matrix.append(item_scores)
+    queues = []
+    for i in range(self.num_clusters):
+      queues.append(([], set()))
+    tasks = []
+    for i, item in enumerate(items):
+      tasks.append((i, item))
+    while tasks:
+      item_id, item = tasks.pop()
+      item_scores = score_matrix[item_id]
+      for score, cluster_id in item_scores:
+        queue, checked = queues[cluster_id]
+        if item_id in checked: continue
+        checked.add(item_id)
+        if len(queue) < cap:
+          heapq.heappush(queue, (score, item_id, item))
+          break
+        if score > queue[0][0]:
+          old_score, old_item_id, old_item = heapq.heappop(queue)
+          tasks.append((old_item_id, old_item))
+          heapq.heappush(queue, (score, item_id, item))
+          break
+    clusters = []
+    for queue, checked in queues:
+      sorted_items = []
+      for score, item_id, item in queue:
+        sorted_items.append((score, item))
+      sorted_items = sorted(sorted_items, reverse=True)
+      cluster = []
+      for score, item in sorted_items:
+        cluster.append((item[0], item[1], score))
+      clusters.append(cluster)
+    self.clusters = clusters
+    sum_score = 0
     for i, cluster in enumerate(self.clusters):
       features = self.cluster_features[i]
-      for j in range(mid, len(cluster)):
-        word, item_features, _ = self.clusters[i][j]
-        if word in done_words: continue
-        score = GetCurrentScore(i, j)
-        plans = []
-        for cand_i, cand_cluster in enumerate(self.clusters):
-          cand_features = self.cluster_features[cand_i]
-          move_score = GetSimilarity(cand_features, item_features)
-          if cand_i == i: continue
-          for cand_j in range(mid, len(cand_cluster)):
-            cand_cluster = self.clusters[cand_i]
-            cand_word, cand_item_features, _ = cand_cluster[cand_j]
-            if cand_word in done_words: continue
-            cand_score = GetCurrentScore(cand_i, cand_j)
-            cand_move_score = GetSimilarity(features, cand_item_features)
-            gain = move_score + cand_move_score
-            loss = score + cand_score
-            diff = gain - loss
-            if diff >= 0.1:
-              plans.append((cand_i, cand_j, diff, move_score, cand_move_score))
-        if not plans: continue
-        cand_i, cand_j, diff, move_score, cand_move_score = sorted(
-          plans, key=lambda x: x[2], reverse=True)[0]
-        cand_cluster = self.clusters[cand_i]
-        cand_word, cand_item_features, _ = cand_cluster[cand_j]
-        cluster[j] = (cand_word, cand_item_features, cand_move_score)
-        cand_cluster[cand_j] = (word, item_features, move_score)
-        done_words.add(word)
-        done_words.add(cand_word)
+      for item_word, item_features, item_score in cluster:
+        score = GetSimilarity(features, item_features)
+        sum_score += score
+    mean_score = sum_score / len(self.items)
     elapsed_time = time.time() - start_time
-    logger.info("Shuffling done: {:.3f} sec".format(elapsed_time))
+    logger.info("Clustering done: {:.3f} sec, score={:.4f}".format(
+      elapsed_time, mean_score))
 
   def FinishClusters(self):
     start_time = time.time()
     logger.info("Finishing")
-    self.UpdateClusterFeatures(False)
+    self.UpdateClusterFeatures(None)
     for i, cluster in enumerate(self.clusters):
       if not cluster: continue
       features = collections.defaultdict(float)
@@ -406,6 +324,7 @@ class ClusterGenerator():
         self.cluster_features[i + 1] = tmp_features
     for i, cluster in enumerate(self.clusters):
       if not cluster: continue
+      if i == 0: continue
       cluster = sorted(cluster, key=lambda x: x[2], reverse=True)
       for j in range(len(cluster) - 1):
         features = collections.defaultdict(float)
@@ -439,11 +358,10 @@ class ClusterGenerator():
 
 
 class ClusterBatch():
-  def __init__(self, num_clusters, num_rounds, num_shuffles, num_items,
+  def __init__(self, num_clusters, num_rounds, num_items,
                num_item_features, num_cluster_features):
     self.num_clusters = num_clusters
     self.num_rounds = num_rounds
-    self.num_shuffles = num_shuffles
     self.num_items = num_items
     self.num_item_features = num_item_features
     self.num_cluster_features = num_cluster_features
@@ -453,7 +371,7 @@ class ClusterBatch():
     logger.info("Process started: clusters={}, rounds={}, items={}".format(
       self.num_clusters, self.num_rounds, self.num_items))
     generator = ClusterGenerator(
-      self.num_clusters, self.num_item_features, self.num_cluster_features)
+      self.num_clusters, self.num_rounds, self.num_item_features, self.num_cluster_features)
     max_read_items = self.num_items * 2.0 + 100
     all_items = []
     ranks = {}
@@ -465,8 +383,9 @@ class ClusterBatch():
       normals = fields[1]
       parents = fields[2]
       children = fields[3]
+      word_prob = fields[4]
       if normals: continue
-      fields = fields[4:]
+      fields = fields[5:]
       if len(word) <= 2 and word not in ("go", "ax", "ox", "pi"): continue
       if word in STOP_WORDS: continue
       if not regex.fullmatch("[a-z]+", word): continue
@@ -474,18 +393,22 @@ class ClusterBatch():
       for i in range(0, len(fields) - 1, 2):
         label = fields[i]
         score = max(float(fields[i + 1]), 0.001)
+        if label in STOP_WORDS:
+          score *= 0.5
         features[label] = score
       all_items.append((word, parents, features))
       ranks[word] = len(all_items)
     num_items = 0
     num_skipped = 0
-    adopted_words = set()
+    adopted_words = {}
+    parent_index = collections.defaultdict(list)
     for word, parents, features in all_items:
-      if num_items >= self.num_items: break
+      if num_items >= 50000 :break
       is_dup = False
       for parent in parents.split(","):
         parent = parent.strip()
         if not parent: continue
+        parent_index[word].append(parent)
         if parent in adopted_words:
           is_dup = True
         parent_rank = ranks.get(parent)
@@ -494,29 +417,34 @@ class ClusterBatch():
       if is_dup:
         num_skipped += 1
         continue
-      generator.AddItem(word, features)
-      adopted_words.add(word)
+      if num_items < self.num_items:
+        adopted_words[word] = features
       num_items += 1
-    generator.InitClusters()
-    for round_id in range(self.num_rounds):
-      if self.num_rounds >= 10:
-        if round_id == int(self.num_rounds / 10 * 2):
-          generator.SmoothClusters(False)
-        elif round_id == int(self.num_rounds / 10 * 4):
-          generator.SmoothClusters(False)
-        elif round_id == int(self.num_rounds / 10 * 6):
-          generator.SmoothClusters(True)
-        elif round_id == int(self.num_rounds / 10 * 7):
-          generator.SmoothClusters(True)
-        elif round_id == int(self.num_rounds / 10 * 8):
-          generator.SmoothClusters(True)
-        elif round_id == int(self.num_rounds / 10 * 9):
-          generator.SmoothClusters(True)
-      generator.MakeClusters(round_id)
-    generator.SmoothClusters(False)
-    for round_id in range(self.num_shuffles):
-      generator.ShuffleClusters(round_id)
-    generator.FinishClusters()
+    for child, parents in list(parent_index.items()):
+      for parent in parents:
+        grand_parents = parent_index.get(parent)
+        if grand_parents:
+          for grand_parent in grand_parents:
+            parent_index[child].append(grand_parent)
+    def cmp_parent(a, b):
+      if len(a) != len(b):
+        return len(a) - len(b)
+      if a == 0:
+        return 0
+      return -1 if a < b else 1
+    single_parent_index = {}
+    for child, parents in parent_index.items():
+      parents = sorted(parents, key=functools.cmp_to_key(cmp_parent))
+      single_parent_index[child] = parents[0]
+    for nop_word in no_parents:
+      single_parent_index.pop(nop_word, None)
+    for word, features in adopted_words.items():
+      norm_features = {}
+      for label, score in features.items():
+        norm_label = single_parent_index.get(label) or label
+        norm_features[norm_label] = max(norm_features.get(norm_label) or 0, score)
+      generator.AddItem(word, norm_features)
+    generator.Run()
     logger.info("Outputing")
     uniq_words = set()
     for i in range(self.num_clusters):
@@ -535,7 +463,6 @@ def main():
   args = sys.argv[1:]
   num_clusters = int(tkrzw_dict.GetCommandFlag(args, "--clusters", 1) or 500)
   num_rounds = int(tkrzw_dict.GetCommandFlag(args, "--rounds", 1) or 100)
-  num_shuffles = int(tkrzw_dict.GetCommandFlag(args, "--shuffles", 1) or 10)
   num_items = int(tkrzw_dict.GetCommandFlag(args, "--items", 1) or 10000)
   num_item_features = int(tkrzw_dict.GetCommandFlag(args, "--item_features", 1) or 40)
   num_cluster_features = int(tkrzw_dict.GetCommandFlag(args, "--cluster_features", 1) or 160)
@@ -543,7 +470,7 @@ def main():
     logger.setLevel(logging.ERROR)
   if args:
     raise RuntimeError("unknown arguments: {}".format(str(args)))
-  ClusterBatch(num_clusters, num_rounds, num_shuffles,
+  ClusterBatch(num_clusters, num_rounds,
                num_items, num_item_features, num_cluster_features).Run()
 
 

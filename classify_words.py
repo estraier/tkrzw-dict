@@ -49,11 +49,13 @@ STOP_WORDS = set([
   "without", "via",
   "the", "a", "an", "I", "my", "me", "mine", "you", "your", "yours", "he", "his", "him",
   "she", "her", "hers", "it", "its", "they", "their", "them", "theirs",
+  "myself", "yourself", "yourselves", "himself", "herself", "itself", "themselves",
   "we", "our", "us", "ours", "some", "any", "one", "someone", "something",
   "who", "whom", "whose", "what", "where", "when", "why", "how", "and", "but", "not", "no",
-  "never", "ever", "time", "place", "people", "person", "this", "that", "other", "another",
+  "never", "ever", "time", "place", "people", "person", "this", "these", "that", "those",
+  "other", "another", "yes",
   "back", "much", "many", "more", "most", "good", "well", "better", "best", "all",
-  "are", "grey",
+  "bes", "is", "are", "was", "were", "being", "had", "grey", "towards",
   "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
   "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "nineteen",
   "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety", "hundred",
@@ -111,8 +113,16 @@ class ClassifyBatch:
         normals = fields[1]
         parents = fields[2]
         children = fields[3]
+        item_label_exprs = fields[4]
+        word_prob = fields[5]
         if normals or parents: continue
-        fields = fields[4:]
+        item_labels = set()
+        for label in item_label_exprs.split(","):
+          label = label.strip()
+          if label:
+            item_labels.add(label)
+        if "wn" not in item_labels: continue
+        fields = fields[6:]
         features = {}
         for i in range(0, len(fields), 2):
           if len(features) >= self.num_item_features: break
