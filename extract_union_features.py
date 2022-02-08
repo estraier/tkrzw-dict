@@ -26,6 +26,7 @@ import math
 import regex
 import sys
 import tkrzw
+import tkrzw_tokenizer
 import tkrzw_union_searcher
 
 
@@ -46,6 +47,17 @@ def AddFeatures(searcher, word, weight, features):
     for label, score in GetFeatures(searcher, entry).items():
       if label.startswith("__"): continue
       features[label] = (features.get(label) or 0) + score * weight
+
+
+tokenizer = tkrzw_tokenizer.Tokenizer()
+def NormalizeTran(text):
+  parts = tokenizer.StripJaParticles(text)
+  if parts[0]:
+    text = parts[0]
+  pos = tokenizer.GetJaLastPos(text)
+  if text.endswith(pos[0]) and pos[3]:
+    text = text[:-len(pos[0])] + pos[3]
+  return text
 
 
 def main():
@@ -176,9 +188,11 @@ def main():
       features.pop("wikipedia", None)
       merged_features = {}
       for label, score in features.items():
-        label = regex.sub(r"[\p{Hiragana}]*(\p{Han})[\p{Hiragana}]*(\p{Han}).*", r"\1\2", label)
-        label = regex.sub(r"([\p{Katakana}ー]{2,})\p{Hiragana}.*", r"\1", label)
-        label = regex.sub(r"\p{Hiragana}+([\p{Katakana}ー]{2,})", r"\1", label)
+        if regex.search(r"[\p{Han}\p{Katakana}\p{Hiragana}]", label):
+          label = NormalizeTran(label)
+          label = regex.sub(r"[\p{Hiragana}]*(\p{Han})[\p{Hiragana}]*(\p{Han}).*", r"\1\2", label)
+          label = regex.sub(r"([\p{Katakana}ー]{2,})\p{Hiragana}.*", r"\1", label)
+          label = regex.sub(r"\p{Hiragana}+([\p{Katakana}ー]{2,})", r"\1", label)
         merged_features[label] = max(merged_features.get(label) or 0, score)
       features = [x for x in merged_features.items() if not x[0].startswith("__")]
       gb_words = set()

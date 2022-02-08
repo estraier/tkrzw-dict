@@ -22,7 +22,6 @@
 
 
 import collections
-import functools
 import heapq
 import logging
 import math
@@ -64,10 +63,9 @@ no_parents = {
   "number", "ground", "red", "happen", "letter", "monitor", "feed", "found", "winter",
   "partner", "sister", "environment", "moment", "gun", "shower", "trigger", "wound", "bound",
   "weed", "saw", "copper", "buffer", "lump", "wary", "stove", "doctor", "hinder", "crazy",
-  "tower", "poetry", "parity", "fell", "lay", "wound", "bit",
+  "tower", "poetry", "parity", "fell", "lay", "wound", "bit", "drug", "grass", "shore",
+  "butter", "slang", "grope", "feces",
 }
-
-
 logger = tkrzw_dict.GetLogger()
 
 
@@ -372,11 +370,12 @@ class ClusterBatch():
       self.num_clusters, self.num_rounds, self.num_items))
     generator = ClusterGenerator(
       self.num_clusters, self.num_rounds, self.num_item_features, self.num_cluster_features)
-    max_read_items = self.num_items * 2.0 + 100
-    all_items = []
-    ranks = {}
+    max_read_items = self.num_items * 2.0 + 1000
+    words = []
+    item_dict = {}
+    rank_dict = {}
     for line in sys.stdin:
-      if len(all_items) >= max_read_items: break
+      if len(words) >= max_read_items: break
       fields = line.strip().split("\t")
       if len(fields) < 6: continue
       word = fields[0]
@@ -396,45 +395,39 @@ class ClusterBatch():
         if label in STOP_WORDS:
           score *= 0.5
         features[label] = score
-      all_items.append((word, parents, features))
-      ranks[word] = len(all_items)
-    num_items = 0
-    num_skipped = 0
+      words.append(word)
+      item_dict[word] = (parents, features)
+      rank_dict[word] = len(rank_dict)
     adopted_words = {}
     parent_index = collections.defaultdict(list)
-    for word, parents, features in all_items:
-      if num_items >= 50000 :break
+    for word in words:
+      parent_expr, features = item_dict[word]
+      parents = []
       is_dup = False
-      for parent in parents.split(","):
-        parent = parent.strip()
+      for parent in parent_expr.split(","):
         if not parent: continue
+        parents.append(parent)
         parent_index[word].append(parent)
         if parent in adopted_words:
           is_dup = True
-        parent_rank = ranks.get(parent)
-        if parent_rank and parent_rank <= self.num_items + num_skipped:
-          is_dup = True
-      if is_dup:
-        num_skipped += 1
-        continue
-      if num_items < self.num_items:
+      if is_dup: continue
+      parents = sorted(parents, key=lambda x: rank_dict.get(x) or len(rank_dict))
+      if parents:
+        parent = parents[0]
+        if parent in item_dict:
+          word = parent
+          parent_expr, features = item_dict[word]
+      if len(adopted_words) < self.num_items:
         adopted_words[word] = features
-      num_items += 1
     for child, parents in list(parent_index.items()):
       for parent in parents:
         grand_parents = parent_index.get(parent)
         if grand_parents:
           for grand_parent in grand_parents:
             parent_index[child].append(grand_parent)
-    def cmp_parent(a, b):
-      if len(a) != len(b):
-        return len(a) - len(b)
-      if a == 0:
-        return 0
-      return -1 if a < b else 1
     single_parent_index = {}
     for child, parents in parent_index.items():
-      parents = sorted(parents, key=functools.cmp_to_key(cmp_parent))
+      parents = sorted(parents, key=lambda x: rank_dict.get(x) or len(rank_dict))
       single_parent_index[child] = parents[0]
     for nop_word in no_parents:
       single_parent_index.pop(nop_word, None)

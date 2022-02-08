@@ -62,7 +62,7 @@ rel_weights = {"synonym": 1.0,
                "relation": 0.5}
 noun_suffixes = [
   "es", "s", "ment", "age", "tion", "ics", "ness", "ity", "ism", "or", "er", "ist",
-  "ian", "ee", "tion", "sion", "ty", "ance", "ence", "ency", "cy", "ry",
+  "ian", "ee", "tion", "sion", "ty", "ance", "ence", "ency", "cy", "ry", "ary", "ery", "ory",
   "al", "age", "dom", "hood", "ship", "nomy", "ing", "ication", "icator",
 ]
 verb_suffixes = [
@@ -101,7 +101,8 @@ no_parents = {
   "number", "ground", "red", "happen", "letter", "monitor", "feed", "found", "winter",
   "partner", "sister", "environment", "moment", "gun", "shower", "trigger", "wound", "bound",
   "weed", "saw", "copper", "buffer", "lump", "wary", "stove", "doctor", "hinder", "crazy",
-  "tower", "poetry", "parity", "fell", "lay", "wound", "bit",
+  "tower", "poetry", "parity", "fell", "lay", "wound", "bit", "drug", "grass", "shore",
+  "butter", "slang", "grope", "feces",
 }
 
 
@@ -604,6 +605,8 @@ class BuildUnionDBBatch:
                   stems.add(stem + "e")
                 if len(suffix) >= 2 and suffix[0] == "e":
                   stems.add(stem + "e")
+                if suffix == "al" and stem[-1] in ["c", "s"]:
+                  stems.add(stem + "es")
                 if len(stem) >= 4 and stem.endswith("rr"):
                   stems.add(stem[:-1])
                 if len(stem) >= 8 and stem.endswith("tic"):
@@ -859,7 +862,9 @@ class BuildUnionDBBatch:
       if phrase_prob_dbm:
         prob = self.GetPhraseProb(phrase_prob_dbm, "en", word)
         if stem.lower() != word.lower():
-          if word.count(" "):
+          if word.endswith("ics"):
+            prob *= 1.1
+          elif word.count(" "):
             prob *= 0.5
           else:
             prob *= 0.1
