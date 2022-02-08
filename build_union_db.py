@@ -605,8 +605,10 @@ class BuildUnionDBBatch:
                   stems.add(stem + "e")
                 if len(suffix) >= 2 and suffix[0] == "e":
                   stems.add(stem + "e")
-                if suffix == "al" and stem[-1] in ["c", "s"]:
+                if suffix == "al" and len(stem) >= 3:
                   stems.add(stem + "es")
+                if suffix == "y" and len(stem) >= 3:
+                  stems.add(stem + "e")
                 if len(stem) >= 4 and stem.endswith("rr"):
                   stems.add(stem[:-1])
                 if len(stem) >= 8 and stem.endswith("tic"):
