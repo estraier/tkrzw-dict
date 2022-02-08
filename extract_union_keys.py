@@ -4,7 +4,7 @@
 # Script to make a list of keys of a union dictionary
 #
 # Usage:
-#   extract_union_keys.py [--input str] [--output str] [--quiet]
+#   extract_union_keys.py [--input str] [--output str] [--tran_prob str] [--quiet]
 #
 # Example:
 #   ./extract_union_keys.py --input union-body.tkh --output union-keys.txt
@@ -35,9 +35,10 @@ logger = tkrzw_dict.GetLogger()
 
 
 class ExtractKeysBatch:
-  def __init__(self, input_path, output_path):
+  def __init__(self, input_path, output_path, tran_prob_path):
     self.input_path = input_path
     self.output_path = output_path
+    self.tran_prob_path = tran_prob_path
 
   def Run(self):
     start_time = time.time()
@@ -45,6 +46,10 @@ class ExtractKeysBatch:
       self.input_path, self.output_path))
     input_dbm = tkrzw.DBM()
     input_dbm.Open(self.input_path, False, dbm="HashDBM").OrDie()
+    tran_prob_dbm = None
+    if self.tran_prob_path:
+      tran_prob_dbm = tkrzw.DBM()
+      tran_prob_dbm.Open(self.tran_prob_path, False, dbm="HashDBM").OrDie()
     it = input_dbm.MakeIterator()
     logger.info("Getting AOA records")
     it.First()
@@ -113,7 +118,21 @@ class ExtractKeysBatch:
             if max_aoa < sys.maxsize:
               aoa = max_aoa + len(tokens) - 1
         aoa_score = (25 - min(aoa, 20.0)) / 10.0
-        tran_score = 1.0 if "translation" in word_entry else 0.5
+        tran_score = 1.0
+        if "translation" in word_entry:
+          tran_score += 1.0
+        if tran_prob_dbm:
+          tsv = tran_prob_dbm.GetStr(key)
+          if tsv:
+            fields = tsv.split("\t")
+            max_tran_prob = 0.0
+            for i in range(0, len(fields), 3):
+              tran_src, tran_trg, tran_prob = fields[i], fields[i + 1], float(fields[i + 2])
+              if tran_src != word: continue
+              if not regex.search(r"[\p{Han}]", tran_trg):
+                prob *= 0.5
+              max_tran_prob = max(max_tran_prob, tran_prob)
+            tran_score += max_tran_prob
         item_score = math.log2(len(word_entry["item"]) + 1)
         labels = set()
         for item in word_entry["item"]:
@@ -136,6 +155,8 @@ class ExtractKeysBatch:
       if num_entries % 10000 == 0:
         logger.info("Reading: entries={}".format(num_entries))
       it.Next()
+    if tran_prob_dbm:
+      tran_prob_dbm.Close().OrDie()
     input_dbm.Close().OrDie()
     logger.info("Reading done: entries={}".format(num_entries))
     scores = sorted(scores, key=lambda x: x[1], reverse=True)
@@ -154,11 +175,12 @@ def main():
   args = sys.argv[1:]
   input_path = tkrzw_dict.GetCommandFlag(args, "--input", 1) or "union-body.tkh"
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-keys.txt"
+  tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
   if tkrzw_dict.GetCommandFlag(args, "--quiet", 0):
     logger.setLevel(logging.ERROR)
   if args:
     raise RuntimeError("unknown arguments: {}".format(str(args)))
-  ExtractKeysBatch(input_path, output_path).Run()
+  ExtractKeysBatch(input_path, output_path, tran_prob_path).Run()
 
 
 if __name__=="__main__":
