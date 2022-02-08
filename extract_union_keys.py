@@ -19,6 +19,7 @@
 # and limitations under the License.
 #--------------------------------------------------------------------------------------------------
 
+import collections
 import json
 import logging
 import math
@@ -49,22 +50,33 @@ class ExtractKeysBatch:
     it.First()
     num_entries = 0
     aoa_records = {}
+    real_aoa_probs = collections.defaultdict(list)
     while True:
       record = it.GetStr()
       if not record: break
       key, serialized = record
       entry = json.loads(serialized)
-      max_score = 0
       for word_entry in entry:
         word = word_entry["word"]
         aoa = (word_entry.get("aoa") or word_entry.get("aoa_concept") or
                word_entry.get("aoa_base"))
         if aoa:
           aoa_records[word] = float(aoa)
+        real_aoa = word_entry.get("aoa")
+        prob = word_entry.get("probability")
+        if real_aoa and prob:
+          real_aoa_probs[int(float(real_aoa))].append(float(prob))
       num_entries += 1
       if num_entries % 10000 == 0:
         logger.info("Getting AOA records: entries={}".format(num_entries))
       it.Next()
+    aoa_prob_map = {}
+    min_aoa_prob = 0.0001
+    for aoa_age, probs in sorted(list(real_aoa_probs.items())):
+      if aoa_age < 3 or aoa_age > 20: continue
+      prob_mean = sum(probs) / len(probs)
+      min_aoa_prob = min(prob_mean, min_aoa_prob)
+      aoa_prob_map[aoa_age] = min_aoa_prob
     it.First()
     num_entries = 0
     scores = []
@@ -77,6 +89,11 @@ class ExtractKeysBatch:
       for word_entry in entry:
         word = word_entry["word"]
         prob = float(word_entry.get("probability") or "0")
+        aoa_prob = 0
+        real_aoa = word_entry.get("aoa")
+        if real_aoa:
+          aoa_prob = float(aoa_prob_map.get(int(float(real_aoa))) or 0)
+          prob += aoa_prob
         prob_score = max(prob ** 0.5, 0.00001)
         aoa = (word_entry.get("aoa") or word_entry.get("aoa_concept") or
                word_entry.get("aoa_base"))
@@ -101,10 +118,10 @@ class ExtractKeysBatch:
         labels = set()
         for item in word_entry["item"]:
           labels.add(item["label"])
-        label_score = len(labels) + 1
+        label_score = math.log2(len(labels) + 1)
         children = word_entry.get("child")
         child_score = math.log2((len(children) if children else 0) + 4)
-        score = prob_score * aoa_score * tran_score * item_score * child_score
+        score = prob_score * aoa_score * tran_score * item_score * label_score * child_score
         if regex.fullmatch(r"\d+", word):
           score *= 0.1
         elif regex.match(r"\d", word):
