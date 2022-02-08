@@ -646,7 +646,9 @@ class BuildUnionDBBatch:
           hit = True
         if stem[:3] == deri[:3] and len(stem) >= 4:
           prefix = deri[:len(stem)]
-          if tkrzw.Utility.EditDistanceLev(stem, prefix) < 2:
+          if prefix == stem:
+            hit = True
+          if len(prefix) >= 6 and tkrzw.Utility.EditDistanceLev(stem, prefix) < 2:
             hit = True
         if hit:
           valid_stems.add(deri)

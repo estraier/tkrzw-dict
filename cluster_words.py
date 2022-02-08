@@ -121,6 +121,7 @@ class ClusterGenerator():
         for label, score in features.items():
           count = label_counts[label]
           if count < 2: continue
+          if label.count(" ") > 0 and count < 5: continue
           max_score = max(max_score, score)
           weight = 1 / (abs(math.log(count / ideal_num_items)) + 1)
           adopted_features.append((label, score, score * weight))
@@ -206,10 +207,10 @@ class ClusterGenerator():
     for i, cluster in enumerate(self.clusters):
       features = collections.defaultdict(float)
       num_items = 0
-      for word, item, _ in cluster:
+      for word, item, weight in cluster:
         if num_items >= cap: break
         for label, score in item.items():
-          features[label] += score
+          features[label] += score * (weight + 0.1)
         num_items += 1
       mod_features = collections.defaultdict(float)
       if features:
