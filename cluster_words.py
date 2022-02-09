@@ -371,7 +371,7 @@ class ClusterBatch():
       self.num_clusters, self.num_rounds, self.num_items))
     generator = ClusterGenerator(
       self.num_clusters, self.num_rounds, self.num_item_features, self.num_cluster_features)
-    max_read_items = self.num_items * 2.0 + 1000
+    max_read_items = self.num_items * 3.0 + 5000
     words = []
     item_dict = {}
     rank_dict = {}
