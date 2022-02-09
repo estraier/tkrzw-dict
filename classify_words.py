@@ -113,16 +113,9 @@ class ClassifyBatch:
         normals = fields[1]
         parents = fields[2]
         children = fields[3]
-        item_label_exprs = fields[4]
-        word_prob = fields[5]
+        word_prob = fields[4]
         if normals or parents: continue
-        item_labels = set()
-        for label in item_label_exprs.split(","):
-          label = label.strip()
-          if label:
-            item_labels.add(label)
-        if "wn" not in item_labels: continue
-        fields = fields[6:]
+        fields = fields[5:]
         features = {}
         for i in range(0, len(fields), 2):
           if len(features) >= self.num_item_features: break

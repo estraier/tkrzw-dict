@@ -116,21 +116,27 @@ class ClusterGenerator():
           label_counts[label] += 1
       new_items = {}
       for word, features in items.items():
-        max_score = 0
         adopted_features = []
         for label, score in features.items():
           count = label_counts[label]
           if count < 2: continue
           if label.count(" ") > 0 and count < 5: continue
-          max_score = max(max_score, score)
           weight = 1 / (abs(math.log(count / ideal_num_items)) + 1)
           adopted_features.append((label, score, score * weight))
         adopted_features = sorted(
           adopted_features, key=lambda x: x[2], reverse=True)[:cap_features - 1]
-        adopted_features = sorted(adopted_features, key=lambda x: x[1], reverse=True)
+        scored_features = []
+        for label, score, weighted_score in adopted_features:
+          if cap_features == self.num_item_features:
+            scored_features.append((label, weighted_score))
+          else:
+            scored_features.append((label, score))
+        scored_features = sorted(scored_features, key=lambda x: x[1], reverse=True)
+        max_score = scored_features[0][1]
         new_features = {}
-        new_features[word] = 0.5
-        for label, score, _ in adopted_features:
+        new_features[word] = 1.0
+        for label, score in scored_features:
+          if label == word: continue
           new_features[label] = score / max_score
         new_items[word] = new_features
       items = new_items

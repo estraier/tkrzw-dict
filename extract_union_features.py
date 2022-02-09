@@ -147,8 +147,9 @@ def main():
         for rel_word in related:
           rel_words[rel_word] = max(rel_words.get(rel_word) or 0, weight)
           weight *= 0.9
-      hypernyms = set()
       synonyms = set()
+      hypernyms = set()
+      hyponyms = set()
       antonyms = set()
       similars = set()
       for item in entry["item"]:
@@ -157,10 +158,12 @@ def main():
         for part in text.split("[-]"):
           match = regex.search(r"\[([a-z]+)\]: (.*)", part.strip())
           if match:
-            if match.group(1) == "hypernym":
-              res_words = hypernyms
-            elif match.group(1) == "synonym":
+            if match.group(1) == "synonym":
               res_words = synonyms
+            elif match.group(1) == "hypernym":
+              res_words = hypernyms
+            elif match.group(1) == "hyponym":
+              res_words = hyponyms
             elif match.group(1) == "antonym":
               res_words = antonyms
             elif match.group(1) == "similar":
@@ -173,7 +176,8 @@ def main():
                 res_words.add(rel_word)
       voted_words = set()
       for cand_words, penalty, propagate in [
-          (hypernyms, 1, True), (synonyms, 2, True), (antonyms, 3, False), (similars, 3, False)]:
+          (synonyms, 2, True), (hypernyms, 2, True), (hyponyms, 3, False),
+          (antonyms, 3, False), (similars, 3, False)]:
         if not cand_words: continue
         weight = 1 / (math.log(len(cand_words)) + penalty)
         for cand_word in cand_words:

@@ -346,6 +346,7 @@ class GenerateUnionVocabBatch:
                 aliases[dedup_word].add(word)
                 duplicated = True
           if duplicated:
+            print("DUP", word)
             continue
           main_words.append(word)
           break
