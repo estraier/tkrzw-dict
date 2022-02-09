@@ -61,7 +61,7 @@ rel_weights = {"synonym": 1.0,
                "derivative": 0.7,
                "relation": 0.5}
 noun_suffixes = [
-  "es", "s", "ment", "age", "tion", "ics", "ness", "ity", "ism", "or", "er", "ist",
+  "es", "s", "ment", "age", "ics", "ness", "ity", "ism", "or", "er", "ist",
   "ian", "ee", "tion", "sion", "ty", "ance", "ence", "ency", "cy", "ry", "ary", "ery", "ory",
   "al", "age", "dom", "hood", "ship", "nomy", "ing", "ication", "icator",
 ]
@@ -609,6 +609,11 @@ class BuildUnionDBBatch:
                   stems.add(stem + "es")
                 if suffix == "y" and len(stem) >= 3:
                   stems.add(stem + "e")
+                if suffix == "tion" and len(stem) >= 3:
+                  stems.add(stem + "te")
+                if suffix == "sion" and len(stem) >= 3:
+                  stems.add(stem + "de")
+                  stems.add(stem + "se")
                 if len(stem) >= 4 and stem.endswith("rr"):
                   stems.add(stem[:-1])
                 if len(stem) >= 8 and stem.endswith("tic"):
