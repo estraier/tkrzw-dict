@@ -78,10 +78,10 @@ class ExtractKeysBatch:
     aoa_prob_map = {}
     min_aoa_prob = 0.0001
     for aoa_age, probs in sorted(list(real_aoa_probs.items())):
-      if aoa_age < 3 or aoa_age > 20: continue
+      if aoa_age < 4 or aoa_age > 20: continue
       prob_mean = sum(probs) / len(probs)
       min_aoa_prob = min(prob_mean, min_aoa_prob)
-      aoa_prob_map[aoa_age] = min_aoa_prob
+      aoa_prob_map[aoa_age] = min(min_aoa_prob, 0.01)
     it.First()
     num_entries = 0
     scores = []
