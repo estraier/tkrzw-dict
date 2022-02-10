@@ -72,7 +72,7 @@ class ExtractWordNetTSVBatch:
         for attribute in attributes:
           values = item.get(attribute)
           if values:
-            gross += " [-] [{}]: {}".format(attribute, ", ".join(values[:5]))
+            gross += " [-] [{}]: {}".format(attribute, ", ".join(values[:8]))
         gross += " [-] [synset]: {}".format(item["synset"])
         output.append("{}={}".format(pos, gross))
       print("\t".join(output))

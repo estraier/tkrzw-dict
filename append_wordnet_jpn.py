@@ -70,8 +70,10 @@ class AppendWordnetJPNBatch:
       feedback_trans = None
     aux_trans, subaux_trans, tran_thes = self.ReadAuxTranslations()
     synset_index = self.ReadSynsetIndex()
+    tran_index = {}
+    tran_index = self.ReadTranIndex(synset_index)
     self.AppendTranslations(
-      wnjpn_trans, feedback_trans, aux_trans, subaux_trans, tran_thes, synset_index)
+      wnjpn_trans, feedback_trans, aux_trans, subaux_trans, tran_thes, synset_index, tran_index)
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
   def ReadTranslations(self):
@@ -184,13 +186,42 @@ class AppendWordnetJPNBatch:
         synset_index[word].add(synset)
       num_words += 1
       if num_words % 10000 == 0:
-        logger.info("Reading words: words={}".format(num_words))
+        logger.info("Reading synsets: words={}".format(num_words))
       it.Next()
     logger.info("Reading synset index done: records={}".format(len(synset_index)))
     return synset_index
 
+  def ReadTranIndex(self, synset_index):
+    tran_index = {}
+    if not self.tran_prob_path:
+      return tran_index
+    logger.info("Reading tran index: input_path={}".format(self.tran_prob_path))
+    tran_prob_dbm = tkrzw.DBM()
+    tran_prob_dbm.Open(self.tran_prob_path, False, dbm="HashDBM").OrDie()
+    num_words = 0
+    for word in synset_index:
+      key = tkrzw_dict.NormalizeWord(word)
+      tsv = tran_prob_dbm.GetStr(key)
+      if tsv:
+        tran_probs = {}
+        fields = tsv.split("\t")
+        for i in range(0, len(fields), 3):
+          src, trg, prob = fields[i], fields[i + 1], fields[i + 2]
+          if src != word: continue
+          prob = float(prob)
+          if prob > 0.04:
+            tran_probs[trg] = prob
+        if tran_probs:
+          tran_index[word] = tran_probs
+      num_words += 1
+      if num_words % 10000 == 0:
+        logger.info("Reading trans: words={}".format(num_words))
+    tran_prob_dbm.Close().OrDie()
+    logger.info("Reading tran index done: records={}".format(len(tran_index)))
+    return tran_index
+
   def AppendTranslations(self, wnjpn_trans, feedback_trans,
-                         aux_trans, subaux_trans, tran_thes, synset_index):
+                         aux_trans, subaux_trans, tran_thes, synset_index, tran_index):
     start_time = time.time()
     logger.info("Appending translations: input_path={}, output_path={}".format(
       self.input_path, self.output_path))
@@ -240,6 +271,17 @@ class AppendWordnetJPNBatch:
         sum_prob += prob
       for word, prob in list(spell_ratios.items()):
         spell_ratios[word] = prob / sum_prob
+      all_tran_probs = tran_index.get(word) or {}
+      for item in items:
+        attrs = ["translation", "synonym", "antonym", "hypernym", "hyponym",
+                 "similar", "derivative"]
+        for attr in attrs:
+          rel_words = item.get(attr)
+          if rel_words:
+            rel_words = self.SortRelatedWords(
+              rel_words, all_tran_probs, tokenizer, phrase_prob_dbm, tran_prob_dbm,
+              synset_index, tran_index)
+            item[attr] = rel_words
       for item in items:
         word = item["word"]
         pos = item["pos"]
@@ -527,6 +569,44 @@ class AppendWordnetJPNBatch:
           prob = float(prob)
           max_prob = max(max_prob, prob)
     return max_prob
+
+  def NormalizeTran(self, tokenizer, text):
+    parts = tokenizer.StripJaParticles(text)
+    if parts[0]:
+      text = parts[0]
+    pos = tokenizer.GetJaLastPos(text)
+    if text.endswith(pos[0]) and pos[3]:
+      text = text[:-len(pos[0])] + pos[3]
+    return text
+
+  def SortRelatedWords(self, rel_words, seed_tran_probs,
+                       tokenizer, phrase_prob_dbm, tran_prob_dbm, synset_index, tran_index):
+    word_scores = []
+    for rel_word in rel_words:
+      prob_score = 0
+      if phrase_prob_dbm:
+        prob = self.GetPhraseProb(phrase_prob_dbm, tokenizer, "en", rel_word)
+        prob_score = 8 / (abs(math.log(prob) - math.log(0.001)) + 8)
+      tran_score = 0
+      if seed_tran_probs:
+        rel_tran_probs = tran_index.get(rel_word)
+        if rel_tran_probs:
+          for seed_tran, seed_prob in seed_tran_probs.items():
+            norm_seed_tran = self.NormalizeTran(tokenizer, seed_tran)
+            seed_prob **= 0.5
+            for rel_tran, rel_prob in rel_tran_probs.items():
+              norm_rel_tran = self.NormalizeTran(tokenizer, rel_tran)
+              rel_prob **= 0.5
+              if rel_tran == seed_tran:
+                tran_score = max(tran_score, seed_prob * rel_prob)
+              elif norm_seed_tran == norm_rel_tran:
+                tran_score = max(tran_score, seed_prob * rel_prob * 0.5)
+      rel_syn_num = max(len(synset_index.get(rel_word) or []), 1)
+      uniq_score = 4 / (math.log(rel_syn_num) + 4)
+      score = prob_score + tran_score + uniq_score
+      word_scores.append((rel_word, score))
+    word_scores = sorted(word_scores, key=lambda x: x[1], reverse=True)
+    return [x[0] for x in word_scores]
 
   _regex_stop_word_katakana = regex.compile(r"[\p{Katakana}ー]+")
   _regex_stop_word_hiragana = regex.compile(r"[\p{Hiragana}ー]+")
