@@ -55,9 +55,9 @@ STOP_WORDS = set([
   "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety", "hundred",
   "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth",
   "eleventh", "twelfth", "thirteenth", "fourteenth", "fifteenth", "sixteenth", "seventeenth",
-  "nineteenth", "twenties", "thirties", "forties", "fifties", "sixties", "seventies", "eighties",
-  "nineties", "hundredth",
-  "math", "maths"
+  "nineteenth", "twentieth", "thirtieth", "fortieth", "fiftieth", "sixtieth", "seventieth",
+  "eightieth", "ninetieth", "hundredth",
+  "math", "maths", "disc",
 ])
 no_parents = {
   "number", "ground", "red", "happen", "letter", "monitor", "feed", "found", "winter",

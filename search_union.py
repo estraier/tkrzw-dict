@@ -124,6 +124,22 @@ def CutTextByWidth(text, width):
   return result
 
 
+def FilterWordsWithinWidth(words, max_width, min_words):
+  out_words = []
+  out_width = 0
+  for word in words:
+    word = word.strip()
+    if not word: continue
+    width = 0
+    for c in word:
+      width += 2 if ord(c) > 256 else 1
+    if len(out_words) >= min_words and out_width + width > max_width:
+      break
+    out_words.append(word)
+    out_width += width + 2
+  return out_words
+
+
 def GetEntryPoses(entry):
   poses = []
   uniq_poses = set()
@@ -152,10 +168,12 @@ def GetEntryPoses(entry):
 def GetEntryTranslation(entry):
   translations = entry.get("translation")
   if translations:
+    translations = FilterWordsWithinWidth(translations, 50, 3)
     text = ", ".join(translations[:4])
   else:
     text = entry["item"][0]["text"]
     text = regex.sub(r" \[-+\] .*", "", text).strip()
+    text = CutTextByWidth(text, 50)
   return text
 
 
@@ -190,7 +208,8 @@ def PrintResult(entries, mode, query, searcher):
     if translations:
       if tkrzw_dict.PredictLanguage(query) != "en":
         translations = tkrzw_dict.TwiddleWords(translations, query)
-      title += "  \"{}\"".format(", ".join(translations[:8]))
+      translations = FilterWordsWithinWidth(translations, 70, 4)
+      title += "  \"{}\"".format(", ".join(translations))
     elif mode == "list":
       for item in entry["item"]:
         text = item["text"].split(" [-] ")[0]
@@ -243,7 +262,9 @@ def PrintResult(entries, mode, query, searcher):
               if attr_match.group(1) == "synset": continue
               attr_label = WORDNET_ATTRS.get(attr_match.group(1))
               if attr_label:
-                section = "{}: {}".format(attr_label, section[len(attr_match.group(0)):].strip())
+                attr_text = section[len(attr_match.group(0)):].strip()
+                attr_words = FilterWordsWithinWidth(attr_text.split(","), 60, 4)
+                section = "{}: {}".format(attr_label, ", ".join(attr_words))
             elif eg_match:
               section = "例: {}".format(section[len(eg_match.group(0)):].strip())
             subsections = section.split(" [--] ")
@@ -258,7 +279,8 @@ def PrintResult(entries, mode, query, searcher):
         phrases = entry.get("phrase")
         if phrases:
           for phrase in phrases:
-            text = "[句] {} : {}".format(phrase["w"], ", ".join(phrase["x"]))
+            phrase_trans = FilterWordsWithinWidth(phrase["x"], 50, 3)
+            text = "[句] {} : {}".format(phrase["w"], ", ".join(phrase_trans))
             pp =phrase.get("p")
             if pp:
               text += " ({:.3f}%)".format(float(pp) * 100)
@@ -280,19 +302,23 @@ def PrintResult(entries, mode, query, searcher):
         parents = entry.get("parent")
         children = entry.get("child")
         if children:
-          text = "[派生] {}".format(", ".join(children[:8]))
+          children = FilterWordsWithinWidth(children, 70, 4)
+          text = "[派生] {}".format(", ".join(children))
           PrintWrappedText(text, 4)
         idioms = entry.get("idiom")
         if idioms:
-          text = "[熟語] {}".format(", ".join(idioms[:8]))
+          idioms = FilterWordsWithinWidth(idioms, 70, 4)
+          text = "[熟語] {}".format(", ".join(idioms))
           PrintWrappedText(text, 4)
         related = entry.get("related")
         if related:
-          text = "[関連] {}".format(", ".join(related[:8]))
+          related = FilterWordsWithinWidth(related, 70, 4)
+          text = "[関連] {}".format(", ".join(related))
           PrintWrappedText(text, 4)
         coocs = entry.get("cooccurrence")
         if coocs:
-          text = "[共起] {}".format(", ".join(coocs[:8]))
+          coocs = FilterWordsWithinWidth(coocs, 70, 4)
+          text = "[共起] {}".format(", ".join(coocs))
           PrintWrappedText(text, 4)
         etym_parts = []
         etym_prefix = entry.get("etymology_prefix")
@@ -319,7 +345,8 @@ def PrintResult(entries, mode, query, searcher):
       if mode == "simple":
         parents = entry.get("parent")
         if parents:
-          text = "[語幹] {}".format(", ".join(parents[:8]))
+          parents = FilterWordsWithinWidth(parents, 70, 4)
+          text = "[語幹] {}".format(", ".join(parents))
           PrintWrappedText(text, 4)
   if mode != "list":
     print()
@@ -666,11 +693,8 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
     translations = entry.get("translation")
     hint = ""
     if translations:
-      for tran in translations:
-        if len(hint) >= 40: break
-        if hint:
-          hint += ", "
-        hint += tran
+      hint_translations = FilterWordsWithinWidth(translations, 40, 2)
+      hint = ", ".join(hint_translations)
     else:
       for item in entry["item"]:
         text = regex.sub(r" \[-.*", "", item["text"])
@@ -694,8 +718,9 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
     if translations:
       if tkrzw_dict.PredictLanguage(query) != "en":
         translations = tkrzw_dict.TwiddleWords(translations, query)
+      head_translations = FilterWordsWithinWidth(translations, 80, 4)
       fields = []
-      for tran in translations[:8]:
+      for tran in head_translations:
         tran_url = "{}?q={}".format(script_name, urllib.parse.quote(tran))
         value = '<a href="{}" class="tran">{}</a>'.format(esc(tran_url), esc(tran))
         fields.append(value)
@@ -808,8 +833,9 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
           if subattr_label:
             P('<span class="subattr_label">{}</span>', subattr_label)
           if subattr_link:
+            attr_words = FilterWordsWithinWidth(subsections[0].split(","), 70, 4)
             fields = []
-            for subword in subsections[0].split(","):
+            for subword in attr_words:
               subword = subword.strip()
               if subword:
                 subword_url = "{}?q={}".format(script_name, urllib.parse.quote(subword))
@@ -848,13 +874,14 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
             P('{}', pword)
           P(' : ')
           tran_exprs = []
-          for ptran in phrase["x"]:
-            match = regex.search(r"^(\([^)]+\)) *(.*)", ptran)
+          phrase_trans = FilterWordsWithinWidth(phrase["x"], 50, 3)
+          for phrase_tran in phrase_trans:
+            match = regex.search(r"^(\([^)]+\)) *(.*)", phrase_tran)
             if match:
               tran_expr = '<span class="annot">{}</span>{}'.format(
                 esc(match.group(1)), esc(match.group(2)))
             else:
-              tran_expr = esc(ptran)
+              tran_expr = esc(phrase_tran)
             tran_exprs.append(tran_expr)
           print(", ".join(tran_exprs))
           pp = phrase.get("p")
@@ -891,7 +918,8 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
           P('<span class="attr_label">{}</span>', rel_label)
           P('<span class="text">')
           fields = []
-          for subword in related[:8]:
+          related = FilterWordsWithinWidth(related, 80, 4)
+          for subword in related:
             subword_url = "{}?q={}".format(script_name, urllib.parse.quote(subword))
             fields.append('<a href="{}" class="subword">{}</a>'.format(
               esc(subword_url), esc(subword)))
@@ -946,7 +974,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
 def PrintItemTextCGI(text):
   P('<span class="text">', end="")
   while text:
-    match = regex.search("(^|.*?[。、])([\(（〔].+?[\)）〕])", text)
+    match = regex.search("(^|.*?[。、])([\(（〔《].+?[\)）〕》])", text)
     if match:
       print(esc(match.group(1)), end="")
       P('<span class="annot">{}</span> ', match.group(2), end="")

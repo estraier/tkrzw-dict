@@ -309,16 +309,30 @@ class GenerateUnionVocabBatch:
     section_extra_word_lists = []
     for cluster in clusters:
       main_words = []
+      skipped_words = []
       dedup_words = []
       aliases = collections.defaultdict(set)
       num_words = len(cluster[0])
       for word in cluster[0]:
-        if word in uniq_words: continue
+        if word in uniq_words:
+          continue
         data = body_dbm.GetStr(word)
-        if not data: continue
+        if not data:
+          continue
         entries = json.loads(data)
         for entry in entries:
           if entry["word"] != word: continue
+          trans = entry.get("translation")
+          if not trans:
+            continue
+          has_good_tran = False
+          for tran in trans[:6]:
+            if regex.search(r"[\p{Han}\p{Hiragana}]", tran):
+              has_good_tran = True
+              break
+          if not has_good_tran:
+            skipped_words.append(word)
+            continue
           count_synonyms = collections.defaultdict(int)
           num_items = 0
           for item in entry["item"]:
@@ -346,7 +360,7 @@ class GenerateUnionVocabBatch:
                 aliases[dedup_word].add(word)
                 duplicated = True
           if duplicated:
-            print("DUP", word)
+            skipped_words.append(word)
             continue
           main_words.append(word)
           break
@@ -357,6 +371,8 @@ class GenerateUnionVocabBatch:
       while len(main_words) < num_words and extra_words:
         main_words.append(extra_words[0])
         extra_words = extra_words[1:]
+      for skipped_word in skipped_words:
+        extra_words.insert(0, skipped_word)
       for word in main_words:
         surfaces = [word]
         surfaces.extend(aliases.get(word) or [])
@@ -616,11 +632,11 @@ class GenerateUnionVocabBatch:
             extra_poses.extend(self.GetEntryPOSList(extra_entry))
         if not extra_trans: continue
         extra_trans = extra_trans[:5]
-        has_kanji = False
+        has_good_tran = False
         for extra_tran in extra_trans:
-          if regex.search(r"\p{Han}", extra_tran):
-            has_kanji = True
-        if not has_kanji: continue
+          if regex.search(r"[\p{Han}\p{Hiragana}\p{Katakana}]", extra_tran):
+            has_good_tran = True
+        if not has_good_tran: continue
         extra_words.append((extra_word, extra_trans, extra_poses))
         uniq_words.add(extra_word)
         num_extra_words += 1
