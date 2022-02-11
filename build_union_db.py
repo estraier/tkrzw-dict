@@ -614,6 +614,8 @@ class BuildUnionDBBatch:
                 if suffix == "sion" and len(stem) >= 3:
                   stems.add(stem + "de")
                   stems.add(stem + "se")
+                if suffix == "tion" and len(stem) >= 3 and stem.endswith("a"):
+                  stems.add(stem[:-1] + "e")
                 if len(stem) >= 4 and stem.endswith("rr"):
                   stems.add(stem[:-1])
                 if len(stem) >= 8 and stem.endswith("tic"):

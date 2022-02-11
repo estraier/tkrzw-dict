@@ -147,13 +147,15 @@ def main():
         for rel_word in related:
           rel_words[rel_word] = max(rel_words.get(rel_word) or 0, weight)
           weight *= 0.9
-      synonyms = set()
-      hypernyms = set()
-      hyponyms = set()
-      antonyms = set()
-      similars = set()
+      synonyms = {}
+      hypernyms = {}
+      hyponyms = {}
+      antonyms = {}
+      similars = {}
+      item_weight = 1.0
       for item in entry["item"]:
         if item["label"] != "wn": continue
+        hit = False
         text = item["text"]
         for part in text.split("[-]"):
           match = regex.search(r"\[([a-z]+)\]: (.*)", part.strip())
@@ -170,17 +172,24 @@ def main():
               res_words = similars
             else:
               continue
+            order_weight = 1.0
             for rel_word in match.group(2).split(","):
               rel_word = rel_word.strip()
               if rel_word:
-                res_words.add(rel_word)
+                weight = item_weight * order_weight
+                res_words[rel_word] = max(res_words.get(rel_word) or 0, weight)
+                order_weight *= 0.95
+                hit = True
+        if hit:
+          item_weight *= 0.95
       voted_words = set()
       for cand_words, penalty, propagate in [
           (synonyms, 2, True), (hypernyms, 2, True), (hyponyms, 3, False),
           (antonyms, 3, False), (similars, 3, False)]:
         if not cand_words: continue
-        weight = 1 / (math.log(len(cand_words)) + penalty)
-        for cand_word in cand_words:
+        type_weight = 1 / (math.log(len(cand_words)) + penalty)
+        for cand_word, cand_weight in cand_words.items():
+          weight = cand_weight * type_weight
           if cand_word in voted_words: continue
           voted_words.add(cand_word)
           features[cand_word] = (features.get(cand_word) or 0) + weight * 0.5
