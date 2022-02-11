@@ -56,7 +56,7 @@ h2:hover a.headanc, h3:hover a.headanc {
 <ul>
 <li><a href="https://dbmx.net/dict/search_union.cgi">オンライン辞書検索システム</a></li>
 <li><a href="https://dbmx.net/dict/chrome-union-dict-v2.zip">Chrome拡張の辞書検索機能</a></li>
-<li>オンライン連想英単語帳: <a href="https://dbmx.net/dict/vocab-basic/index.html">初級編3600語</a>、<a href="https://dbmx.net/dict/vocab-advanced/index.html">上級編9600語</a></li>
+<li>オンライン連想英単語帳: <a href="https://dbmx.net/dict/vocab-basic/index.xhtml">初級編3600語</a>、<a href="https://dbmx.net/dict/vocab-advanced/index.xhtml">上級編9600語</a></li>
 <li><a href="https://dbmx.net/dict/quiz_aoa.cgi">オンライン語彙力年齢診断</a></li>
 <li>Kindle用電子辞書: <a href="https://dbmx.net/dict/union-dict-enja.epub">英和辞書</a>、<a href="https://dbmx.net/dict/union-dict-jaen.epub">和英辞書</a></li>
 </ul>
@@ -98,7 +98,7 @@ h2:hover a.headanc, h3:hover a.headanc {
 
 <h2 id="vocab">オンライン連想英単語帳</h2>
 
-<p>似た単語をまとめて一括して覚えるための単語集を作りました。<a href="https://dbmx.net/dict/vocab-basic/index.html">初級編</a>と<a href="https://dbmx.net/dict/vocab-advanced/index.html">上級編</a>の二種類があります。辞書の中から、実際の英文中に登場する頻度が高い単語を抽出したので、重要単語を集中的に覚えることができます。</p>
+<p>似た単語をまとめて一括して覚えるための単語集を作りました。<a href="https://dbmx.net/dict/vocab-basic/index.xhtml">初級編</a>と<a href="https://dbmx.net/dict/vocab-advanced/index.xhtml">上級編</a>の二種類があります。辞書の中から、実際の英文中に登場する頻度が高い単語を抽出したので、重要単語を集中的に覚えることができます。</p>
 
 <p>さらに、関連する語彙をまとめて覚えるための工夫をしています。例えば、見出し語「part」には、「partly」「partial」「parted」といった派生語とその意味が記載され、一気に覚えることができます。また、見出し語同士を意味や用法で分類しているので、「error」「mistake」「fault」「incorrect」などの語も関連付けて覚えることができます。関連性のない語とその意味を無作為な順序で暗記するよりは、関連のある語を連想しながら記憶する方が遥かに効率がよくなります。</p>
 
@@ -347,6 +347,7 @@ $ ./extract_wordnet_tsv.py --input wordnet-body.tkh > wordnet.tsv
 <li><a href="https://dbmx.net/dict/wordnet.tsv">wordnet.tsv</a> : WordNetの語義TSVファイル</li>
 <li><a href="https://dbmx.net/dict/wiktionary-ja.tsv">wiktionary-ja.tsv</a> : Wiktionary日本語版の語義TSVファイル</li>
 <li><a href="https://dbmx.net/dict/wiktionary-en.tsv">wiktionary-en.tsv</a> : Wiktionary英語版の語義TSVファイル</li>
+<li><a href="https://dbmx.net/dict/supplement.tsv">supplement.tsv</a> : EDict2の語義TSVファイル</li>
 </ul>
 
 <p>語の頻度データベースと語義TSVファイルが揃ったら、以下のコマンドを実行すると、英和辞書データの本体であるDBMファイルが構築できる。</p>
