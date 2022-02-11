@@ -693,7 +693,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
     translations = entry.get("translation")
     hint = ""
     if translations:
-      hint_translations = FilterWordsWithinWidth(translations, 40, 2)
+      hint_translations = FilterWordsWithinWidth(translations, 60, 3)
       hint = ", ".join(hint_translations)
     else:
       for item in entry["item"]:

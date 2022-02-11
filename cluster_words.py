@@ -57,6 +57,7 @@ STOP_WORDS = set([
   "eleventh", "twelfth", "thirteenth", "fourteenth", "fifteenth", "sixteenth", "seventeenth",
   "nineteenth", "twentieth", "thirtieth", "fortieth", "fiftieth", "sixtieth", "seventieth",
   "eightieth", "ninetieth", "hundredth",
+  "northeast", "northwest", "southeast", "southwest",
   "math", "maths", "disc",
 ])
 no_parents = {
@@ -406,6 +407,7 @@ class ClusterBatch():
       item_dict[word] = (parents, features)
       rank_dict[word] = len(rank_dict)
     adopted_words = {}
+    skipped_words = set()
     parent_index = collections.defaultdict(list)
     for word in words:
       parent_expr, features = item_dict[word]
@@ -415,15 +417,17 @@ class ClusterBatch():
         if not parent: continue
         parents.append(parent)
         parent_index[word].append(parent)
-        if parent in adopted_words:
+        if parent in adopted_words or parent in skipped_words:
           is_dup = True
       if is_dup: continue
       parents = sorted(parents, key=lambda x: rank_dict.get(x) or len(rank_dict))
       if parents:
         parent = parents[0]
         if parent in item_dict:
+          skipped_words.add(word)
           word = parent
           parent_expr, features = item_dict[word]
+      if word in adopted_words or word in skipped_words: continue
       if len(adopted_words) < self.num_items:
         adopted_words[word] = features
     for child, parents in list(parent_index.items()):

@@ -61,16 +61,17 @@ rel_weights = {"synonym": 1.0,
                "derivative": 0.7,
                "relation": 0.5}
 noun_suffixes = [
-  "es", "s", "ment", "age", "ics", "ness", "ity", "ism", "or", "er", "ist",
+  "es", "s", "ment", "age", "ics", "ness", "ity", "ism", "or", "er", "ist", "t", "pt", "th",
   "ian", "ee", "tion", "sion", "ty", "ance", "ence", "ency", "cy", "ry", "ary", "ery", "ory",
-  "al", "age", "dom", "hood", "ship", "nomy", "ing", "ication", "icator",
+  "al", "age", "dom", "hood", "ship", "nomy", "ing", "ication", "icator", "ce", "se", "son",
+  "ant", "faction", "y",
 ]
 verb_suffixes = [
-  "ify", "en", "ize", "ise", "fy", "ate",
+  "ify", "en", "ize", "ise", "fy", "ate", "age", "e",
 ]
 adjective_suffixes = [
   "some", "able", "ible", "ic", "ical", "ive", "ful", "less", "ly", "ous", "y",
-  "ised", "ing", "ed", "ish", "al", "icable",
+  "ised", "ing", "ed", "ish", "al", "icable", "er", "est", "ent", "ific",
 ]
 adverb_suffixes = [
   "ly",
@@ -103,6 +104,10 @@ no_parents = {
   "weed", "saw", "copper", "buffer", "lump", "wary", "stove", "doctor", "hinder", "crazy",
   "tower", "poetry", "parity", "fell", "lay", "wound", "bit", "drug", "grass", "shore",
   "butter", "slang", "grope", "feces",
+}
+force_parents = {
+  "advice": "advise", "device": "devise", "practice": "practise",
+  "prisoner": "prison", "emission": "emit", "omission": "omit", "fission": "fissure",
 }
 
 
@@ -614,12 +619,35 @@ class BuildUnionDBBatch:
                 if suffix == "sion" and len(stem) >= 3:
                   stems.add(stem + "de")
                   stems.add(stem + "se")
-                if suffix == "tion" and len(stem) >= 3 and stem.endswith("a"):
+                if suffix in ["tion", "sion"] and len(stem) >= 3 and stem.endswith("a"):
+                  stems.add(stem[:-1])
+                  stems.add(stem[:-1] + "e")
+                  stems.add(stem[:-1] + "ate")
+                if suffix == "al" and len(stem) >= 3 and stem.endswith("r"):
+                  stems.add(stem[:-1] + "er")
+                if suffix == "ity" and len(stem) >= 6 and stem.endswith("bil"):
+                  stems.add(stem[:-3] + "ble")
+                if suffix == "pt" and len(stem) >= 3:
+                  stems.add(stem[:-1] + "ve")
+                if suffix == "ce" and len(stem) >= 3:
+                  stems.add(stem + "t")
+                  stems.add(stem + "d")
+                  stems.add(stem + "se")
+                if suffix == "faction" and len(stem) >= 4:
+                  stems.add(stem + "fy")
+                if len(stem) >= 3 and stem.endswith("u"):
+                  stems.add(stem + "e")
+                if len(stem) >= 4 and stem.endswith("i"):
                   stems.add(stem[:-1] + "e")
                 if len(stem) >= 4 and stem.endswith("rr"):
                   stems.add(stem[:-1])
+                if len(stem) >= 5 and stem.endswith("t"):
+                  stems.add(stem[:-1] + "ce")
+                  stems.add(stem[:-1] + "d")
                 if len(stem) >= 8 and stem.endswith("tic"):
                   stems.add(stem + "s")
+                if len(stem) >= 4 and stem[-1] == stem[-2]:
+                  stems.add(stem[:-1])
     valid_stems = set()
     for pos, text in texts:
       match = regex.search(
@@ -629,7 +657,7 @@ class BuildUnionDBBatch:
         if len(stem) >= 4 and word.startswith(stem):
           valid_stems.add(stem)
     for stem in stems:
-      if len(stem) >= 8:
+      if len(stem) >= 8 and len(stem) < len(word):
         valid_stems.add(stem)
         continue
       if stem.find(" ") < 0 and len(stem) >= 4 and trans:
@@ -661,6 +689,9 @@ class BuildUnionDBBatch:
             hit = True
         if hit:
           valid_stems.add(deri)
+    force_parent = force_parents.get(word)
+    if force_parent:
+      valid_stems.add(force_parent)
     return list(valid_stems)
 
   def MergeRecord(self, key, word_dicts, aux_trans, aoa_words, keywords,
@@ -1423,11 +1454,15 @@ class BuildUnionDBBatch:
     alternatives = word_entry.get("alternative")
     if alternatives:
       for alternative in alternatives:
-        parents.discard(alternative)
-        children.discard(alternative)
+        if word not in force_parents:
+          parents.discard(alternative)
+        if alternative not in force_parents:
+          children.discard(alternative)
     for variant in self.GetSpellVariants(word):
-      parents.discard(variant)
-      children.discard(variant)
+      if word not in force_parents:
+        parents.discard(variant)
+      if variant not in force_parents:
+        children.discard(variant)
     for child in children:
       parents.discard(child)
     if word in no_parents:
@@ -1639,7 +1674,7 @@ class BuildUnionDBBatch:
       elif cooc_word in particles or cooc_word in misc_stop_words:
         cooc_score *= 0.5
       elif is_wiki_word and cooc_word in wiki_stop_words:
-        cooc_score *= 0.5
+        cooc_score *= 0.2
       weighed_cooc_words.append((cooc_word, cooc_score))
     sorted_cooc_words = sorted(weighed_cooc_words, key=lambda x: x[1], reverse=True)
     final_cooc_words = []
