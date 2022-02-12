@@ -419,7 +419,9 @@ class ClusterBatch():
         parent_index[word].append(parent)
         if parent in adopted_words or parent in skipped_words:
           is_dup = True
-      if is_dup: continue
+      if is_dup:
+        skipped_words.add(word)
+        continue
       parents = sorted(parents, key=lambda x: rank_dict.get(x) or len(rank_dict))
       if parents:
         parent = parents[0]
