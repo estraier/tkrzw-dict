@@ -484,6 +484,8 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           if value in ("+", "-", "~", "?", "!"):
             stop = True
         if not stop:
+          if len(values) == 1 and values[0] == "further":
+            values = []
           if len(values) >= 2 and values[-1] == "further":
             values = values[:-1]
           adjective_comparative = None
@@ -553,6 +555,8 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           if value in ("+", "-", "~", "?", "!"):
             stop = True
         if not stop:
+          if len(values) == 1 and values[0] == "further":
+            values = []
           if len(values) >= 2 and values[-1] == "further":
             values = values[:-1]
           adverb_comparative = None

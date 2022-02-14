@@ -64,14 +64,14 @@ noun_suffixes = [
   "es", "s", "ment", "age", "ics", "ness", "ity", "ism", "or", "er", "ist", "t", "pt", "th",
   "ian", "ee", "tion", "sion", "ty", "ance", "ence", "ency", "cy", "ry", "ary", "ery", "ory",
   "al", "age", "dom", "hood", "ship", "nomy", "ing", "ication", "icator", "ce", "se", "son",
-  "ant", "faction", "y",
+  "iation", "ant", "faction", "ture", "sure", "nance", "y",
 ]
 verb_suffixes = [
   "ify", "en", "ize", "ise", "fy", "ate", "age", "e",
 ]
 adjective_suffixes = [
   "some", "able", "ible", "ic", "ical", "ive", "ful", "less", "ly", "ous", "y",
-  "ised", "ing", "ed", "ish", "al", "icable", "er", "est", "ent", "ific",
+  "ised", "ing", "ed", "ish", "al", "icable", "er", "est", "ent", "ific", "tative",
 ]
 adverb_suffixes = [
   "ly",
@@ -99,15 +99,35 @@ wiki_stop_words = {
   "wikipedia", "encyclopedia", "page", "pages", "edit", "edits", "comment", "comments",
 }
 no_parents = {
-  "number", "ground", "red", "happen", "letter", "monitor", "feed", "found", "winter",
+  "number", "ground", "red", "happen", "letter", "monitor", "feed", "winter", "brake",
   "partner", "sister", "environment", "moment", "gun", "shower", "trigger", "wound", "bound",
   "weed", "saw", "copper", "buffer", "lump", "wary", "stove", "doctor", "hinder", "crazy",
-  "tower", "poetry", "parity", "fell", "lay", "wound", "bit", "drug", "grass", "shore",
-  "butter", "slang", "grope", "feces",
+  "tower", "poetry", "parity", "fell", "lay", "bit", "drug", "grass", "shore",
+  "butter", "slang", "grope", "feces", "left", "former", "found", "every", "scheme",
+  "evening", "architecture", "hat", "slice", "bite", "tender", "bully", "translate",
+  "fence", "liver", "species", "statistics", "mathematics", "caution", "span", "fleet",
+  "shine", "dental", "irony", "transplant", "chemistry", "physics", "grocery",
+  "gutter", "dove", "weary", "queer", "shove", "buggy", "twine", "tier", "rung", "spat",
+  "pang", "jibe", "pent", "lode", "gelt", "plant", "plane", "pants", "craze", "grove",
+  "downy", "musty", "mangy", "moped", "caper", "balmy", "tinny", "induce", "treaty",
+  "chili", "chilli", "chile", "castor", "landry", "start", "baby", "means",
+  "interior", "exterior", "rabbit", "stripe", "fairy", "shunt", "clove", "abode", "bends",
+  "tined",
 }
 force_parents = {
   "advice": "advise", "device": "devise", "practice": "practise",
-  "prisoner": "prison", "emission": "emit", "omission": "omit", "fission": "fissure",
+  "approximately": "approximate",
+  "prisoner": "prison", "emission": "emit", "omission": "omit", "transmission": "transmit",
+  "fission": "fissure", "competitive": "compete", "competitor": "compete",
+  "conservative": "conserve", "pronunciation": "pronounce", "revelation": "reveal",
+  "possession": "possess", "schema": "scheme", "further": "far", "farther": "far",
+  "conjunction": "conjunct", "conjunctive": "conjunct",
+  "conjugation": "conjugate", "conjugative": "conjugate",
+  "translation": "translate", "formation": "form", "variation": "vary",
+  "importance": "important", "innovative": "innovate", "bated": "bate",
+  "chemist": "chemistry", "chem": "chemistry", "architect": "architecture", "grocer": "grocery",
+  "chilly": "chill", "launder": "laundry", "tension": "tense", "revolution": "revolve",
+  "sensitive": "sense", "mutation": "mutate", "mutant": "mutate", "fated": "fate",
 }
 
 
@@ -515,6 +535,7 @@ class BuildUnionDBBatch:
         self.SetPhraseTranslations(word_entry, merged_dict, aux_trans, aux_last_trans,
                                    tran_prob_dbm, phrase_prob_dbm, noun_words, verb_words,
                                    live_words, rev_live_words)
+        self.FilterParents(word_entry, merged_dict)
         self.AbsorbInflections(word_entry, merged_dict)
       num_entries += 1
       if num_entries % 1000 == 0:
@@ -576,7 +597,9 @@ class BuildUnionDBBatch:
           if match:
             expr = regex.sub(r"\[-.*", "", match.group(1))
             for tran in expr.split(","):
-              tran = regex.sub(r"[^\p{Han}]", "", tran)
+              han_tran = regex.sub(r"[^\p{Han}]", "", tran)
+              if len(han_tran) >= 2:
+                tran = han_tran
               if tran:
                 out_trans.add(tran)
       in_aux_trans = aux_trans.get(in_word)
@@ -610,21 +633,37 @@ class BuildUnionDBBatch:
                   stems.add(stem + "e")
                 if len(suffix) >= 2 and suffix[0] == "e":
                   stems.add(stem + "e")
+                if len(suffix) >= 2 and suffix[0] == "t":
+                  stems.add(stem + "t")
+                if len(suffix) >= 3 and suffix[0] == "s":
+                  stems.add(stem + "s")
                 if suffix == "al" and len(stem) >= 3:
                   stems.add(stem + "es")
                 if suffix == "y" and len(stem) >= 3:
                   stems.add(stem + "e")
-                if suffix == "tion" and len(stem) >= 3:
+                if suffix in ["tion", "sion"] and len(stem) >= 2:
+                  stems.add(stem + "e")
+                  stems.add(stem + "d")
+                  stems.add(stem + "t")
+                  stems.add(stem + "s")
                   stems.add(stem + "te")
-                if suffix == "sion" and len(stem) >= 3:
                   stems.add(stem + "de")
                   stems.add(stem + "se")
+                  stems.add(stem + "ve")
                 if suffix in ["tion", "sion"] and len(stem) >= 3 and stem.endswith("a"):
                   stems.add(stem[:-1])
                   stems.add(stem[:-1] + "e")
                   stems.add(stem[:-1] + "ate")
+                if suffix in ["tion", "sion"] and len(stem) >= 3 and stem.endswith("u"):
+                  stems.add(stem[:-1] + "ve")
+                if suffix in ["ible", "able"] and len(stem) >= 2:
+                  stems.add(stem + "or")
+                  stems.add(stem + "er")
+                  stems.add(stem + "ify")
                 if suffix == "al" and len(stem) >= 3 and stem.endswith("r"):
                   stems.add(stem[:-1] + "er")
+                if suffix == "ive" and len(stem) >= 3 and stem.endswith("s"):
+                  stems.add(stem[:-1] + "d")
                 if suffix == "ity" and len(stem) >= 6 and stem.endswith("bil"):
                   stems.add(stem[:-3] + "ble")
                 if suffix == "pt" and len(stem) >= 3:
@@ -644,10 +683,13 @@ class BuildUnionDBBatch:
                 if len(stem) >= 5 and stem.endswith("t"):
                   stems.add(stem[:-1] + "ce")
                   stems.add(stem[:-1] + "d")
+                if len(stem) >= 5 and stem.endswith("v"):
+                  stems.add(stem + "e")
                 if len(stem) >= 8 and stem.endswith("tic"):
                   stems.add(stem + "s")
                 if len(stem) >= 4 and stem[-1] == stem[-2]:
                   stems.add(stem[:-1])
+    stems.discard(word)
     valid_stems = set()
     for pos, text in texts:
       match = regex.search(
@@ -675,13 +717,14 @@ class BuildUnionDBBatch:
               for tran in trans:
                 if tran.find(stem_tran) >= 0:
                   valid_stems.add(stem)
+      check_len = max(3, len(stem) - 2)
       for deri in deris:
         if len(word) < len(deri):
           continue
         hit = False
         if deri == stem:
           hit = True
-        if stem[:3] == deri[:3] and len(stem) >= 4:
+        if stem[:check_len] == deri[:check_len] and len(stem) >= 4:
           prefix = deri[:len(stem)]
           if prefix == stem:
             hit = True
@@ -691,7 +734,9 @@ class BuildUnionDBBatch:
           valid_stems.add(deri)
     force_parent = force_parents.get(word)
     if force_parent:
+      valid_stems.clear()
       valid_stems.add(force_parent)
+    valid_stems.discard(word)
     return list(valid_stems)
 
   def MergeRecord(self, key, word_dicts, aux_trans, aoa_words, keywords,
@@ -1467,6 +1512,7 @@ class BuildUnionDBBatch:
       parents.discard(child)
     if word in no_parents:
       parents.clear()
+    children = set([x for x in children if x not in no_parents])
     translations = list(word_entry.get("translation") or [])
     if tran_prob_dbm:
       tsv = tran_prob_dbm.GetStr(norm_word)
@@ -2407,6 +2453,51 @@ class BuildUnionDBBatch:
           map_phrase["i"] = "1"
         map_phrases.append(map_phrase)
       entry["phrase"] = map_phrases
+
+  def FilterParents(self, word_entry, merged_dict):
+    word = word_entry["word"]
+    parents = word_entry.get("parent")
+    if not parents or len(parents) < 2: return
+    ancestors = parents
+    while True:
+      grand_ancestors = []
+      for ancestor in ancestors:
+        ancestor_entries = merged_dict.get(ancestor)
+        if ancestor_entries:
+          for ancestor_entry in ancestor_entries:
+            if ancestor_entry["word"] != ancestor: continue
+            for grand_ancestor in ancestor_entry.get("parent") or []:
+              if grand_ancestor in ancestors and grand_ancestor not in grand_ancestors:
+                grand_ancestors.append(grand_ancestor)
+      if not grand_ancestors or len(grand_ancestors) == len(ancestors):
+        break
+      ancestors = grand_ancestors
+    scored_parents = []
+    for parent in parents:
+      parent_prob = 0
+      parent_entries = merged_dict.get(parent)
+      if parent_entries:
+        for parent_entry in parent_entries:
+          if parent_entry["word"] != parent: continue
+          parent_prob = float(parent_entry.get("probability")) or 0
+      score = parent_prob + 0.000001
+      if word.startswith(parent):
+        score *= 2
+      if parent in ancestors:
+        score += 1
+      else:
+        is_dup = False
+        for suffix in ("ing", "ed", "er", "or", "ism", "ist", "est"):
+          for ancestor in ancestors:
+            candidate = ancestor + suffix
+            if (parent[:3] == candidate[:3] and
+                tkrzw.Utility.EditDistanceLev(parent, candidate) < 2):
+              is_dup = True
+        if is_dup:
+          continue
+      scored_parents.append((parent, score))
+    scored_parents = sorted(scored_parents, key=lambda x: x[1], reverse=True)
+    word_entry["parent"] = [x[0] for x in scored_parents]
 
   def AbsorbInflections(self, word_entry, merged_dict):
     word = word_entry["word"]

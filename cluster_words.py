@@ -65,7 +65,7 @@ no_parents = {
   "partner", "sister", "environment", "moment", "gun", "shower", "trigger", "wound", "bound",
   "weed", "saw", "copper", "buffer", "lump", "wary", "stove", "doctor", "hinder", "crazy",
   "tower", "poetry", "parity", "fell", "lay", "wound", "bit", "drug", "grass", "shore",
-  "butter", "slang", "grope", "feces",
+  "butter", "slang", "grope", "feces", "baby",
 }
 logger = tkrzw_dict.GetLogger()
 
@@ -99,8 +99,8 @@ class ClusterGenerator():
     self.InitClusters()
     for round_id in range(self.num_rounds):
       num_init_items = None
-      if round_id < self.num_rounds and round_id < 5:
-        num_init_items = round_id + 1
+      if round_id < self.num_rounds / 2 and round_id < 8:
+        num_init_items = round_id % 4 + 1
       self.MakeClusters(round_id, num_init_items)
     self.FinishClusters()
 
@@ -237,7 +237,8 @@ class ClusterGenerator():
 
   def MakeClusters(self, round_id, num_init_items):
     start_time = time.time()
-    logger.info("Clustering: round={}".format(round_id + 1))
+    num_init_items_label = num_init_items if num_init_items else "all"
+    logger.info("Clustering: round={}, items={}".format(round_id + 1, num_init_items_label))
     cap = math.ceil(len(self.items) / self.num_clusters)
     self.UpdateClusterFeatures(num_init_items)
     self.clusters = []
@@ -299,6 +300,28 @@ class ClusterGenerator():
     start_time = time.time()
     logger.info("Finishing")
     self.UpdateClusterFeatures(None)
+    cluster_records = []
+    for i, cluster in enumerate(self.clusters):
+      if not cluster: continue
+      features = self.cluster_features[i]
+      sum_score = 0
+      new_items = []
+      for j, item in enumerate(cluster):
+        item_word, item_features, _ = item
+        score = GetSimilarity(features, item_features)
+        sum_score += score
+        new_items.append((item_word, item_features, score))
+      new_items = sorted(new_items, key=lambda x: x[2], reverse=True)
+      mean_score = sum_score / len(new_items)
+      cluster_records.append((mean_score, new_items, features))
+    cluster_records = sorted(cluster_records, key=lambda x: x[0], reverse=True)
+    self.clusters = []
+    self.cluster_features = []
+    cluster_scores = []
+    for score, cluster, features in cluster_records:
+      self.clusters.append(cluster)
+      self.cluster_features.append(features)
+      cluster_scores.append(score)
     for i, cluster in enumerate(self.clusters):
       if not cluster: continue
       features = collections.defaultdict(float)
@@ -318,6 +341,7 @@ class ClusterGenerator():
         cand_cluster = self.clusters[j]
         cand_features = self.cluster_features[j]
         score = GetSimilarity(top_features, cand_features)
+        score += cluster_scores[j] * 0.2
         if score > best_score:
           best_id = j
           best_score = score
@@ -328,6 +352,9 @@ class ClusterGenerator():
         tmp_features = self.cluster_features[best_id]
         self.cluster_features[best_id] = self.cluster_features[i + 1]
         self.cluster_features[i + 1] = tmp_features
+        tmp_score = cluster_scores[best_id]
+        cluster_scores[best_id] = cluster_scores[i + 1]
+        cluster_scores[i + 1] = tmp_score
     for i, cluster in enumerate(self.clusters):
       if not cluster: continue
       if i == 0: continue
@@ -406,44 +433,41 @@ class ClusterBatch():
       words.append(word)
       item_dict[word] = (parents, features)
       rank_dict[word] = len(rank_dict)
-    adopted_words = {}
-    skipped_words = set()
     parent_index = collections.defaultdict(list)
-    for word in words:
+    for rank, word in enumerate(words):
       parent_expr, features = item_dict[word]
       parents = []
-      is_dup = False
       for parent in parent_expr.split(","):
         if not parent: continue
         parents.append(parent)
-        parent_index[word].append(parent)
-        if parent in adopted_words or parent in skipped_words:
-          is_dup = True
-      if is_dup:
-        skipped_words.add(word)
-        continue
-      parents = sorted(parents, key=lambda x: rank_dict.get(x) or len(rank_dict))
-      if parents:
-        parent = parents[0]
-        if parent in item_dict:
-          skipped_words.add(word)
-          word = parent
-          parent_expr, features = item_dict[word]
-      if word in adopted_words or word in skipped_words: continue
-      if len(adopted_words) < self.num_items:
-        adopted_words[word] = features
-    for child, parents in list(parent_index.items()):
-      for parent in parents:
-        grand_parents = parent_index.get(parent)
-        if grand_parents:
-          for grand_parent in grand_parents:
-            parent_index[child].append(grand_parent)
+        parent_index[word].append((parent, 0, rank))
+    for i in range(3):
+      for child, parents in list(parent_index.items()):
+        for parent, level, rank in parents:
+          grand_parents = parent_index.get(parent)
+          if grand_parents:
+            for grand_parent, grand_level, grand_rank in grand_parents:
+              parent_index[child].append((grand_parent, grand_level + 1, grand_rank))
     single_parent_index = {}
     for child, parents in parent_index.items():
-      parents = sorted(parents, key=lambda x: rank_dict.get(x) or len(rank_dict))
-      single_parent_index[child] = parents[0]
+      parents = sorted(parents, key=lambda x: x[1] * len(words) - x[2], reverse=True)
+      single_parent_index[child] = parents[0][0]
     for nop_word in no_parents:
       single_parent_index.pop(nop_word, None)
+    adopted_words = {}
+    skipped_words = set()
+    for word in words:
+      if len(adopted_words) >= self.num_items: break
+      _, features = item_dict[word]
+      parent = single_parent_index.get(word)
+      if parent:
+        parent_features = item_dict.get(parent)
+        if parent_features:
+          _, parent_features = parent_features
+          word = parent
+          features = parent_features
+      if word in adopted_words: continue
+      adopted_words[word] = features
     for word, features in adopted_words.items():
       norm_features = {}
       for label, score in features.items():

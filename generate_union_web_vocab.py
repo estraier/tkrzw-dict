@@ -313,8 +313,9 @@ class GenerateUnionVocabBatch:
       dedup_words = []
       aliases = collections.defaultdict(set)
       num_words = len(cluster[0])
+      local_uniq_words = set()
       for word in cluster[0]:
-        if word in uniq_words:
+        if word in uniq_words or word in local_uniq_words:
           continue
         data = body_dbm.GetStr(word)
         if not data:
@@ -322,6 +323,12 @@ class GenerateUnionVocabBatch:
         entries = json.loads(data)
         for entry in entries:
           if entry["word"] != word: continue
+          parents = entry.get("parent")
+          children = entry.get("child")
+          for derivatives in (parents, children):
+            if derivatives:
+              for derivative in derivatives:
+                local_uniq_words.add(derivative)
           trans = entry.get("translation")
           if not trans:
             continue
@@ -443,13 +450,14 @@ class GenerateUnionVocabBatch:
     P('<h1><a href="">Chapter {} Study</a></h1>', num_sections)
     num_words = 0
     for surface, aliases in main_words:
-      data = body_dbm.GetStr(surface) or ""
-      entries = json.loads(data)
       entry = None
-      for word_entry in entries:
-        if word_entry["word"] == surface:
-          entry = word_entry
-          break
+      data = body_dbm.GetStr(surface)
+      if data:
+        entries = json.loads(data)
+        for word_entry in entries:
+          if word_entry["word"] == surface:
+            entry = word_entry
+            break
       if not entry:
         P('<p>Warning: no data for {}</p>', surface)
         continue
@@ -514,11 +522,24 @@ class GenerateUnionVocabBatch:
           P('</div>')
       parents = entry.get("parent")
       children = entry.get("child")
+
+      if children:
+        for child in list(children):
+          child_data = body_dbm.GetStr(child)
+          if not child_data: continue
+          child_entries = json.loads(child_data)
+          for child_entry in child_entries:
+            if child_entry["word"] != child: continue
+            grand_children = child_entry.get("child")
+            if grand_children:
+              for grand_child in grand_children:
+                if grand_child not in children:
+                  children.append(grand_child)
       sibling_alts = set((parents or []) + (children or []))
       phrases = entry.get("phrase") or []
-      for label, delivatives in (("語幹", parents), ("派生", children)):
-        if not delivatives: continue
-        for child in delivatives:
+      for label, derivatives in (("語幹", parents), ("派生", children)):
+        if not derivatives: continue
+        for child in derivatives:
           if child in uniq_words: continue
           uniq_words.add(child)
           child_trans = None
