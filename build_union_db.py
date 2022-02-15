@@ -128,7 +128,7 @@ force_parents = {
   "chemist": "chemistry", "chem": "chemistry", "architect": "architecture", "grocer": "grocery",
   "chilly": "chill", "launder": "laundry", "tension": "tense", "revolution": "revolve",
   "sensitive": "sense", "mutation": "mutate", "mutant": "mutate", "fated": "fate",
-  "apery": "arer", "dingy": "dinge", "precession": "precess",
+  "apery": "arer", "dingy": "dinge", "precession": "precess", "info": "information",
 }
 
 

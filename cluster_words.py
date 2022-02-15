@@ -61,11 +61,20 @@ STOP_WORDS = set([
   "math", "maths", "disc",
 ])
 no_parents = {
-  "number", "ground", "red", "happen", "letter", "monitor", "feed", "found", "winter",
+  "number", "ground", "red", "happen", "letter", "monitor", "feed", "winter", "brake",
   "partner", "sister", "environment", "moment", "gun", "shower", "trigger", "wound", "bound",
   "weed", "saw", "copper", "buffer", "lump", "wary", "stove", "doctor", "hinder", "crazy",
-  "tower", "poetry", "parity", "fell", "lay", "wound", "bit", "drug", "grass", "shore",
-  "butter", "slang", "grope", "feces", "baby",
+  "tower", "poetry", "parity", "fell", "lay", "bit", "drug", "grass", "shore",
+  "butter", "slang", "grope", "feces", "left", "former", "found", "every", "scheme",
+  "evening", "architecture", "hat", "slice", "bite", "tender", "bully", "translate",
+  "fence", "liver", "species", "statistics", "mathematics", "caution", "span", "fleet",
+  "shine", "dental", "irony", "transplant", "chemistry", "physics", "grocery",
+  "gutter", "dove", "weary", "queer", "shove", "buggy", "twine", "tier", "rung", "spat",
+  "pang", "jibe", "pent", "lode", "gelt", "plant", "plane", "pants", "craze", "grove",
+  "downy", "musty", "mangy", "moped", "caper", "balmy", "tinny", "induce", "treaty",
+  "chili", "chilli", "chile", "castor", "landry", "start", "baby", "means", "transfer",
+  "interior", "exterior", "rabbit", "stripe", "fairy", "shunt", "clove", "abode", "bends",
+  "molt", "holler", "feudal", "bounce", "livery", "wan", "sod", "dug", "het", "gat",
 }
 logger = tkrzw_dict.GetLogger()
 
@@ -99,9 +108,13 @@ class ClusterGenerator():
     self.InitClusters()
     for round_id in range(self.num_rounds):
       num_init_items = None
+      center_bias = False
       if round_id < self.num_rounds / 2 and round_id < 8:
         num_init_items = round_id % 4 + 1
-      self.MakeClusters(round_id, num_init_items)
+        center_bias = True
+      elif round_id < self.num_rounds / 3 and round_id < 16:
+        center_bias = True
+      self.MakeClusters(round_id, num_init_items, center_bias)
     self.FinishClusters()
 
   def InitClusters(self):
@@ -204,7 +217,7 @@ class ClusterGenerator():
     elapsed_time = time.time() - start_time
     logger.info("Initializing done: {:.3f} sec".format(elapsed_time))
 
-  def UpdateClusterFeatures(self, num_init_items):
+  def UpdateClusterFeatures(self, num_init_items, center_bias):
     for i, cluster in enumerate(self.clusters):
       self.clusters[i] = sorted(cluster, key=lambda x: x[2], reverse=True)
     cap = math.ceil(len(self.items) / self.num_clusters)
@@ -216,6 +229,8 @@ class ClusterGenerator():
       num_items = 0
       for word, item, weight in cluster:
         if num_items >= cap: break
+        if not center_bias:
+          weight = 1.0
         for label, score in item.items():
           features[label] += score * (weight + 0.1)
         num_items += 1
@@ -235,12 +250,13 @@ class ClusterGenerator():
       cluster_features.append(top_features)
     self.cluster_features = cluster_features
 
-  def MakeClusters(self, round_id, num_init_items):
+  def MakeClusters(self, round_id, num_init_items, center_bias):
     start_time = time.time()
     num_init_items_label = num_init_items if num_init_items else "all"
-    logger.info("Clustering: round={}, items={}".format(round_id + 1, num_init_items_label))
+    logger.info("Clustering: round={}, items={}, center_bias={}".format(
+      round_id + 1, num_init_items_label, center_bias))
     cap = math.ceil(len(self.items) / self.num_clusters)
-    self.UpdateClusterFeatures(num_init_items)
+    self.UpdateClusterFeatures(num_init_items, center_bias)
     self.clusters = []
     for i in range(self.num_clusters):
       self.clusters.append([])
@@ -299,7 +315,7 @@ class ClusterGenerator():
   def FinishClusters(self):
     start_time = time.time()
     logger.info("Finishing")
-    self.UpdateClusterFeatures(None)
+    self.UpdateClusterFeatures(None, False)
     cluster_records = []
     for i, cluster in enumerate(self.clusters):
       if not cluster: continue
