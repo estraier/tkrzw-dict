@@ -110,9 +110,9 @@ no_parents = {
   "gutter", "dove", "weary", "queer", "shove", "buggy", "twine", "tier", "rung", "spat",
   "pang", "jibe", "pent", "lode", "gelt", "plant", "plane", "pants", "craze", "grove",
   "downy", "musty", "mangy", "moped", "caper", "balmy", "tinny", "induce", "treaty",
-  "chili", "chilli", "chile", "castor", "landry", "start", "baby", "means",
+  "chili", "chilli", "chile", "castor", "landry", "start", "baby", "means", "transfer",
   "interior", "exterior", "rabbit", "stripe", "fairy", "shunt", "clove", "abode", "bends",
-  "molt", "holler", "feudal", "bounce", "livery",
+  "molt", "holler", "feudal", "bounce", "livery", "wan", "sod", "dug", "het", "gat",
 }
 force_parents = {
   "advice": "advise", "device": "devise", "practice": "practise",
@@ -128,7 +128,7 @@ force_parents = {
   "chemist": "chemistry", "chem": "chemistry", "architect": "architecture", "grocer": "grocery",
   "chilly": "chill", "launder": "laundry", "tension": "tense", "revolution": "revolve",
   "sensitive": "sense", "mutation": "mutate", "mutant": "mutate", "fated": "fate",
-  "apery": "arer",
+  "apery": "arer", "dingy": "dinge", "precession": "precess",
 }
 
 
