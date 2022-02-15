@@ -112,7 +112,7 @@ no_parents = {
   "downy", "musty", "mangy", "moped", "caper", "balmy", "tinny", "induce", "treaty",
   "chili", "chilli", "chile", "castor", "landry", "start", "baby", "means",
   "interior", "exterior", "rabbit", "stripe", "fairy", "shunt", "clove", "abode", "bends",
-  "tined", "molt", "holler", "feudal", "bounce",
+  "molt", "holler", "feudal", "bounce", "livery",
 }
 force_parents = {
   "advice": "advise", "device": "devise", "practice": "practise",
