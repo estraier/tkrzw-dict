@@ -112,7 +112,7 @@ no_parents = {
   "downy", "musty", "mangy", "moped", "caper", "balmy", "tinny", "induce", "treaty",
   "chili", "chilli", "chile", "castor", "landry", "start", "baby", "means",
   "interior", "exterior", "rabbit", "stripe", "fairy", "shunt", "clove", "abode", "bends",
-  "tined",
+  "tined", "molt", "holler", "feudal", "bounce",
 }
 force_parents = {
   "advice": "advise", "device": "devise", "practice": "practise",
@@ -128,6 +128,7 @@ force_parents = {
   "chemist": "chemistry", "chem": "chemistry", "architect": "architecture", "grocer": "grocery",
   "chilly": "chill", "launder": "laundry", "tension": "tense", "revolution": "revolve",
   "sensitive": "sense", "mutation": "mutate", "mutant": "mutate", "fated": "fate",
+  "apery": "arer",
 }
 
 
@@ -1512,6 +1513,10 @@ class BuildUnionDBBatch:
       parents.discard(child)
     if word in no_parents:
       parents.clear()
+    force_parent = force_parents.get(word)
+    if force_parent:
+      parents.clear()
+      parents.add(force_parent)
     children = set([x for x in children if x not in no_parents])
     translations = list(word_entry.get("translation") or [])
     if tran_prob_dbm:

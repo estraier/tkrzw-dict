@@ -356,6 +356,9 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           elif regex.search(r"([^aeiou])y$", title):
             verb_past = title[:-1] + "ied"
             verb_past_participle = title[:-1] + "ied"
+          elif regex.fullmatch(r"^[bcdfghklmnpqrstvwxz]+[aeiou][bcdfgklmnpqrstvz]$", title):
+            verb_past = title + title[-1] + "ed"
+            verb_past_participle = title + title[-1] + "ed"
           else:
             verb_past = title + "ed"
             verb_past_participle = title + "ed"
