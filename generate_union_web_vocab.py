@@ -315,14 +315,21 @@ class GenerateUnionVocabBatch:
       num_words = len(cluster[0])
       local_uniq_words = set()
       for word in cluster[0]:
-        if word in uniq_words or word in local_uniq_words:
-          continue
         data = body_dbm.GetStr(word)
         if not data:
           continue
+        is_dup = word in uniq_words or word in local_uniq_words
         entries = json.loads(data)
         for entry in entries:
           if entry["word"] != word: continue
+          if is_dup:
+            is_verb = False
+            for item in entry["item"]:
+              if item["label"] == "wn" and item["pos"] == "verb":
+                is_verb = True
+            has_verb_inflection = entry.get("verb_present_participle")
+            if not is_verb or not has_verb_inflection:
+              continue
           parents = entry.get("parent")
           children = entry.get("child")
           for derivatives in (parents, children):
