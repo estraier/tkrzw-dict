@@ -279,6 +279,15 @@ class Tokenizer:
         return word[:-len(suffix[0])]
     return word
 
+  def GetJaPosList(self, word):
+    self.InitMecab()
+    pos_list = []
+    for token in self.tagger_mecab.parse(word).split("\n"):
+      fields = token.split("\t")
+      if len(fields) != 4: continue
+      pos_list.append(fields[:4])
+    return pos_list
+
   def GetJaLastPos(self, word):
     self.InitMecab()
     for token in reversed(self.tagger_mecab.parse(word).split("\n")):
