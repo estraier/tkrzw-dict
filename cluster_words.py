@@ -67,7 +67,8 @@ no_parents = {
   "tower", "poetry", "parity", "fell", "lay", "bit", "drug", "grass", "shore",
   "butter", "slang", "grope", "feces", "left", "former", "found", "every", "scheme",
   "evening", "architecture", "hat", "slice", "bite", "tender", "bully", "translate",
-  "fence", "liver", "species", "statistics", "mathematics", "caution", "span", "fleet",
+  "fence", "liver", "special", "specific", "species", "statistics", "mathematics", "caution",
+  "span", "fleet", "language",
   "shine", "dental", "irony", "transplant", "chemistry", "physics", "grocery",
   "gutter", "dove", "weary", "queer", "shove", "buggy", "twine", "tier", "rung", "spat",
   "pang", "jibe", "pent", "lode", "gelt", "plant", "plane", "pants", "craze", "grove",
@@ -75,6 +76,7 @@ no_parents = {
   "chili", "chilli", "chile", "castor", "landry", "start", "baby", "means", "transfer",
   "interior", "exterior", "rabbit", "stripe", "fairy", "shunt", "clove", "abode", "bends",
   "molt", "holler", "feudal", "bounce", "livery", "wan", "sod", "dug", "het", "gat",
+  "cover", "book", "cause", "quality", "process", "provide",
 }
 logger = tkrzw_dict.GetLogger()
 
@@ -373,9 +375,20 @@ class ClusterGenerator():
         cluster_scores[i + 1] = tmp_score
     for i, cluster in enumerate(self.clusters):
       if not cluster: continue
-      if i == 0: continue
-      cluster = sorted(cluster, key=lambda x: x[2], reverse=True)
-      for j in range(len(cluster) - 1):
+      if i > 0:
+        sum_features = collections.defaultdict(float)
+        for features in [self.cluster_features[i], self.cluster_features[i - 1]]:
+          for label, score in features.items():
+            sum_features[label] += score
+        tmp_cluster = []
+        for word, item, score in cluster:
+          tmp_score = GetSimilarity(sum_features, item)
+          tmp_cluster.append((word, item, score, tmp_score))
+        tmp_cluster = sorted(tmp_cluster, key=lambda x: x[3], reverse=True)
+        cluster = [(x[0], x[1], x[2]) for x in tmp_cluster]
+      else:
+        cluster = sorted(cluster, key=lambda x: x[2], reverse=True)
+      for j in range(1, len(cluster) - 1):
         features = collections.defaultdict(float)
         weight = 1.0
         for k in range(j, max(-1, j - 3), -1):
