@@ -117,8 +117,6 @@ def main():
         for parent_entry in parent_entries:
           if parent_entry["word"] != parent: continue
           parent_prob = float(parent_entry["probability"] or "0")
-        if parent_prob < prob * 0.1:
-          continue
         parents.append(parent)
       for parent in parent_index.get(word) or []:
         if parent not in parents:
