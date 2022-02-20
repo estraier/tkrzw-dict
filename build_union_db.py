@@ -64,14 +64,15 @@ noun_suffixes = [
   "es", "s", "ment", "age", "ics", "ness", "ity", "ism", "or", "er", "ist", "t", "pt", "th",
   "ian", "ee", "tion", "sion", "ty", "ance", "ence", "ency", "cy", "ry", "ary", "ery", "ory",
   "al", "age", "dom", "hood", "ship", "nomy", "ing", "ication", "icator", "ce", "se", "son",
-  "iation", "ant", "faction", "ture", "sure", "nance", "y",
+  "iation", "ant", "faction", "ture", "sure", "nance", "y", "ess",
 ]
 verb_suffixes = [
   "ify", "en", "ize", "ise", "fy", "ate", "age", "e",
 ]
 adjective_suffixes = [
-  "some", "able", "ible", "ic", "ical", "ive", "ful", "less", "ly", "ous", "y",
-  "ised", "ing", "ed", "ish", "al", "icable", "er", "est", "ent", "ific", "tative",
+  "some", "able", "ible", "ic", "ical", "ial", "ive", "ful", "less", "ly", "ous", "y",
+  "tic", "ine", "ised", "ing", "ed", "ish", "al", "ual", "icable", "er", "est", "ent", "ific",
+  "ative", "tative", "ant", "ary",
 ]
 adverb_suffixes = [
   "ly",
@@ -92,7 +93,7 @@ misc_stop_words = {
   "myself", "yourself", "yourselves", "himself", "herself", "itself", "themselves",
   "who", "whom", "whose", "what", "where", "when", "why", "how", "and", "but", "not", "no",
   "never", "ever", "time", "place", "people", "person", "this", "these", "that", "those",
-  "other", "another", "yes",
+  "other", "another", "yes", "thou",
   "back", "much", "many", "more", "most", "good", "well", "better", "best", "all",
 }
 wiki_stop_words = {
@@ -105,7 +106,8 @@ no_parents = {
   "tower", "poetry", "parity", "fell", "lay", "bit", "drug", "grass", "shore",
   "butter", "slang", "grope", "feces", "left", "former", "found", "every", "scheme",
   "evening", "architecture", "hat", "slice", "bite", "tender", "bully", "translate",
-  "fence", "liver", "species", "statistics", "mathematics", "caution", "span", "fleet",
+  "fence", "liver", "special", "specific", "species", "statistics", "mathematics", "caution",
+  "span", "fleet", "language", "gripe", "dribble",
   "shine", "dental", "irony", "transplant", "chemistry", "physics", "grocery",
   "gutter", "dove", "weary", "queer", "shove", "buggy", "twine", "tier", "rung", "spat",
   "pang", "jibe", "pent", "lode", "gelt", "plant", "plane", "pants", "craze", "grove",
@@ -113,10 +115,12 @@ no_parents = {
   "chili", "chilli", "chile", "castor", "landry", "start", "baby", "means", "transfer",
   "interior", "exterior", "rabbit", "stripe", "fairy", "shunt", "clove", "abode", "bends",
   "molt", "holler", "feudal", "bounce", "livery", "wan", "sod", "dug", "het", "gat",
+  "cover", "book", "cause", "quality", "process", "provide", "entry",
 }
 force_parents = {
+  "upwards": "upward", "towards": "toward",
   "advice": "advise", "device": "devise", "practice": "practise",
-  "approximately": "approximate",
+  "approximately": "approximate", "invocation": "invoke",
   "prisoner": "prison", "emission": "emit", "omission": "omit", "transmission": "transmit",
   "fission": "fissure", "competitive": "compete", "competitor": "compete",
   "conservative": "conserve", "pronunciation": "pronounce", "revelation": "reveal",
@@ -125,10 +129,104 @@ force_parents = {
   "conjugation": "conjugate", "conjugative": "conjugate",
   "translation": "translate", "formation": "form", "variation": "vary",
   "importance": "important", "innovative": "innovate", "bated": "bate",
-  "chemist": "chemistry", "chem": "chemistry", "architect": "architecture", "grocer": "grocery",
+  "chemist": "chemistry", "chemical": "chemistry", "chem": "chemistry",
+  "architect": "architecture", "grocer": "grocery", "critic": "critique",
   "chilly": "chill", "launder": "laundry", "tension": "tense", "revolution": "revolve",
   "sensitive": "sense", "mutation": "mutate", "mutant": "mutate", "fated": "fate",
-  "apery": "arer", "dingy": "dinge", "precession": "precess", "info": "information",
+  "apery": "ape", "dingy": "dinge", "precession": "precess", "expertise": "expert",
+  "dramatic": "drama", "pic": "picture", "tragic": "tragedy",
+  "administrate": "administer", "administrative": "administrate",
+  "administration": "administrate", "administrator": "administrate",
+  "federal": "federation", "analysis": "analyze", "emphasis": "enphasize",
+  "chrorine": "chloride", "recognition": "recognize", "oppsite": "oppose", "opponent": "oppose",
+  "response": "respond", "tolerant": "tolerate", "remainder": "remain",
+  "differential": "different", "differentiate": "different", "failure": "fail",
+  "explosive": "explode", "civilization": "civil", "civilize": "civil",
+  "success": "suceed", "application": "apply", "therapeutic": "therapy",
+  "medical": "medicine", "beneficial": "benefit", "pianist": "piano",
+  "blonde": "blond", "classification": "classify", "classify": "class",
+  "technique": "technical", "technology": "technique", "technician": "technical",
+  "millionaire": "million", "billionaire": "billion", "cigarette": "cigar",
+  "adhesion": "adhere", "adhesive": "adhere", "chaotic": "chaos", "disclosure": "disclose",
+  "destruction": "destroy", "concession": "concede", "rental": "rent",
+  "influential": "influence", "strategic": "strategy", "minimal": "minimum",
+  "mini": "minimum", "triangular": "triangle", "rebellion": "rebel",
+  "intent": "intend", "replica": "replicate", "timer": "time", "timed": "time",
+  "sparkle": "spark", "consensus": "consent", "probably": "probable", "pleasant": "please",
+  "philosopher": "philosophy", "radiate": "radius", "tutorial": "tutor",
+  "terminal": "terminus", "terminate": "terminus", "grief": "grieve", "grievance": "grieve",
+  "anime": "animate", "surgeon": "surgery", "partition": "part",
+  "concept": "conceive", "conceptual": "conceive", "solidarity": "solid",
+  "economic": "economy", "economist": "economy", "decisive": "decide",
+  "offense": "offend", "offensive": "offend", "necessary": "necessity",
+  "frequency": "frequent", "portrait": "portray", "digital": "digit",
+  "storage": "store", "nearly": "near", "granny": "grandmother", "sorry": "sorrow",
+  "modification": "modify", "characteristic": "character", "anxious": "anxiety",
+  "quantify": "quantity", "qualify": "quality", "imaginary": "imagine", "imaginative": "imagine",
+  "systematic": "system", "absorption": "absorb", "disciple": "discipline",
+  "favor": "favorite", "prescription": "prescribe", "dominant": "dominate",
+  "relief": "relieve", "laughter": "laugh", "participant": "participate",
+  "companion": "company", "circular": "circle", "synthetic": "synthesis",
+  "choice": "choose", "entrance": "entry", "maintenance": "maintain",
+  "social": "society", "substantial": "substance", "identification": "identify",
+  "assumption": "assume", "poet": "poetry", "info": "information", "information": "inform",
+  "visible": "vision", "realistic": "real", "consumption": "consume", "reception": "recept",
+  "photo": "photograph", "demo": "demonstrate", "publish": "public",
+  "volunteer": "voluntary", "politician": "politics", "rationale": "rational",
+  "physician": "physic", "physicist": "physics", "spectral": "specter",
+  "birdie": "bird", "distillate": "distill", "earnings": "earn", "chimp": "chimpanzee",
+  "nutrient": "nutrition", "nutritive": "nutrition", "dericacy": "dericate",
+  "suspicion": "suspect", "disbelief": "disbelieve", "provocative": "provoke",
+  "irritant": "irritate", "displeasure": "displease", "erroneous": "error",
+  "humility": "humiliate", "consequence": "consequent", "barbaric": "barbarian",
+  "mystic": "mystery", "festive": "festival", "festal": "festival", "intimacy": "intimate",
+  "respiratory": "respiration", "respirator": "respiration", "sarcastic": "sarcasm",
+  "crucify": "crucifix", "crucifixion": "crucifix", "abdominal": "abdomen",
+  "medial": "median", "bureaucrat": "bureau", "wholly": "whole", "consul": "consulate",
+  "repetition": "repeat", "repetitive": "repeat", "conquest": "conquer", "covern": "cave",
+  "rubbish": "rubble", "flammable": "flame", "ignorant": "ignore",
+  "curiosity": "curious", "exceptionally": "exceptional", "blotch": "blot", "suckle": "suck",
+  "negligent": "neglect", "negligence": "neglect", "infamous": "infamy",
+  "deception": "deceit", "romantic": "romance", "perm": "permanent", "feminist": "feminine",
+  "demolition": "demolish", "trivial": "trivia", "instantaneous": "instant",
+  "expense": "expend", "expenditure": "expend", "memorize": "memory",
+  "memo": "memorandum", "consortium": "consort", "medallion": "medal",
+  "abrasion": "abrase", "abrasive": "abrase", "atheist": "atheism", "reunion": "reunite",
+  "kindergartner": "kindergarten", "duckling": "duck", "introductory": "introduce",
+  "baptism": "baptize", "sled": "sledge", "tarp": "tarpaulin", "intricacy": "intricate",
+  "glacial": "gracier", "legislature": "legislate", "redemption": "redeem",
+  "predominant": "predominate", "lull": "lullaby", "butt": "buttock", "comfy": "comfort",
+  "verification": "verify", "spectacular": "spectacle", "applause": "applaud",
+  "theoretical": "theory", "curvature": "curve", "simply": "simple",
+  "discussion": "discuss", "comparable": "compare", "comparative": "compare",
+  "hysteric": "hysteria", "partial": "part", "generosity": "generous",
+  "prophecy": "prophesy", "prophet": "prophecy", "satisfactory": "satisfy",
+  "fulfillment": "fulfill", "sufficient": "suffice", "energetic": "energy",
+  "cosmic": "cosoms", "petrol": "petroleum", "applicable": "apply", "splendid": "splendor",
+  "reproductive": "reproduce", "apologetic": "apology", "nervous": "nerve",
+  "metabolic": "metabolism", "potency": "potent", "impotency": "impotent", "penal": "penalty",
+  "migratory": "migrate", "migrant": "migrate", "immigrant": "immigrate", "emigrant": "emigrate",
+  "amphibious": "amphibian", "menstrual": "menstruation", "president": "preside",
+  "receptionist": "reception", "reception": "receive", "receipt": "receive",
+  "receptive": "receive", "remembrance": "remember", "heartbroken": "heartbreak",
+  "residential": "residence", "residency": "residence", "resident": "residence",
+  "preparatory": "prepare", "glamorous": "glamour", "defense": "defend",
+  "cellular": "cell", "viscosity": "viscous", "rhino": "rhinoceros", "hippo": "hippopotamus",
+  "ancestral": "ancestor", "negative": "negate", "bacteria": "bacterium",
+  "registration": "register", "registry": "register", "inaugural": "inaugurate",
+  "alkaline": "alkali", "humane": "human", "divisible": "divide", "capacity": "capable",
+  "grandpa": "grandfather", "grandma": "grandmother", "nauseous": "nausea",
+  "luncheon": "lunch", "conscientious": "conscience", "mandatory": "mandate",
+  "cleric": "clergy", "corrosion": "corrode", "limo": "limousine",
+  "inflammable": "inflame", "inflammation": "inflame",
+  "enthusiast": "enthusiasm", "pussy": "puss", "considerate": "consider",
+  "eternity": "eternal", "monstrous": "monster", "clarity": "clarify",
+  "clarification": "clarify", "muscular": "muscle",
+  "perception": "perceive", "percept": "perceive", "sensory": "sense",
+  "destination": "destine", "categorical": "category", "ascent": "ascend",
+  "ingenuity": "ingenious", "invention": "invent",
+  "propel": "propulsion", "belief": "believe", "whimsy": "whim",
+  "mischievous": "mischief", "crazy": "craze",
 }
 
 
@@ -345,6 +443,23 @@ class BuildUnionDBBatch:
       num_entries, time.time() - start_time))
 
   def SaveWords(self, word_dicts, aux_trans, aux_last_trans, aoa_words, keywords):
+    logger.info("Preparing DBMs")
+    phrase_prob_dbm = None
+    if self.phrase_prob_path:
+      phrase_prob_dbm = tkrzw.DBM()
+      phrase_prob_dbm.Open(self.phrase_prob_path, False, dbm="HashDBM").OrDie()
+    tran_prob_dbm = None
+    if self.tran_prob_path:
+      tran_prob_dbm = tkrzw.DBM()
+      tran_prob_dbm.Open(self.tran_prob_path, False, dbm="HashDBM").OrDie()
+    rev_prob_dbm = None
+    if self.rev_prob_path:
+      rev_prob_dbm = tkrzw.DBM()
+      rev_prob_dbm.Open(self.rev_prob_path, False, dbm="HashDBM").OrDie()
+    cooc_prob_dbm = None
+    if self.cooc_prob_path:
+      cooc_prob_dbm = tkrzw.DBM()
+      cooc_prob_dbm.Open(self.cooc_prob_path, False, dbm="HashDBM").OrDie()
     start_time = time.time()
     logger.info("Extracting keys")
     keys = set()
@@ -363,7 +478,7 @@ class BuildUnionDBBatch:
         for entry in word_dict[key]:
           word = entry["word"]
           if not regex.fullmatch("[a-z]+", word): continue
-          stems = self.GetDerivativeStems(entry, word_dict, aux_trans)
+          stems = self.GetDerivativeStems(label, entry, word_dict, aux_trans, phrase_prob_dbm)
           if stems:
             valid_stems = set()
             for stem in stems:
@@ -449,23 +564,6 @@ class BuildUnionDBBatch:
             entry["core_child"] = list(children)
     logger.info("Indexing base forms done: elapsed_time={:.2f}s".format(
       time.time() - start_time))
-    logger.info("Preparing DBMs")
-    phrase_prob_dbm = None
-    if self.phrase_prob_path:
-      phrase_prob_dbm = tkrzw.DBM()
-      phrase_prob_dbm.Open(self.phrase_prob_path, False, dbm="HashDBM").OrDie()
-    tran_prob_dbm = None
-    if self.tran_prob_path:
-      tran_prob_dbm = tkrzw.DBM()
-      tran_prob_dbm.Open(self.tran_prob_path, False, dbm="HashDBM").OrDie()
-    rev_prob_dbm = None
-    if self.rev_prob_path:
-      rev_prob_dbm = tkrzw.DBM()
-      rev_prob_dbm.Open(self.rev_prob_path, False, dbm="HashDBM").OrDie()
-    cooc_prob_dbm = None
-    if self.cooc_prob_path:
-      cooc_prob_dbm = tkrzw.DBM()
-      cooc_prob_dbm.Open(self.cooc_prob_path, False, dbm="HashDBM").OrDie()
     start_time = time.time()
     logger.info("Merging entries: num_keys={}".format(len(keys)))
     merged_entries = []
@@ -578,9 +676,29 @@ class BuildUnionDBBatch:
     logger.info("Saving records done: num_records={}, elapsed_time={:.2f}s".format(
       len(merged_entries), time.time() - start_time))
 
-  def GetDerivativeStems(self, entry, word_dict, aux_trans):
+  def GetDerivativeStems(self, label, entry, word_dict, aux_trans, phrase_prob_dbm):
     word = entry["word"]
+    prob = 1.0
+    if phrase_prob_dbm:
+      prob = self.GetPhraseProb(phrase_prob_dbm, "en", word)
     texts = entry.get("text") or []
+    def NormalizeTran(tran):
+      han_tran = regex.sub(r"[^\p{Han}]", "", tran)
+      if len(han_tran) >= 2:
+        tran = han_tran
+      elif regex.fullmatch(r"\p{Han}\p{Hiragana}+", tran):
+        poses = self.tokenizer.GetJaPosList(tran)
+        while len(poses) >= 2:
+          pos = poses[-1]
+          if not regex.fullmatch(r"\p{Hiragana}+", pos[0]): break
+          if pos[1] not in ["助詞", "助動詞"] and pos[2] not in ["接尾", "非自立"]: break
+          poses = poses[:-1]
+        norm_tran = ""
+        for pos in poses:
+          norm_tran += pos[3]
+        if len(norm_tran) >= 2:
+          tran = norm_tran
+      return tran
     def GetMetadata(in_entry, out_poses, out_deris, out_trans):
       in_word = in_entry["word"]
       for pos, text in in_entry["text"]:
@@ -597,22 +715,48 @@ class BuildUnionDBBatch:
           match = regex.search(r"^\[translation\]: (.*)", part)
           if match:
             expr = regex.sub(r"\[-.*", "", match.group(1))
+            expr = regex.sub(r"\(.*?\)", "", expr).strip()
             for tran in expr.split(","):
-              han_tran = regex.sub(r"[^\p{Han}]", "", tran)
-              if len(han_tran) >= 2:
-                tran = han_tran
-              if tran:
+              tran = NormalizeTran(tran)
+              if len(tran) >= 2:
                 out_trans.add(tran)
+        if label in self.gross_labels:
+          text = regex.sub(r"\(.*?\)", "", text)
+          text = regex.sub(r"（.*?）", "", text)
+          for tran in regex.split(r"[,、。]", text):
+            tran = NormalizeTran(tran)
+            if len(tran) >= 2:
+              out_trans.add(tran)
+      relation_expr = in_entry.get("relation")
+      if relation_expr:
+        for rel_word in relation_expr.split(","):
+          check_len = max(5, len(rel_word) - 1)
+          if rel_word[:check_len] == word[:check_len]:
+            out_deris.add(rel_word)
       in_aux_trans = aux_trans.get(in_word)
       if in_aux_trans:
         for tran in in_aux_trans:
-          tran = regex.sub(r"[^\p{Han}]", "", tran)
-          if tran:
+          tran = NormalizeTran(tran)
+          if len(tran) >= 2:
             out_trans.add(tran)
     poses = set()
     deris = set()
     trans = set()
     GetMetadata(entry, poses, deris, trans)
+    deri_probs = {}
+    deri_trans = {}
+    if phrase_prob_dbm:
+      for deri in deris:
+        if deri[:3] != word[:3]: continue
+        deri_probs[deri] = self.GetPhraseProb(phrase_prob_dbm, "en", deri)
+        for deri_entry in word_dict.get(deri) or []:
+          if deri_entry["word"] == deri:
+            one_deri_poses = set()
+            one_deri_deris = set()
+            one_deri_trans = set()
+            GetMetadata(deri_entry, one_deri_poses, one_deri_deris, one_deri_trans)
+            if one_deri_trans:
+              deri_trans[deri] = one_deri_trans
     stems = set()
     for pos in poses:
       for rule_pos, suffixes in (
@@ -640,6 +784,7 @@ class BuildUnionDBBatch:
                   stems.add(stem + "s")
                 if suffix == "al" and len(stem) >= 3:
                   stems.add(stem + "es")
+                  stems.add(stem + "e")
                 if suffix == "y" and len(stem) >= 3:
                   stems.add(stem + "e")
                 if suffix in ["tion", "sion"] and len(stem) >= 2:
@@ -657,14 +802,24 @@ class BuildUnionDBBatch:
                   stems.add(stem[:-1] + "ate")
                 if suffix in ["tion", "sion"] and len(stem) >= 3 and stem.endswith("u"):
                   stems.add(stem[:-1] + "ve")
+                if suffix == "sion" and len(stem) >= 3 and stem.endswith("s"):
+                  stems.add(stem[:-1] + "t")
                 if suffix in ["ible", "able"] and len(stem) >= 2:
                   stems.add(stem + "or")
                   stems.add(stem + "er")
                   stems.add(stem + "ify")
+                  stems.add(stem + "y")
+                if suffix == "ate":
+                  stems.add(stem + "e")
                 if suffix == "al" and len(stem) >= 3 and stem.endswith("r"):
                   stems.add(stem[:-1] + "er")
                 if suffix == "ive" and len(stem) >= 3 and stem.endswith("s"):
                   stems.add(stem[:-1] + "d")
+                  stems.add(stem[:-1] + "de")
+                if suffix == "ic" and len(stem) >= 3:
+                  stems.add(stem + "y")
+                if suffix == "ize" and len(stem) >= 3:
+                  stems.add(stem + "y")
                 if suffix == "ity" and len(stem) >= 6 and stem.endswith("bil"):
                   stems.add(stem[:-3] + "ble")
                 if suffix == "pt" and len(stem) >= 3:
@@ -673,8 +828,22 @@ class BuildUnionDBBatch:
                   stems.add(stem + "t")
                   stems.add(stem + "d")
                   stems.add(stem + "se")
+                if suffix == "ian" and len(stem) >= 4:
+                  stems.add(stem + "y")
+                if suffix == "cy" and len(stem) >= 4:
+                  stems.add(stem + "t")
                 if suffix == "faction" and len(stem) >= 4:
                   stems.add(stem + "fy")
+                if suffix == "ous" and len(stem) >= 4:
+                  stems.add(stem + "on")
+                  stems.add(stem + "y")
+                if suffix == "ant" and len(stem) >= 4:
+                  stems.add(stem + "ate")
+                  stems.add(stem + "e")
+                if suffix == "ative" and len(stem) >= 4:
+                  stems.add(stem + "e")
+                if suffix in ["er", "or", "ive"] and len(stem) >= 5:
+                  stems.add(stem + "e")
                 if len(stem) >= 3 and stem.endswith("u"):
                   stems.add(stem + "e")
                 if len(stem) >= 4 and stem.endswith("i"):
@@ -700,38 +869,62 @@ class BuildUnionDBBatch:
         if len(stem) >= 4 and word.startswith(stem):
           valid_stems.add(stem)
     for stem in stems:
-      if len(stem) >= 8 and len(stem) < len(word):
+      if phrase_prob_dbm:
+        stem_prob = self.GetPhraseProb(phrase_prob_dbm, "en", stem)
+      else:
+        stem_prob = prob
+      stem_prob_ratio = stem_prob / prob
+      if (stem.find(" ") < 0 and len(stem) >= 8 and len(stem) < len(word) and
+          stem_prob_ratio >= 0.5):
         valid_stems.add(stem)
         continue
+      stem_entry = None
+      for tmp_stem_entry in word_dict.get(stem) or []:
+        if tmp_stem_entry["word"] == stem:
+          stem_entry = tmp_stem_entry
+      stem_poses = set()
+      stem_deris = set()
+      stem_trans = set()
+      if stem_entry:
+        GetMetadata(stem_entry, stem_poses, stem_deris, stem_trans)
       if stem.find(" ") < 0 and len(stem) >= 4 and trans:
-        for stem_entry in word_dict.get(stem) or []:
-          stem_poses = set()
-          stem_deris = set()
-          stem_trans = set()
-          GetMetadata(stem_entry, stem_poses, stem_deris, stem_trans)
-          if word in stem_deris:
-            valid_stems.add(stem)
-          for stem_tran in stem_trans:
-            if stem_tran in trans:
-              valid_stems.add(stem)
-            if len(stem_tran) >= 2:
-              for tran in trans:
-                if tran.find(stem_tran) >= 0:
-                  valid_stems.add(stem)
+        hit_deri = False
+        if word in stem_deris:
+          hit_deri = True
+        hit_tran = False
+        for stem_tran in stem_trans:
+          if stem_tran in trans:
+            hit_tran = True
+          if regex.search(r"\p{Han}", stem_tran):
+            for tran in trans:
+              if tran.find(stem_tran) >= 0:
+                hit_tran = True
+        if ((hit_deri and hit_tran) or (stem_prob_ratio >= 0.1 and (hit_deri or hit_tran))):
+          valid_stems.add(stem)
       check_len = max(3, len(stem) - 2)
       for deri in deris:
         if len(word) < len(deri):
           continue
-        hit = False
+        deri_prob = deri_probs.get(deri) or 0.0
+        deri_prob_ratio = deri_prob / prob
+        hit_deri = False
         if deri == stem:
-          hit = True
+          hit_deri = True
         if stem[:check_len] == deri[:check_len] and len(stem) >= 4:
           prefix = deri[:len(stem)]
           if prefix == stem:
-            hit = True
+            hit_deri = True
           if len(prefix) >= 6 and tkrzw.Utility.EditDistanceLev(stem, prefix) < 2:
-            hit = True
-        if hit:
+            hit_deri = True
+        hit_tran = False
+        for deri_tran in deri_trans.get(deri) or []:
+          if deri_tran in trans:
+            hit_tran = True
+          if regex.search(r"\p{Han}", deri_tran):
+            for tran in trans:
+              if tran.find(deri_tran) >= 0:
+                hit_tran = True
+        if hit_deri and (deri_prob_ratio >= 0.1 or hit_tran):
           valid_stems.add(deri)
     force_parent = force_parents.get(word)
     if force_parent:
@@ -1517,6 +1710,7 @@ class BuildUnionDBBatch:
     if force_parent:
       parents.clear()
       parents.add(force_parent)
+    parents = set([x for x in parents if force_parents.get(x) != word])
     children = set([x for x in children if x not in no_parents])
     translations = list(word_entry.get("translation") or [])
     if tran_prob_dbm:

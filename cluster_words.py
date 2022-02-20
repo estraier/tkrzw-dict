@@ -47,7 +47,7 @@ STOP_WORDS = set([
   "we", "our", "us", "ours", "some", "any", "one", "someone", "something",
   "who", "whom", "whose", "what", "where", "when", "why", "how", "and", "but", "not", "no",
   "never", "ever", "time", "place", "people", "person", "this", "these", "that", "those",
-  "other", "another", "yes",
+  "other", "another", "yes", "thou",
   "back", "much", "many", "more", "most", "good", "well", "better", "best", "all",
   "bes", "is", "are", "was", "were", "being", "had", "grey", "towards",
   "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
@@ -58,7 +58,7 @@ STOP_WORDS = set([
   "nineteenth", "twentieth", "thirtieth", "fortieth", "fiftieth", "sixtieth", "seventieth",
   "eightieth", "ninetieth", "hundredth",
   "northeast", "northwest", "southeast", "southwest",
-  "math", "maths", "disc",
+  "math", "maths", "disc", "nones", "favourite", "tyrannosaur",
 ])
 no_parents = {
   "number", "ground", "red", "happen", "letter", "monitor", "feed", "winter", "brake",
@@ -68,7 +68,7 @@ no_parents = {
   "butter", "slang", "grope", "feces", "left", "former", "found", "every", "scheme",
   "evening", "architecture", "hat", "slice", "bite", "tender", "bully", "translate",
   "fence", "liver", "special", "specific", "species", "statistics", "mathematics", "caution",
-  "span", "fleet", "language",
+  "span", "fleet", "language", "gripe", "dribble",
   "shine", "dental", "irony", "transplant", "chemistry", "physics", "grocery",
   "gutter", "dove", "weary", "queer", "shove", "buggy", "twine", "tier", "rung", "spat",
   "pang", "jibe", "pent", "lode", "gelt", "plant", "plane", "pants", "craze", "grove",
@@ -76,7 +76,7 @@ no_parents = {
   "chili", "chilli", "chile", "castor", "landry", "start", "baby", "means", "transfer",
   "interior", "exterior", "rabbit", "stripe", "fairy", "shunt", "clove", "abode", "bends",
   "molt", "holler", "feudal", "bounce", "livery", "wan", "sod", "dug", "het", "gat",
-  "cover", "book", "cause", "quality", "process", "provide",
+  "cover", "book", "cause", "quality", "process", "provide", "entry",
 }
 logger = tkrzw_dict.GetLogger()
 
@@ -438,6 +438,7 @@ class ClusterBatch():
     words = []
     item_dict = {}
     rank_dict = {}
+    logger.info("Reading words")
     for line in sys.stdin:
       if len(words) >= max_read_items: break
       fields = line.strip().split("\t")
@@ -462,6 +463,7 @@ class ClusterBatch():
       words.append(word)
       item_dict[word] = (parents, features)
       rank_dict[word] = len(rank_dict)
+    logger.info("Indexing words")
     parent_index = collections.defaultdict(list)
     for rank, word in enumerate(words):
       parent_expr, features = item_dict[word]
@@ -471,11 +473,16 @@ class ClusterBatch():
         parents.append(parent)
         parent_index[word].append((parent, 0, rank))
     for i in range(3):
+      uniq_pairs = set()
       for child, parents in list(parent_index.items()):
         for parent, level, rank in parents:
+          if parent == child: continue
           grand_parents = parent_index.get(parent)
           if grand_parents:
             for grand_parent, grand_level, grand_rank in grand_parents:
+              if grand_parent == child: continue
+              if (child, grand_parent) in uniq_pairs: continue
+              uniq_pairs.add((child, grand_parent))
               parent_index[child].append((grand_parent, grand_level + 1, grand_rank))
     single_parent_index = {}
     for child, parents in parent_index.items():
@@ -483,6 +490,7 @@ class ClusterBatch():
       single_parent_index[child] = parents[0][0]
     for nop_word in no_parents:
       single_parent_index.pop(nop_word, None)
+    logger.info("Adding items")
     adopted_words = {}
     skipped_words = set()
     for word in words:
