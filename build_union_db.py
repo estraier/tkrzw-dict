@@ -103,30 +103,31 @@ no_parents = {
   "number", "ground", "red", "happen", "letter", "monitor", "feed", "winter", "brake",
   "partner", "sister", "environment", "moment", "gun", "shower", "trigger", "wound", "bound",
   "weed", "saw", "copper", "buffer", "lump", "wary", "stove", "doctor", "hinder", "crazy",
-  "tower", "poetry", "parity", "fell", "lay", "bit", "drug", "grass", "shore",
+  "tower", "poetry", "parity", "fell", "lay", "bit", "drug", "grass", "shore", "notice",
   "butter", "slang", "grope", "feces", "left", "former", "found", "every", "scheme",
   "evening", "architecture", "hat", "slice", "bite", "tender", "bully", "translate",
   "fence", "liver", "special", "specific", "species", "statistics", "mathematics", "caution",
-  "span", "fleet", "language", "gripe", "dribble",
-  "shine", "dental", "irony", "transplant", "chemistry", "physics", "grocery",
+  "span", "fleet", "language", "gripe", "dribble", "total", "error", "option", "important",
+  "shine", "dental", "irony", "transplant", "chemistry", "physics", "grocery", "grade",
   "gutter", "dove", "weary", "queer", "shove", "buggy", "twine", "tier", "rung", "spat",
   "pang", "jibe", "pent", "lode", "gelt", "plant", "plane", "pants", "craze", "grove",
   "downy", "musty", "mangy", "moped", "caper", "balmy", "tinny", "induce", "treaty",
   "chili", "chilli", "chile", "castor", "landry", "start", "baby", "means", "transfer",
   "interior", "exterior", "rabbit", "stripe", "fairy", "shunt", "clove", "abode", "bends",
   "molt", "holler", "feudal", "bounce", "livery", "wan", "sod", "dug", "het", "gat",
-  "cover", "book", "cause", "quality", "process", "provide", "entry",
+  "cover", "book", "cause", "quality", "process", "provide", "entry", "specify", "morning",
+  "guarantee", "listen", "identity", "clone", "impress", "belly", "mansion",
 }
 force_parents = {
-  "upwards": "upward", "towards": "toward",
-  "advice": "advise", "device": "devise", "practice": "practise",
-  "approximately": "approximate", "invocation": "invoke",
+  "upwards": "upward", "towards": "toward", "identify": "identity", "guaranty": "guarantee",
+  "advice": "advise", "device": "devise", "practice": "practise", "norn": "morning",
+  "approximately": "approximate", "invocation": "invoke", "spec": "specify",
   "prisoner": "prison", "emission": "emit", "omission": "omit", "transmission": "transmit",
   "fission": "fissure", "competitive": "compete", "competitor": "compete",
   "conservative": "conserve", "pronunciation": "pronounce", "revelation": "reveal",
   "possession": "possess", "schema": "scheme", "further": "far", "farther": "far",
-  "conjunction": "conjunct", "conjunctive": "conjunct",
-  "conjugation": "conjugate", "conjugative": "conjugate",
+  "conjunction": "conjunct", "conjunctive": "conjunct", "location": "locate",
+  "conjugation": "conjugate", "conjugative": "conjugate", "installation": "install",
   "translation": "translate", "formation": "form", "variation": "vary",
   "importance": "important", "innovative": "innovate", "bated": "bate",
   "chemist": "chemistry", "chemical": "chemistry", "chem": "chemistry",
@@ -134,10 +135,10 @@ force_parents = {
   "chilly": "chill", "launder": "laundry", "tension": "tense", "revolution": "revolve",
   "sensitive": "sense", "mutation": "mutate", "mutant": "mutate", "fated": "fate",
   "apery": "ape", "dingy": "dinge", "precession": "precess", "expertise": "expert",
-  "dramatic": "drama", "pic": "picture", "tragic": "tragedy",
-  "administrate": "administer", "administrative": "administrate",
-  "administration": "administrate", "administrator": "administrate",
-  "federal": "federation", "analysis": "analyze", "emphasis": "enphasize",
+  "dramatic": "drama", "pic": "picture", "tragic": "tragedy", "manse": "mansion",
+  "administrate": "administer", "administrative": "administrate", "inquiry": "inquire",
+  "administration": "administrate", "administrator": "administrate", "diplomat": "diplomacy",
+  "federal": "federation", "analysis": "analyze", "emphasis": "emphasize",
   "chrorine": "chloride", "recognition": "recognize", "oppsite": "oppose", "opponent": "oppose",
   "response": "respond", "tolerant": "tolerate", "remainder": "remain",
   "differential": "different", "differentiate": "different", "failure": "fail",
@@ -162,9 +163,11 @@ force_parents = {
   "frequency": "frequent", "portrait": "portray", "digital": "digit",
   "storage": "store", "nearly": "near", "granny": "grandmother", "sorry": "sorrow",
   "modification": "modify", "characteristic": "character", "anxious": "anxiety",
-  "quantify": "quantity", "qualify": "quality", "imaginary": "imagine", "imaginative": "imagine",
+  "quantify": "quantity", "qualify": "quality", "appendix": "append",
+  "quantitative": "quantity", "qualitative": "quality", "supremacy": "supreme",
+  "imaginary": "imagine", "imaginative": "imagine", "disastrous": "disaster",
   "systematic": "system", "absorption": "absorb", "disciple": "discipline",
-  "favor": "favorite", "prescription": "prescribe", "dominant": "dominate",
+  "favorite": "favor", "prescription": "prescribe", "dominant": "dominate",
   "relief": "relieve", "laughter": "laugh", "participant": "participate",
   "companion": "company", "circular": "circle", "synthetic": "synthesis",
   "choice": "choose", "entrance": "entry", "maintenance": "maintain",
@@ -184,20 +187,23 @@ force_parents = {
   "crucify": "crucifix", "crucifixion": "crucifix", "abdominal": "abdomen",
   "medial": "median", "bureaucrat": "bureau", "wholly": "whole", "consul": "consulate",
   "repetition": "repeat", "repetitive": "repeat", "conquest": "conquer", "covern": "cave",
-  "rubbish": "rubble", "flammable": "flame", "ignorant": "ignore",
+  "rubbish": "rubble", "flammable": "flame", "ignorant": "ignore", "solitude": "solitary",
   "curiosity": "curious", "exceptionally": "exceptional", "blotch": "blot", "suckle": "suck",
   "negligent": "neglect", "negligence": "neglect", "infamous": "infamy",
-  "deception": "deceit", "romantic": "romance", "perm": "permanent", "feminist": "feminine",
+  "deception": "deceit", "deceit": "deceive", "deceptive": "deceive",
+  "irritable": "irritate", "prevalent": "prevail", "accusatory": "accuse",
+  "conspiracy": "conspire", "envelop": "envelope", "capacitance": "capacitor",
+  "romantic": "romance", "perm": "permanent", "feminist": "feminine",
   "demolition": "demolish", "trivial": "trivia", "instantaneous": "instant",
   "expense": "expend", "expenditure": "expend", "memorize": "memory",
   "memo": "memorandum", "consortium": "consort", "medallion": "medal",
   "abrasion": "abrase", "abrasive": "abrase", "atheist": "atheism", "reunion": "reunite",
   "kindergartner": "kindergarten", "duckling": "duck", "introductory": "introduce",
   "baptism": "baptize", "sled": "sledge", "tarp": "tarpaulin", "intricacy": "intricate",
-  "glacial": "gracier", "legislature": "legislate", "redemption": "redeem",
+  "glacial": "glacier", "legislature": "legislate", "redemption": "redeem",
   "predominant": "predominate", "lull": "lullaby", "butt": "buttock", "comfy": "comfort",
   "verification": "verify", "spectacular": "spectacle", "applause": "applaud",
-  "theoretical": "theory", "curvature": "curve", "simply": "simple",
+  "theoretical": "theory", "curvature": "curve", "simply": "simple", "cafe": "cafeteria",
   "discussion": "discuss", "comparable": "compare", "comparative": "compare",
   "hysteric": "hysteria", "partial": "part", "generosity": "generous",
   "prophecy": "prophesy", "prophet": "prophecy", "satisfactory": "satisfy",
@@ -217,16 +223,25 @@ force_parents = {
   "alkaline": "alkali", "humane": "human", "divisible": "divide", "capacity": "capable",
   "grandpa": "grandfather", "grandma": "grandmother", "nauseous": "nausea",
   "luncheon": "lunch", "conscientious": "conscience", "mandatory": "mandate",
-  "cleric": "clergy", "corrosion": "corrode", "limo": "limousine",
-  "inflammable": "inflame", "inflammation": "inflame",
+  "cleric": "clergy", "corrosion": "corrode", "limo": "limousine", "descriptive": "describe",
+  "inflammable": "inflame", "inflammation": "inflame", "tremble": "tremor",
   "enthusiast": "enthusiasm", "pussy": "puss", "considerate": "consider",
-  "eternity": "eternal", "monstrous": "monster", "clarity": "clarify",
-  "clarification": "clarify", "muscular": "muscle",
-  "perception": "perceive", "percept": "perceive", "sensory": "sense",
+  "eternity": "eternal", "monstrous": "monster", "clarity": "clarify", "illiteracy": "illiterate",
+  "clarification": "clarify", "muscular": "muscle", "furniture": "furnish",
+  "perception": "perceive", "percept": "perceive", "sensory": "sense", "symptomatic": "symptom",
   "destination": "destine", "categorical": "category", "ascent": "ascend",
-  "ingenuity": "ingenious", "invention": "invent",
-  "propel": "propulsion", "belief": "believe", "whimsy": "whim",
-  "mischievous": "mischief", "crazy": "craze",
+  "ingenuity": "ingenious", "invention": "invent", "gymnast": "gymnastic",
+  "propel": "propulsion", "belief": "believe", "whimsy": "whim", "disciplinary": "discipline",
+  "mischievous": "mischief", "crazy": "craze", "liquefy": "liquid", "delicacy": "delicate",
+  "confectionery": "confection", "resilience": "resilient", "grad": "graduate",
+  "therapist": "therapy", "perseverance": "persevere", "intro": "introduction",
+  "abolition": "abolish", "reparation": "repair", "testify": "testimony", "sports": "sport",
+  "disqualification": "disqualify", "rectangular": "rectanble", "metropolitan": "metropolis",
+  "sportsmanship": "sportsman", "atheist": "atheism", "prognostic": "prognosis",
+  "assurance": "assure", "insurance": "insure", "extent": "extend", "mineral": "mine",
+  "fort": "fortress", "pharmaceutical": "pharmacy", "menstrual": "menstruum",
+  "community": "commune", "communal": "commune", "data": "datum", "agenda": "agendum",
+  "metric": "meter", "democrat": "democracy",
 }
 
 
@@ -683,6 +698,7 @@ class BuildUnionDBBatch:
       prob = self.GetPhraseProb(phrase_prob_dbm, "en", word)
     texts = entry.get("text") or []
     def NormalizeTran(tran):
+      tran = tran.strip()
       han_tran = regex.sub(r"[^\p{Han}]", "", tran)
       if len(han_tran) >= 2:
         tran = han_tran
@@ -698,6 +714,7 @@ class BuildUnionDBBatch:
           norm_tran += pos[3]
         if len(norm_tran) >= 2:
           tran = norm_tran
+      tran = regex.sub(r"^([\p{Han}]{2,})的$", "\1", tran)
       return tran
     def GetMetadata(in_entry, out_poses, out_deris, out_trans):
       in_word = in_entry["word"]
@@ -837,6 +854,9 @@ class BuildUnionDBBatch:
                 if suffix == "ous" and len(stem) >= 4:
                   stems.add(stem + "on")
                   stems.add(stem + "y")
+                  stems.add(stem + "e")
+                if suffix == "ous" and len(stem) >= 5 and stem.endswith("ul"):
+                  stems.add(stem[:-2] + "le")
                 if suffix == "ant" and len(stem) >= 4:
                   stems.add(stem + "ate")
                   stems.add(stem + "e")
@@ -860,6 +880,9 @@ class BuildUnionDBBatch:
                 if len(stem) >= 4 and stem[-1] == stem[-2]:
                   stems.add(stem[:-1])
     stems.discard(word)
+
+    #print("STEM", label, word, stems)
+    
     valid_stems = set()
     for pos, text in texts:
       match = regex.search(
@@ -874,6 +897,7 @@ class BuildUnionDBBatch:
       else:
         stem_prob = prob
       stem_prob_ratio = stem_prob / prob
+      if label not in self.core_labels and stem_prob_ratio < 0.1: continue
       if (stem.find(" ") < 0 and len(stem) >= 8 and len(stem) < len(word) and
           stem_prob_ratio >= 0.5):
         valid_stems.add(stem)
@@ -882,6 +906,13 @@ class BuildUnionDBBatch:
       for tmp_stem_entry in word_dict.get(stem) or []:
         if tmp_stem_entry["word"] == stem:
           stem_entry = tmp_stem_entry
+      is_known = False
+      if stem_prob_ratio >= 0.001:
+        is_known = True
+      if stem_entry and word in (stem_entry.get("related") or []):
+        is_known = True
+      if len(stem) >= 6 and stem_prob_ratio >= 0.0002:
+        is_known = True
       stem_poses = set()
       stem_deris = set()
       stem_trans = set()
@@ -897,9 +928,10 @@ class BuildUnionDBBatch:
             hit_tran = True
           if regex.search(r"\p{Han}", stem_tran):
             for tran in trans:
-              if tran.find(stem_tran) >= 0:
+              if tran.find(stem_tran) >= 0 or stem_tran.find(tran) >= 0:
                 hit_tran = True
-        if ((hit_deri and hit_tran) or (stem_prob_ratio >= 0.1 and (hit_deri or hit_tran))):
+        if ((hit_deri and hit_tran) or (stem_prob_ratio >= 0.1 and hit_deri) or
+            (is_known and hit_tran)):
           valid_stems.add(stem)
       check_len = max(3, len(stem) - 2)
       for deri in deris:
@@ -931,6 +963,9 @@ class BuildUnionDBBatch:
       valid_stems.clear()
       valid_stems.add(force_parent)
     valid_stems.discard(word)
+
+    #print("VALID", word, valid_stems)
+    
     return list(valid_stems)
 
   def MergeRecord(self, key, word_dicts, aux_trans, aoa_words, keywords,
@@ -1797,11 +1832,14 @@ class BuildUnionDBBatch:
       prob = self.GetPhraseProb(phrase_prob_dbm, "en", parent)
       scored_parents.append((parent, prob))
     scored_parents = sorted(scored_parents, key=lambda x: x[1], reverse=True)
+
+    #print("SP", word, scored_parents)
+    
     if scored_parents:
       word_entry["parent"] = [x[0] for x in scored_parents]
     scored_children = []
     for child in children:
-      if not live_words.Get(child) or child == word:
+      if not live_words.Get(child) or child == word or child in parents:
         continue
       prob = self.GetPhraseProb(phrase_prob_dbm, "en", child)
       scored_children.append((child, prob))
@@ -2365,8 +2403,6 @@ class BuildUnionDBBatch:
         tran += "な"
       else:
         tran += "の"
-    elif pos[1] == "動詞":
-      tran = stem + "ような"
     return tran
 
   def MakeTranAdverb(self, tran):

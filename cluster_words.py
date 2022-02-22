@@ -33,7 +33,7 @@ import time
 import tkrzw
 import tkrzw_dict
 
-STOP_WORDS = set([
+stop_words = set([
   "aback", "about", "above", "abroad", "across", "after", "against", "ahead", "along",
   "amid", "among", "apart", "around", "as", "at", "away", "back", "before", "behind",
   "below", "beneath", "between", "beside", "beyond", "by", "despite", "during", "down",
@@ -51,8 +51,9 @@ STOP_WORDS = set([
   "back", "much", "many", "more", "most", "good", "well", "better", "best", "all",
   "bes", "is", "are", "was", "were", "being", "had", "grey", "towards",
   "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
-  "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "nineteen",
-  "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety", "hundred",
+  "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen",
+  "nineteen", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety",
+  "hundred",
   "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth",
   "eleventh", "twelfth", "thirteenth", "fourteenth", "fifteenth", "sixteenth", "seventeenth",
   "nineteenth", "twentieth", "thirtieth", "fortieth", "fiftieth", "sixtieth", "seventieth",
@@ -64,19 +65,20 @@ no_parents = {
   "number", "ground", "red", "happen", "letter", "monitor", "feed", "winter", "brake",
   "partner", "sister", "environment", "moment", "gun", "shower", "trigger", "wound", "bound",
   "weed", "saw", "copper", "buffer", "lump", "wary", "stove", "doctor", "hinder", "crazy",
-  "tower", "poetry", "parity", "fell", "lay", "bit", "drug", "grass", "shore",
+  "tower", "poetry", "parity", "fell", "lay", "bit", "drug", "grass", "shore", "notice",
   "butter", "slang", "grope", "feces", "left", "former", "found", "every", "scheme",
   "evening", "architecture", "hat", "slice", "bite", "tender", "bully", "translate",
   "fence", "liver", "special", "specific", "species", "statistics", "mathematics", "caution",
-  "span", "fleet", "language", "gripe", "dribble",
-  "shine", "dental", "irony", "transplant", "chemistry", "physics", "grocery",
+  "span", "fleet", "language", "gripe", "dribble", "total", "error", "option", "important",
+  "shine", "dental", "irony", "transplant", "chemistry", "physics", "grocery", "grade",
   "gutter", "dove", "weary", "queer", "shove", "buggy", "twine", "tier", "rung", "spat",
   "pang", "jibe", "pent", "lode", "gelt", "plant", "plane", "pants", "craze", "grove",
   "downy", "musty", "mangy", "moped", "caper", "balmy", "tinny", "induce", "treaty",
   "chili", "chilli", "chile", "castor", "landry", "start", "baby", "means", "transfer",
   "interior", "exterior", "rabbit", "stripe", "fairy", "shunt", "clove", "abode", "bends",
   "molt", "holler", "feudal", "bounce", "livery", "wan", "sod", "dug", "het", "gat",
-  "cover", "book", "cause", "quality", "process", "provide", "entry",
+  "cover", "book", "cause", "quality", "process", "provide", "entry", "specify", "morning",
+  "guarantee", "listen", "identity", "clone", "impress", "belly", "mansion",
 }
 logger = tkrzw_dict.GetLogger()
 
@@ -438,6 +440,8 @@ class ClusterBatch():
     words = []
     item_dict = {}
     rank_dict = {}
+    normal_dict = {}
+    skipped_dict = {}
     logger.info("Reading words")
     for line in sys.stdin:
       if len(words) >= max_read_items: break
@@ -448,18 +452,26 @@ class ClusterBatch():
       parents = fields[2]
       children = fields[3]
       word_prob = fields[4]
-      if normals: continue
+      if normals:
+        for normal in normals.split(","):
+          if normal:
+            normal_dict[word] = normal
+            break
+        continue
       fields = fields[5:]
       if len(word) <= 2 and word not in ("go", "ax", "ox", "pi"): continue
-      if word in STOP_WORDS: continue
       if not regex.fullmatch("[a-z]+", word): continue
       features = {}
       for i in range(0, len(fields) - 1, 2):
         label = fields[i]
         score = max(float(fields[i + 1]), 0.001)
-        if label in STOP_WORDS:
+        if label in stop_words:
           score *= 0.5
         features[label] = score
+      if not features: continue
+      if word in stop_words:
+        skipped_dict[word] = features
+        continue
       words.append(word)
       item_dict[word] = (parents, features)
       rank_dict[word] = len(rank_dict)
@@ -470,26 +482,42 @@ class ClusterBatch():
       parents = []
       for parent in parent_expr.split(","):
         if not parent: continue
+        norm_parent = normal_dict.get(parent)
+        if norm_parent:
+          parent = norm_parent
+        if parent in parents: continue
         parents.append(parent)
-        parent_index[word].append((parent, 0, rank))
+        parent_index[word].append(parent)
     for i in range(3):
       uniq_pairs = set()
       for child, parents in list(parent_index.items()):
-        for parent, level, rank in parents:
+        for parent in parents:
           if parent == child: continue
           grand_parents = parent_index.get(parent)
           if grand_parents:
-            for grand_parent, grand_level, grand_rank in grand_parents:
+            for grand_parent in grand_parents:
               if grand_parent == child: continue
               if (child, grand_parent) in uniq_pairs: continue
               uniq_pairs.add((child, grand_parent))
-              parent_index[child].append((grand_parent, grand_level + 1, grand_rank))
+              parent_index[child].append(grand_parent)
     single_parent_index = {}
     for child, parents in parent_index.items():
-      parents = sorted(parents, key=lambda x: x[1] * len(words) - x[2], reverse=True)
-      single_parent_index[child] = parents[0][0]
+      scored_parents = collections.defaultdict(int)
+      uniq_parents = set()
+      for parent in parents:
+        if parent in uniq_parents: continue
+        uniq_parents.add(parent)
+        rank = rank_dict.get(parent)
+        score = 0 if rank == None else len(rank_dict) - rank
+        scored_parents[parent] += score
+        grand_parents = set(parent_index.get(parent) or [])
+        for grand_parent in grand_parents:
+          scored_parents[grand_parent] += score
+      scored_parents = sorted(scored_parents.items(), key=lambda x: x[1], reverse=True)
+      single_parent_index[child] = scored_parents[0][0]
     for nop_word in no_parents:
       single_parent_index.pop(nop_word, None)
+    orphans = {}
     logger.info("Adding items")
     adopted_words = {}
     skipped_words = set()
@@ -499,6 +527,16 @@ class ClusterBatch():
       parent = single_parent_index.get(word)
       if parent:
         parent_features = item_dict.get(parent)
+        if not parent_features:
+          skipped_features = skipped_dict.get(parent)
+          if skipped_features:
+            parent_features = (None, skipped_features)
+        if not parent_features:
+          orphan = orphans.get(parent)
+          if orphan:
+            parent_features = orphan
+          else:
+            orphans[parent] = (word, features)
         if parent_features:
           _, parent_features = parent_features
           word = parent
@@ -508,8 +546,9 @@ class ClusterBatch():
     for word, features in adopted_words.items():
       norm_features = {}
       for label, score in features.items():
-        norm_label = single_parent_index.get(label) or label
-        norm_features[norm_label] = max(norm_features.get(norm_label) or 0, score)
+        label = single_parent_index.get(label) or label
+        label = normal_dict.get(label) or label
+        norm_features[label] = max(norm_features.get(label) or 0, score)
       generator.AddItem(word, norm_features)
     generator.Run()
     logger.info("Outputing")
