@@ -59,6 +59,7 @@ stop_words = set([
   "nineteenth", "twentieth", "thirtieth", "fortieth", "fiftieth", "sixtieth", "seventieth",
   "eightieth", "ninetieth", "hundredth",
   "northeast", "northwest", "southeast", "southwest",
+  "northeastern", "northwestern", "southeastern", "southwestern",
   "math", "maths", "disc", "nones", "favourite", "tyrannosaur",
 ])
 no_parents = {
@@ -436,7 +437,6 @@ class ClusterBatch():
       self.num_clusters, self.num_rounds, self.num_items))
     generator = ClusterGenerator(
       self.num_clusters, self.num_rounds, self.num_item_features, self.num_cluster_features)
-    max_read_items = self.num_items * 3.0 + 5000
     words = []
     item_dict = {}
     rank_dict = {}
@@ -444,7 +444,6 @@ class ClusterBatch():
     skipped_dict = {}
     logger.info("Reading words")
     for line in sys.stdin:
-      if len(words) >= max_read_items: break
       fields = line.strip().split("\t")
       if len(fields) < 6: continue
       word = fields[0]
@@ -517,7 +516,7 @@ class ClusterBatch():
       single_parent_index[child] = scored_parents[0][0]
     for nop_word in no_parents:
       single_parent_index.pop(nop_word, None)
-    orphans = {}
+    orphan_parents = set()
     logger.info("Adding items")
     adopted_words = {}
     skipped_words = set()
@@ -531,16 +530,14 @@ class ClusterBatch():
           skipped_features = skipped_dict.get(parent)
           if skipped_features:
             parent_features = (None, skipped_features)
-        if not parent_features:
-          orphan = orphans.get(parent)
-          if orphan:
-            parent_features = orphan
-          else:
-            orphans[parent] = (word, features)
         if parent_features:
           _, parent_features = parent_features
           word = parent
           features = parent_features
+        elif parent in orphan_parents:
+          continue
+        else:
+          orphan_parents.add(parent)
       if word in adopted_words: continue
       adopted_words[word] = features
     for word, features in adopted_words.items():
