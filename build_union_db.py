@@ -102,7 +102,7 @@ wiki_stop_words = {
 no_parents = {
   "number", "ground", "red", "happen", "letter", "monitor", "feed", "winter", "brake",
   "partner", "sister", "environment", "moment", "gun", "shower", "trigger", "wound", "bound",
-  "weed", "saw", "copper", "buffer", "lump", "wary", "stove", "doctor", "hinder", "crazy",
+  "weed", "saw", "copper", "buffer", "lump", "wary", "stove", "doctor", "hinder",
   "tower", "poetry", "parity", "fell", "lay", "bit", "drug", "grass", "shore", "notice",
   "butter", "slang", "grope", "feces", "left", "former", "found", "every", "scheme",
   "evening", "architecture", "hat", "slice", "bite", "tender", "bully", "translate",
