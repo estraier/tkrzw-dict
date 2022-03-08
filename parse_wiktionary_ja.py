@@ -222,7 +222,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         mode = "conjunction"
       elif mode in ("{{pref}}", "{{prefix}}", "prefix", "接頭辞"):
         mode = "prefix"
-      elif mode in ("{{suf}}", "{{suffix}}", "suffix", "設備時"):
+      elif mode in ("{{suf}}", "{{suffix}}", "suffix", "接尾辞"):
         mode = "suffix"
       elif mode in ("{{abbr}}", "{{abbreviation}}", "abbreviation", "略語"):
         mode = "abbreviation"
