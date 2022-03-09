@@ -42,7 +42,7 @@ import uuid
 
 logger = tkrzw_dict.GetLogger()
 INTRO_TEXT = """* 概要
-{TITLE}は、重要英単語を効率よく覚えるためのWebサイトです。日常でよく使われる重要な英単語{NUM_MAIN_WORDS}語をWebから自動抽出し、意味や用法が似た単語をまとめて覚えることができます。無作為に並べられた英単語を暗記するよりも、周辺の語から連想して記憶する方が、明らかに効率よく学習を進められます。派生語や熟語も含めて総数{NUM_UNIQ_WORDS}語を学習できます。
+{TITLE}は、重要英単語を効率よく覚えるためのWebサイトです。日常でよく使われる重要な英単語{NUM_MAIN_WORDS}語をWebから自動抽出し、意味や用法が似た単語をまとめて覚えることができます。無作為に並べられた英単語を暗記するよりも、周辺の語から連想して記憶する方が、明らかに効率よく学習を進められます。派生語{NUM_DERI_WORDS}語や熟語も含めて総数{NUM_UNIQ_WORDS}語を学習できます。
 * 典型的な使い方
 英単語は章毎にまとめられています。全部で{NUM_SECTIONS}章あります。1日に1章から3章程度に取り組むと良いでしょう。まず、索引ページから各章の「STUDY」リンクをクリックして、その章の単語の意味を学習しましょう。一通りの語の意味を覚えたら、「CHECK」リンクをクリックして、きちんと覚えられているかを確認します。
 語彙の学習では反復が重要です。1日の学習の最初には、前回の範囲を確認ページで復習すると良いでしょう。おそらく何割かは忘れていることでしょうが、間を置いて再度学習することで、記憶の定着率が高まります。
@@ -134,12 +134,23 @@ td.check_title { width: 20ex; overflow: hidden; white-space: nowrap; font-weight
 td.check_text { overflow: hidden; white-space: nowrap; font-size: 90%; }
 a.check_word { display: inline-block; font-size: 105%; color: #000; }
 span.check_trans { display: inline-block; width: 82ex; }
+div.check_children { width: 82ex; font-size: 95%; color: #333333; }
 table.check_mode_0 span.check_trans { opacity: 0; }
+table.check_mode_0 div.check_children { display: none; }
+
+
 table.check_mode_0 tr.check_line_active span.check_trans { opacity: 1; }
+
+
+
 table.check_mode_1 a.check_word { opacity: 0; }
 table.check_mode_1 tr.check_line_active a.check_word { opacity: 1; }
 table.check_mode_1 span.kk { opacity: 0; }
 table.check_mode_1 tr.check_line_active span.kk { opacity: 1; }
+table.check_mode_1 div.check_children { display: none; }
+table.check_mode_2 div.check_children { display: none; }
+
+
 tr.check_line:hover a.check_word { opacity: 1; }
 tr.check_line:hover span.check_trans { opacity: 1; }
 tr.check_line:hover span.kk { opacity: 1; }
@@ -150,6 +161,7 @@ a.toc_link { display: inline-block; width: 14ex; text-align: center;
 a.toc_link:hover { background: #def; }
 span.toc_text { padding-left: 1ex; }
 div.index_head { font-size: 110%; font-weight: bold; margin: 1.5ex 0 0.6ex 0; }
+a.title { font-weight: bold; }
 div.intro_head { font-size: 110%; font-weight: bold; margin: 1.5ex 0 0.6ex 0; }
 div.intro_quote { font-size: 90%; line-height: 110%; margin-left: 1ex; }
 div.intro_text { text-indent: 2ex; margin: 0.5ex 0; }
@@ -164,11 +176,12 @@ div.aux { margin-left: 1ex; }
 CHECKSCRIPT_TEXT = """'use strict';
 let check_mode = 0;
 function change_view() {
-  check_mode = (check_mode + 1) % 3;
+  check_mode = (check_mode + 1) % 4;
   for (let table of document.getElementsByClassName("check_table")) {
     table.classList.remove("check_mode_0");
     table.classList.remove("check_mode_1");
     table.classList.remove("check_mode_2");
+    table.classList.remove("check_mode_3");
     table.classList.add("check_mode_" + check_mode)
   }
 }
@@ -217,6 +230,21 @@ def EscapeTranslations(values):
   return ", ".join(fields)
 
 
+def IsGbAlternative(entry, sibling_alts, body_dbm):
+  word = entry["word"]
+  alts = entry.get("alternative") or []
+  suffix_pairs = [("se", "ze"), ("sing", "zing"), ("sed", "zed"),
+                  ("ser", "zer"), ("sation", "zation"), ("ence", "ense"),
+                  ("our", "or"), ("og", "ogue"), ("re", "er"), ("l", "ll")]
+  for gb_suffix, us_suffix in suffix_pairs:
+    if word.endswith(gb_suffix):
+      us_word = word[:-len(gb_suffix)] + us_suffix
+      if ((us_word in alts or us_word in sibling_alts)
+          and body_dbm.GetStr(us_word)):
+        return True
+  return False
+
+
 class GenerateUnionVocabBatch:
   def __init__(self, vocab_path, body_path, phrase_path, output_path,
                num_extra_items, num_section_clusters, child_min_prob, title):
@@ -238,26 +266,29 @@ class GenerateUnionVocabBatch:
     os.makedirs(self.output_path, exist_ok=True)
     vetted_words = self.VetWords(clusters, body_dbm)
     num_sections = 0
-    uniq_words = set()
-    index_items = []
+    uniq_words = {}
+    section_items = []
     num_main_words = 0
+    num_deri_words = 0
     while clusters:
       num_sections += 1
       section_clusters = clusters[:self.num_section_clusters]
       clusters = clusters[self.num_section_clusters:]
       has_next = bool(clusters)
       out_words = []
+      out_children = collections.defaultdict(list)
       self.PrepareSection(section_clusters, num_sections, has_next, uniq_words,
-                          body_dbm, phrase_dbm, vetted_words, out_words)
-      index_items.append(out_words)
+                          body_dbm, phrase_dbm, vetted_words, out_words, out_children)
+      section_items.append(out_words)
       num_main_words += len(out_words)
+      num_deri_words += sum([len(x) for _, x in out_children.items()])
 
       # hoge
-      # if num_sections >= 5: break
+      #if num_sections >= 5: break
     
-    self.OutputTOC(index_items)
-    self.OutputIndex(index_items)
-    self.OutputIntro(num_sections, num_main_words, len(uniq_words))
+    self.OutputTOC(section_items)
+    self.OutputIndex(section_items, uniq_words)
+    self.OutputIntro(num_sections, num_main_words, num_deri_words, len(uniq_words))
     self.OutputMiscFiles()
     phrase_dbm.Close().OrDie()
     body_dbm.Close().OrDie()
@@ -304,7 +335,7 @@ class GenerateUnionVocabBatch:
     return vetted_words
 
   def PrepareSection(self, clusters, num_sections, has_next,
-                     uniq_words, body_dbm, phrase_dbm, vetted_words, out_words):
+                     uniq_words, body_dbm, phrase_dbm, vetted_words, out_words, out_children):
     section_main_words = []
     section_extra_word_lists = []
     for cluster in clusters:
@@ -408,17 +439,18 @@ class GenerateUnionVocabBatch:
       out_words.append(main_word[0])
     out_path = os.path.join(self.output_path, "study-{:03d}.xhtml".format(num_sections))
     logger.info("Creating: {}".format(out_path))
+
     with open(out_path, "w") as out_file:
       self.OutputStudy(out_file, num_sections, has_next,
                        section_main_words, section_extra_word_lists,
-                       body_dbm, uniq_words)
+                       body_dbm, uniq_words, out_children)
     out_path = os.path.join(self.output_path, "check-{:03d}.xhtml".format(num_sections))
     logger.info("Creating: {}".format(out_path))
     with open(out_path, "w") as out_file:
-      self.OutputCheck(out_file, num_sections, has_next, out_words, body_dbm)
+      self.OutputCheck(out_file, num_sections, has_next, out_words, out_children, body_dbm)
 
   def OutputStudy(self, out_file, num_sections, has_next, main_words, extra_word_lists,
-                  body_dbm, uniq_words):
+                  body_dbm, uniq_words, out_children):
     def P(*args, end="\n"):
       esc_args = []
       for arg in args[1:]:
@@ -468,7 +500,7 @@ class GenerateUnionVocabBatch:
       if not entry:
         P('<p>Warning: no data for {}</p>', surface)
         continue
-      uniq_words.add(surface)
+      uniq_words[surface] = num_sections
       num_words += 1
       word_id = ConvertWordToID(surface)
       P('<section id="{}" class="entry">', word_id)
@@ -529,7 +561,7 @@ class GenerateUnionVocabBatch:
           P('</div>')
       parents = entry.get("parent")
       children = entry.get("child")
-
+      sibling_alts = set((parents or []) + (children or []))
       if children:
         for child in list(children):
           child_data = body_dbm.GetStr(child)
@@ -542,13 +574,13 @@ class GenerateUnionVocabBatch:
               for grand_child in grand_children:
                 if grand_child not in children:
                   children.append(grand_child)
-      sibling_alts = set((parents or []) + (children or []))
       phrases = entry.get("phrase") or []
       for label, derivatives in (("語幹", parents), ("派生", children)):
         if not derivatives: continue
         for child in derivatives:
+          if not regex.search(r"^[a-zA-Z]", child): continue
           if child in uniq_words: continue
-          uniq_words.add(child)
+          uniq_words[child] = num_sections
           child_trans = None
           child_poses = None
           child_data = body_dbm.GetStr(child)
@@ -558,18 +590,7 @@ class GenerateUnionVocabBatch:
             for child_entry in child_entries:
               if child_entry["word"] != child: continue
               child_prob = float(child_entry.get("probability") or 0.0)
-              us_hit = False
-              child_alts = child_entry.get("alternative") or []
-              suffix_pairs = [("se", "ze"), ("sing", "zing"), ("sed", "zed"),
-                              ("ser", "zer"), ("sation", "zation"), ("ence", "ense"),
-                              ("our", "or"), ("og", "ogue"), ("re", "er"), ("l", "ll")]
-              for gb_suffix, us_suffix in suffix_pairs:
-                if child.endswith(gb_suffix):
-                  us_word = child[:-len(gb_suffix)] + us_suffix
-                  if ((us_word in child_alts or us_word in sibling_alts)
-                      and body_dbm.GetStr(us_word)):
-                    us_hit = True
-                    break
+              us_hit = IsGbAlternative(child_entry, sibling_alts, body_dbm)
               if us_hit:
                 continue
               child_trans = child_entry.get("translation")
@@ -589,13 +610,14 @@ class GenerateUnionVocabBatch:
           P('<span id="{}" class="subword">{}</span>', child_id, child_id, child)
           P('<span class="childtrans">: {}</span>', ", ".join(child_trans[:4]))
           P('</div>')
+          out_children[surface].append((child, child_trans))
       if phrases:
         for phrase in phrases:
           if not phrase.get("i"): continue
           phrase_word = phrase.get("w")
-          if not phrase: continue
+          if not regex.search(r"^[a-zA-Z]", phrase_word): continue
           if phrase_word in uniq_words: continue
-          uniq_words.add(phrase_word)
+          uniq_words[phrase_word] = num_sections
           phrase_data = body_dbm.GetStr(phrase_word)
           if not phrase_data: continue
           phrase_entries = json.loads(phrase_data)
@@ -666,7 +688,7 @@ class GenerateUnionVocabBatch:
             has_good_tran = True
         if not has_good_tran: continue
         extra_words.append((extra_word, extra_trans, extra_poses))
-        uniq_words.add(extra_word)
+        uniq_words[extra_word] = num_sections
         num_extra_words += 1
     if extra_words:
       P('<section class="entry">')
@@ -685,7 +707,7 @@ class GenerateUnionVocabBatch:
     P('</body>')
     P('</html>')
           
-  def OutputCheck(self, out_file, num_sections, has_next, out_words, body_dbm):
+  def OutputCheck(self, out_file, num_sections, has_next, out_words, out_children, body_dbm):
     def P(*args, end="\n"):
       esc_args = []
       for arg in args[1:]:
@@ -763,6 +785,13 @@ class GenerateUnionVocabBatch:
       P('<span class="check_trans">')
       print(tran_html, file=out_file)
       P('</span>')
+      children = out_children.get(word)
+      if children:
+        for child, child_trans in children:
+          P('<div class="check_children">')
+          P('<span class="check_child_word">{}</span> :', child)
+          P('<span class="check_child_trans">{}</span>', ", ".join(child_trans[:4]))
+          P('</div>')
       P('</td>')
       P('</tr>')
       num_line += 1
@@ -786,7 +815,7 @@ class GenerateUnionVocabBatch:
         poses.append(pos)
     return poses
 
-  def OutputTOC(self, index_items):
+  def OutputTOC(self, section_items):
     out_path = os.path.join(self.output_path, "index.xhtml")
     logger.info("Creating: {}".format(out_path))
     with open(out_path, "w") as out_file:
@@ -817,7 +846,7 @@ class GenerateUnionVocabBatch:
       index_url = "list.xhtml"
       P('<a href="{}" class="toc_link">INDEX</a>', index_url)
       P('</div>')
-      for i, out_words in enumerate(index_items):
+      for i, out_words in enumerate(section_items):
         num_sections = i + 1
         P('<div class="toc_line">')
         P('<span class="toc_label">Chapter {:03} :</span>', num_sections)
@@ -832,7 +861,7 @@ class GenerateUnionVocabBatch:
       P('</body>')
       P('</html>')
 
-  def OutputIndex(self, index_items):
+  def OutputIndex(self, section_items, uniq_words):
     out_path = os.path.join(self.output_path, "list.xhtml")
     logger.info("Creating: {}".format(out_path))
     with open(out_path, "w") as out_file:
@@ -861,14 +890,17 @@ class GenerateUnionVocabBatch:
       PrintNavi()
       P('<h1><a href="">{}の索引</a></h1>', self.title)
       P('<section id="index">')
-      section_words = []
-      for i, out_words in enumerate(index_items):
+      all_items = []
+      for word, section_index in uniq_words.items():
+        all_items.append((word, section_index))
+      all_items = sorted(all_items)
+      title_words = set()
+      for _, out_words in enumerate(section_items):
         for word in out_words:
-          section_words.append((i, word))
-      section_words = sorted(section_words, key=lambda x: x[1])
+          title_words.add(word)
       first_letter = ""
       first_word = False
-      for i, word in section_words:
+      for word, section_index in all_items:
         if first_letter != word[0]:
           if first_letter:
             P('</div>')
@@ -878,8 +910,9 @@ class GenerateUnionVocabBatch:
           first_word = True
         if not first_word:
           P(', ')
-        word_url = "study-{:03d}.xhtml#{}".format(i + 1, ConvertWordToID(word))
-        P('<a href="{}">{}</a>', word_url, word, end="")
+        word_url = "study-{:03d}.xhtml#{}".format(section_index, ConvertWordToID(word))
+        style = "title" if word in title_words else "child"
+        P('<a href="{}" class="{}">{}</a>', word_url, style, word, end="")
         first_word = False
       if first_letter:
         P('</div>')
@@ -889,7 +922,7 @@ class GenerateUnionVocabBatch:
       P('</body>')
       P('</html>')
     
-  def OutputIntro(self, num_sections, num_main_words, num_uniq_words):
+  def OutputIntro(self, num_sections, num_main_words, num_deri_words, num_uniq_words):
     out_path = os.path.join(self.output_path, "intro.xhtml")
     logger.info("Creating: {}".format(out_path))
     with open(out_path, "w") as out_file:
@@ -931,6 +964,7 @@ class GenerateUnionVocabBatch:
         line = line.replace("{TITLE}", self.title)
         line = line.replace("{NUM_SECTIONS}", str(num_sections))
         line = line.replace("{NUM_MAIN_WORDS}", str(num_main_words))
+        line = line.replace("{NUM_DERI_WORDS}", str(num_deri_words))
         line = line.replace("{NUM_UNIQ_WORDS}", str(num_uniq_words))
         if not line: continue
         P('<div class="{}">{}</div>', mode, line)

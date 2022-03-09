@@ -120,7 +120,7 @@ no_parents = {
 }
 force_parents = {
   "upwards": "upward", "towards": "toward", "identify": "identity", "guaranty": "guarantee",
-  "advice": "advise", "device": "devise", "practice": "practise", "norn": "morning",
+  "advice": "advise", "device": "devise", "practice": "practise", "morn": "morning",
   "approximately": "approximate", "invocation": "invoke", "spec": "specify",
   "prisoner": "prison", "emission": "emit", "omission": "omit", "transmission": "transmit",
   "fission": "fissure", "competitive": "compete", "competitor": "compete",
@@ -196,10 +196,11 @@ force_parents = {
   "romantic": "romance", "perm": "permanent", "feminist": "feminine",
   "demolition": "demolish", "trivial": "trivia", "instantaneous": "instant",
   "expense": "expend", "expenditure": "expend", "memorize": "memory",
-  "memo": "memorandum", "consortium": "consort", "medallion": "medal",
+  "memo": "memorandum", "consortium": "consort", "medallion": "medal", "godless": "god",
   "abrasion": "abrase", "abrasive": "abrase", "atheist": "atheism", "reunion": "reunite",
   "kindergartner": "kindergarten", "duckling": "duck", "introductory": "introduce",
-  "baptism": "baptize", "sled": "sledge", "tarp": "tarpaulin", "intricacy": "intricate",
+  "baptism": "baptize", "sled": "sledge", "bobsled": "bobsleigh",
+  "tarp": "tarpaulin", "intricacy": "intricate", "reverberate": "reverb",
   "glacial": "glacier", "legislature": "legislate", "redemption": "redeem",
   "predominant": "predominate", "lull": "lullaby", "butt": "buttock", "comfy": "comfort",
   "verification": "verify", "spectacular": "spectacle", "applause": "applaud",
@@ -241,9 +242,11 @@ force_parents = {
   "assurance": "assure", "insurance": "insure", "extent": "extend", "mineral": "mine",
   "fort": "fortress", "pharmaceutical": "pharmacy", "menstrual": "menstruum",
   "community": "commune", "communal": "commune", "data": "datum", "agenda": "agendum",
-  "metric": "meter", "democrat": "democracy", "presumption": "presume",
+  "metric": "meter", "democrat": "democracy", "presumption": "presume", "shelf": "shelve",
+  "solitaire": "solitary", "explanatory": "explain", "woolen": "wool", "planar": "plain",
   "northeastern": "northeast", "northwestern": "northwest",
   "southeastern": "southeast", "southwestern": "southwest",
+  "eastward": "east", "westward": "west", "wintry": "winter",
 }
 
 
