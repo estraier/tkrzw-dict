@@ -338,7 +338,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
             stop = True
         if not stop:
           verb_singular = title + "s"
-          if regex.search(r"([sx])$", title):
+          if regex.search(r"(s|ch|sh|x|o)$", title):
             verb_singular = title + "es"
           elif regex.search(r"([^aeiou])y$", title):
             verb_singular = title[:-1] + "ies"
