@@ -279,7 +279,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
           if value.startswith("head="):
             stop = True
         if not stop:
-          if regex.search(r"([sx])$", title):
+          if regex.search(r"(s|ch|sh|x|o)$", title):
             noun_plural = title + "es"
           elif regex.search(r"([^aeiou])y$", title):
             noun_plural = title[:-1] + "ies"
