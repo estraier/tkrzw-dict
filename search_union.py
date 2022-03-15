@@ -603,7 +603,7 @@ def OutputAnnotHTML(searcher, output_prefix, doc_title, meta_lines, pages):
         global P
         P(*args, end, file=page_file)
       PrintCGIHeader(page_title, file=page_file)
-      P('<div class="message_view">')
+      P('<section class="message_view">')
       P('<form name="annot_navi_form">')
       P('<div id="annot_navi_line">')
       P('注釈想定年齢:')
@@ -620,7 +620,7 @@ def OutputAnnotHTML(searcher, output_prefix, doc_title, meta_lines, pages):
       P('</select>')
       P('</div>')
       P('</form>')
-      P('</div>')
+      P('</section>')
       for line in page:
         line = line.strip()
         head_level = 0
@@ -652,7 +652,7 @@ def OutputAnnotHTML(searcher, output_prefix, doc_title, meta_lines, pages):
       global P
       P(*args, end, file=index_file)
     PrintCGIHeader(page_title, file=index_file)
-    P('<div class="message_view">')
+    P('<section class="message_view">')
     P('<h1>{}</h1>', page_title)
     for meta_line in meta_lines:
       P('<p>{}</p>', meta_line)
@@ -666,7 +666,7 @@ def OutputAnnotHTML(searcher, output_prefix, doc_title, meta_lines, pages):
     coverage = num_words_with_annots / num_words if num_words else 0
     P('<p>頁数: {} 。段落数: {} 。単語数: {} 。注釈数: {} 。カバー率: {:.1f}% 。</p>',
       len(pages), num_sections, num_words, num_annots, coverage * 100)
-    P('</div>')
+    P('</section>')
     PrintCGIFooter(file=index_file)
 
 
@@ -687,7 +687,7 @@ def P(*args, end="\n", file=sys.stdout):
 
 def PrintResultCGI(script_name, entries, query, searcher, details):
   for entry in entries:
-    P('<div class="entry_view">')
+    P('<section class="entry_view" lang="en">')
     word = entry["word"]
     pron = entry.get("pronunciation")
     translations = entry.get("translation")
@@ -705,12 +705,12 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
           text = text[:70] + "..."
         hint = text
         break
-    P('<div class="entry_navi">')
+    P('<nav class="entry_navi">')
     P('<span class="entry_icon star_icon" data-word="{}" data-hint="{}"' +
       ' onclick="toggle_star(this, -1)">&#x2605;</span>', word, hint)
-    P('</div>')
+    P('</nav>')
     word_url = "{}?q={}".format(script_name, urllib.parse.quote(word))
-    P('<h2 class="entry_word">', end="")
+    P('<h2 class="entry_word focal" tabindex="-1">', end="")
     P('<a href="{}" class="word_link">{}</a>', word_url, word, end="")
     if not details and pron:
       P(' <span class="title_pron">{}</span>', pron, end="")
@@ -725,7 +725,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
         value = '<a href="{}" class="tran">{}</a>'.format(esc(tran_url), esc(tran))
         fields.append(value)
       if fields:
-        P('<div class="attr attr_tran">', end="")
+        P('<div class="attr attr_tran focal" tabindex="-1" lang="ja" role="translation">', end="")
         print(", ".join(fields), end="")
         P('</div>')
     if details:
@@ -791,7 +791,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
               esc(subword_url), esc(subword)))
         if fields:
           P('<span class="subattr_label">{}</span>', attr_label)
-          P('<span class="text">', end="")
+          P('<span class="text focal" tabindex="-1" role="definition">', end="")
           if annots:
             for annot in annots:
               P('<span class="annot">{}</span>', annot)
@@ -809,7 +809,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
           if not attr_label: break
           section = section[len(attr_match.group(0)):].strip()
           P('<span class="subattr_label">{}</span>', attr_label)
-        P('<span class="text">', end="")
+        P('<span class="text focal" tabindex="-1" role="definition">', end="")
         PrintItemTextCGI(section)
         P('</span>')
       P('</div>')
@@ -968,7 +968,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
       P('<div class="item item_omit">', label)
       P('<a href="{}" class="omit_link">... ...</a>', word_url)
       P('</div>')
-    P('</div>')
+    P('</section>')
 
 
 def PrintItemTextCGI(text):
@@ -1354,6 +1354,14 @@ function startup() {{
       clear_query();
       event.preventDefault();
     }}
+    if (event.key == "ArrowLeft" && event.shiftKey) {{
+      move_focus(true);
+      event.preventDefault();
+    }}
+    if (event.key == "ArrowRight" && event.shiftKey) {{
+      move_focus(false);
+      event.preventDefault();
+    }}
   }}, false);
   modify_urls();
   mark_stars();
@@ -1376,6 +1384,40 @@ function clear_query() {{
     query_input.value = "";
     query_input.focus();
     window.scrollTo(0, 0);
+  }}
+}}
+function move_focus(reverse) {{
+  let elems = [];
+  let focal_index = -1;
+  for (let elem of document.getElementsByClassName("focal")) {{
+    if (elem == document.activeElement) {{
+      focal_index = elems.length;
+    }}
+    elems.push(elem);
+  }}
+  if (elems.length < 1) {{
+    return;
+  }}
+  let focal_elem = null;
+  if (reverse) {{
+    if (focal_index < 0) {{
+      focal_elem = elems[elems.length - 1];
+    }} else {{
+      if (focal_index > 0) {{
+        focal_elem = elems[focal_index - 1];
+      }}
+    }}
+  }} else {{
+    if (focal_index < 0) {{
+      focal_elem = elems[0];
+    }} else {{
+      if (focal_index < elems.length - 1) {{
+        focal_elem = elems[focal_index + 1];
+      }}
+    }}
+  }}
+  if (focal_elem) {{
+    focal_elem.focus();
   }}
 }}
 function modify_urls() {{
@@ -1678,10 +1720,12 @@ def main_cgi():
 """, end="")
   PrintCGIHeader(page_title, extra_mode)
   if extra_mode != "popup":
+    P('<header>')
     P('<h1><a href="{}">統合英和辞書検索</a></h1>', script_name)
+    P('</header>')
   if index_mode == "annot":
     if not is_http_query:
-      P('<div class="search_form">')
+      P('<nav class="search_form">')
       P('<form method="post" name="search_form" action="{}">', script_name)
       P('<div id="query_line">')
       P('<textarea name="q" id="query_input_annot" cols="80" rows="10">{}</textarea>', query)
@@ -1692,9 +1736,9 @@ def main_cgi():
       P('<input type="button" value="消去" id="clear_button_annot" onclick="clear_query()"/>')
       P('</div>')
       P('</form>')
-      P('</div>')
+      P('</nav>')
   elif extra_mode != "popup":
-    P('<div class="search_form">')
+    P('<nav class="search_form">')
     P('<form method="get" name="search_form" onsubmit="check_search_form()">')
     P('<div id="query_line">')
     P('<input type="text" name="q" value="{}" id="query_input"/>', query)
@@ -1730,12 +1774,12 @@ def main_cgi():
     P('</select>')
     P('</div>')
     P('</form>')
-    P('</div>')
+    P('</nav>')
   if error_notes:
-    P('<div class="message_view">')
+    P('<section class="message_view">')
     for note in error_notes:
       P('<p>{}</p>', note)
-    P('</div>')
+    P('</section>')
   elif query:
     searcher = tkrzw_union_searcher.UnionSearcher(data_prefix)
     is_reverse = False
@@ -1814,7 +1858,7 @@ def main_cgi():
     elif search_mode == "grade":
       page = max(Atoi(query), 1)
       result = searcher.SearchByGrade(CGI_CAPACITY, page, True)
-      P('<div class="message_view">')
+      P('<section class="message_view">')
       P('<div class="pagenavi">')
       if page > 1:
         prev_url = "{}?i=grade&q={}".format(script_name, page - 1)
@@ -1823,7 +1867,7 @@ def main_cgi():
       P('<a href="{}" class="page_icon">&#x2B95;</a>', next_url)
       P('</div>')
       P('<p>等級順: <strong>{}</strong></p>', page)
-      P('</div>')
+      P('</section>')
     elif search_mode == "annot":
       if view_mode == "auto":
         result = True
@@ -1866,7 +1910,7 @@ def main_cgi():
       elif view_mode == "list":
         PrintResultCGIList(script_name, result, query)
       elif view_mode == "annot":
-        P('<div class="message_view">')
+        P('<section class="message_view">')
         P('<form name="annot_navi_form">')
         P('<div id="annot_navi_line">')
         P('注釈想定年齢:')
@@ -1883,7 +1927,7 @@ def main_cgi():
         P('</select>')
         P('</div>')
         P('</form>')
-        P('</div>')
+        P('</section>')
         if (not is_html_query and not query.startswith("====[META]====") and
             not query.startswith("====[PAGE]====")):
           query = tkrzw_union_searcher.CramText(query)
@@ -1899,12 +1943,12 @@ def main_cgi():
           elif line:
             meta_lines.append(line)
         if doc_title or meta_lines:
-          P('<div class="message_view annot_meta">')
+          P('<section class="message_view annot_meta">')
           if doc_title:
             P('<h2>{}</h2>', doc_title)
           for meta_line in meta_lines:
             P('<p>{}</p>', meta_line)
-          P('</div>')
+          P('</section>')
         num_sections = 0
         num_words = 0
         num_words_with_annots = 0
@@ -1928,10 +1972,10 @@ def main_cgi():
                   num_words_with_annots += 1
                   num_annots += len(annots)
         coverage = num_words_with_annots / num_words if num_words else 0
-        P('<div class="message_view annot_meta">')
+        P('<section class="message_view annot_meta">')
         P('<p>段落数: {} 。単語数: {} 。注釈数: {} 。カバー率: {:.1f}% 。</p>',
           num_sections, num_words, num_annots, coverage * 100)
-        P('</div>')
+        P('</section>')
       else:
         raise RuntimeError("unknown view mode: " + view_mode)
     else:
@@ -1955,15 +1999,15 @@ def main_cgi():
       submessage = ""
       if subactions:
         submessage = "{}に移行。".format("、".join(subactions))
-      P('<div class="message_view">')
+      P('<section class="message_view">')
       P('<p>該当なし。{}</p>', submessage)
-      P('</div>')
+      P('</section>')
       if infl_result:
         PrintResultCGIList(script_name, infl_result, "")
       if edit_result:
         PrintResultCGIList(script_name, edit_result, "")
   elif index_mode == "annot":
-    print("""<div class="help">
+    print("""<div class="help" lang="ja">
 <p>これは、英文の自動注釈付与機能です。入力欄に英文を入れて、「注釈」ボタンを押してください。入力された英文の中に現れる全ての語句を英和辞書で調べ、その語義をルビと付箋で表示します。結果に現れた語句が難しそうな場合、その和訳がルビとして振られます。「注釈想定年齢」を変更すると、ルビを振る基準となる難易度が変更されます。</p>
 <p>英文中の語句にポインタを合わせると、より詳しい語義が書いてある付箋が表示されます。語句をクリックすると付箋が固定されるので、その付箋の中をスクロールしたり、見出し語をクリックしたりできます。見出し語をクリックすると、その見出し語で英和辞書の検索が行われます。付箋の範囲からポインタを外すと付箋は消えます。</p>
 <p>入力欄にURLを指定すると、そのURLのWebページの内容を対象として処理を行います。HTMLとプレーンテキストに対応し、一度に{}KBまでのデータを処理することができます。</p>
@@ -1987,22 +2031,22 @@ def main_cgi():
 <p>このサイトはオープンな英和辞書検索のデモです。辞書データは<a href="https://wordnet.princeton.edu/">WordNet</a>と<a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">日本語WordNet</a>と<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>と<a href="https://en.wiktionary.org/">Wiktionary英語版</a>と<a href="http://www.edrdg.org/jmdict/edict.html">EDict2</a>を統合したものです。検索システムは高性能データベースライブラリ<a href="https://dbmx.net/tkrzw/">Tkrzw</a>を用いて実装されています。<a href="https://github.com/estraier/tkrzw-dict">コードベース</a>はGitHubにて公開されています。</p>
 </div>""")
   elif extra_mode == "stars":
-    print("""<div id="star_info" class="message_view">
-<div class="pagenavi">
+    print("""<section id="star_info" class="message_view">
+<nav class="pagenavi">
 <span class="page_icon" onclick="toggle_star_hints()">&#x263C;</span>
 <span class="page_icon" onclick="reorder_stars()">&#x2B83;</span>
 <span class="page_icon" onclick="clear_stars()">&#x2604;</span>
-</div>
+</nav>
 <p>星印付きの見出し語一覧（<span id="star_count">0</span>語）</p>
-</div>
-<div class="list_view">
+</section>
+<section class="list_view">
 <div id="star_list"></div>
-</div>""")
+</section>""")
   else:
-    print("""<div class="help">
+    print("""<section class="help">
 <a href="?x=help" class="navi_link">&#xFF1F;</a>
 <a href="?x=stars" class="navi_link">&#x2606;</a>
-</div>""")
+</section>""")
   PrintCGIFooter()
 
 
