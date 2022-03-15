@@ -1161,7 +1161,7 @@ def PrintCGIHeader(page_title, extra_mode="", file=sys.stdout):
 <style>/*<![CDATA[*/
 html {{ margin: 0ex; padding: 0ex; background: #eeeeee; font-size: 12pt; }}
 body {{ margin: 0ex; padding: 0ex; text-align: center; -webkit-text-size-adjust: 100%; }}
-article {{ display: inline-block; width: 100ex; text-align: left; padding-bottom: 3ex; }}
+div.mainpage {{ display: inline-block; width: 100ex; text-align: left; padding-bottom: 3ex; }}
 a,a:visited {{ text-decoration: none; }}
 a:hover {{ color: #0011ee; text-decoration: underline; }}
 h1 a,h2 a {{ color: #000000; text-decoration: none; }}
@@ -1291,7 +1291,7 @@ a.star_word {{ display: inline-block; min-width: 10ex; padding: 0ex 0.5ex;
   font-size: 65%; min-width: 3.5ex; text-align: center;
   margin-right: -0.3ex; color: #333333; }}
 @media (max-width:500px) {{
-  article {{ width: 98%; zoom: 85%; padding-bottom: 0.1ex; }}
+  div.mainpage {{ width: 98%; zoom: 85%; padding-bottom: 0.1ex; }}
   .entry_view, .list_view, .annot_view, .message_view, .help {{
     border: none;
     margin: 0.5ex 0ex; padding: 0.3ex 0.3ex 0.6ex 0.3ex; }}
@@ -1305,13 +1305,13 @@ a.star_word {{ display: inline-block; min-width: 10ex; padding: 0ex 0.5ex;
   .item_omit {{ margin-left: 1.5ex; }}
 }}
 @media (max-width:400px) {{
-  article {{ zoom: 80%; }}
+  div.mainpage {{ zoom: 80%; }}
 }}
 @media (max-device-width:720px) {{
   html {{ background: #eeeeee; font-size: 32pt; }}
   body {{ padding: 0; }}
   h1 {{ padding: 0; text-align: center; }}
-  article {{ width: 100%; overflow-x: hidden; }}
+  div.mainpage {{ width: 100%; overflow-x: hidden; }}
   #query_line,#annot_navi_line {{ font-size: 12pt; zoom: 250%; }}
   .search_form,.entry_view,.list_view,.annot_view,.message_view,.help {{
     padding: 0.8ex 0.8ex; }}
@@ -1338,6 +1338,8 @@ function startup() {{
     let query_input = search_form.elements['q'];
     if (query_input) {{
       query_input.focus();
+      let query_length = query_input.value.length;
+      query_input.setSelectionRange(0, query_length);
     }}
   }}
   let annot_navi_form = document.forms["annot_navi_form"];
@@ -1348,7 +1350,7 @@ function startup() {{
     if (event.isComposing || event.keyCode === 229) {{
       return;
     }}
-    if (event.keyCode == 9) {{
+    if (event.key == "Home") {{
       clear_query();
       event.preventDefault();
     }}
@@ -1601,12 +1603,12 @@ function is_touchable() {{
 /*]]>*/</script>
 </head>
 <body onload="startup()" class="normal">
-<article>
+<div class="mainpage">
 """.format(esc(page_title)), end="", file=file)
 
 
 def PrintCGIFooter(file=sys.stdout):
-  print("""</article>
+  print("""</div>
 </body>
 </html>
 """, end="", file=file)
@@ -1981,7 +1983,7 @@ def main_cgi():
 </ul>
 <p>デフォルトでは、表示形式は自動的に設定されます。ヒット件数が1件の場合にはその語の語義が詳細に表示され、ヒット件数が5以下の場合には主要語義のみが表示され、ヒット件数がそれ以上の場合には翻訳語のみがリスト表示されます。結果の見出し語を選択すると詳細表示が見られます。右上にある星アイコンをクリックすると、その見出し語に星印がつけられます。</p>
 <p>トップ画面で「<a href="?x=help">&#xFF1F;</a>」をクリックすると、このヘルプ画面が表示されます。トップ画面で「<a href="?x=stars">&#x2606;</a>」をクリックすると、星印をつけた見出し語の一蘭が表示されます。</p>
-<p>タブボタンを押すと、検索窓の語句を消去して、フォーカスをが検索窓に移動します。つまり、素早く再検索するにはタブボタンを使うと便利です。</p>
+<p>Homeボタンを押すと、フォーカスが検索窓に移動して、検索窓の語句が消去されます。つまり、素早く再検索するにはHomeボタンを使うと便利です。</p>
 <p>このサイトはオープンな英和辞書検索のデモです。辞書データは<a href="https://wordnet.princeton.edu/">WordNet</a>と<a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">日本語WordNet</a>と<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>と<a href="https://en.wiktionary.org/">Wiktionary英語版</a>と<a href="http://www.edrdg.org/jmdict/edict.html">EDict2</a>を統合したものです。検索システムは高性能データベースライブラリ<a href="https://dbmx.net/tkrzw/">Tkrzw</a>を用いて実装されています。<a href="https://github.com/estraier/tkrzw-dict">コードベース</a>はGitHubにて公開されています。</p>
 </div>""")
   elif extra_mode == "stars":
