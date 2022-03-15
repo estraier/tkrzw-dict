@@ -2027,7 +2027,7 @@ def main_cgi():
 </ul>
 <p>デフォルトでは、表示形式は自動的に設定されます。ヒット件数が1件の場合にはその語の語義が詳細に表示され、ヒット件数が5以下の場合には主要語義のみが表示され、ヒット件数がそれ以上の場合には翻訳語のみがリスト表示されます。結果の見出し語を選択すると詳細表示が見られます。右上にある星アイコンをクリックすると、その見出し語に星印がつけられます。</p>
 <p>トップ画面で「<a href="?x=help">&#xFF1F;</a>」をクリックすると、このヘルプ画面が表示されます。トップ画面で「<a href="?x=stars">&#x2606;</a>」をクリックすると、星印をつけた見出し語の一蘭が表示されます。</p>
-<p>Homeボタンを押すと、フォーカスが検索窓に移動して、検索窓の語句が消去されます。つまり、素早く再検索するにはHomeボタンを使うと便利です。</p>
+<p>アクセシビリティのためのショートカット機能があります。Homeボタンを押すと、フォーカスが検索窓に移動して、検索窓の語句が消去されます。つまり、素早く再検索するにはHomeボタンを使うと便利です。スクリーンリーダ等で検索結果の主要な内容を読み取るには、Shiftを押しながら矢印の左右を押すのが便利です。Shift+右を押すと、見出し語にフォーカスが進み、さらにShift+右を押すと、訳語のリストや語義説明にフォーカスが移ります。Shift+左で戻ります。</p>
 <p>このサイトはオープンな英和辞書検索のデモです。辞書データは<a href="https://wordnet.princeton.edu/">WordNet</a>と<a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">日本語WordNet</a>と<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>と<a href="https://en.wiktionary.org/">Wiktionary英語版</a>と<a href="http://www.edrdg.org/jmdict/edict.html">EDict2</a>を統合したものです。検索システムは高性能データベースライブラリ<a href="https://dbmx.net/tkrzw/">Tkrzw</a>を用いて実装されています。<a href="https://github.com/estraier/tkrzw-dict">コードベース</a>はGitHubにて公開されています。</p>
 </div>""")
   elif extra_mode == "stars":
