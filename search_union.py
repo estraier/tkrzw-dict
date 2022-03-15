@@ -991,12 +991,12 @@ def PrintResultCGIList(script_name, entries, query):
     word = entry["word"]
     word_url = "{}?q={}".format(script_name, urllib.parse.quote(word))
     P('<div class="list_item">')
-    P('<a href="{}" class="list_head">{}</a> :', word_url, word)
+    P('<a href="{}" class="list_head focal">{}</a> :', word_url, word)
     poses = []
     for pos in GetEntryPoses(entry):
       pos = POSES.get(pos) or pos[:1]
       P('<span class="list_label">{}</span>', pos, end="")
-    P('<span class="list_text">', end="")
+    P('<span class="list_text focal" tabindex="-1" role="translations" lang="ja">', end="")
     translations = entry.get("translation")
     if translations:
       if tkrzw_dict.PredictLanguage(query) != "en":
