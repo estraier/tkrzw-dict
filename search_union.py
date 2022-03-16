@@ -1388,15 +1388,18 @@ function clear_query() {{
 }}
 function move_focus(reverse) {{
   let elems = [];
-  let focal_index = -1;
   for (let elem of document.getElementsByClassName("focal")) {{
-    if (elem == document.activeElement) {{
-      focal_index = elems.length;
-    }}
     elems.push(elem);
   }}
   if (elems.length < 1) {{
     return;
+  }}
+  let focal_index = -1;
+  for (let i = 0; i < elems.length; i++) {{
+    let elem = elems[i];
+    if (elem == document.activeElement) {{
+      focal_index = i;
+    }}
   }}
   let focal_elem = null;
   if (reverse) {{
