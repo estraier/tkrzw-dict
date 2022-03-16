@@ -1386,7 +1386,16 @@ function clear_query() {{
     window.scrollTo(0, 0);
   }}
 }}
+let init_dom_ids = false;
 function move_focus(reverse) {{
+  if (!init_dom_ids) {{
+    let dom_id = 0;
+    document.querySelectorAll('*').forEach(function(node) {{
+      node.dom_id = dom_id;
+      dom_id++;
+    }});
+    init_dom_ids = true;
+  }}
   let elems = [];
   for (let elem of document.getElementsByClassName("focal")) {{
     elems.push(elem);
@@ -1395,10 +1404,25 @@ function move_focus(reverse) {{
     return;
   }}
   let focal_index = -1;
-  for (let i = 0; i < elems.length; i++) {{
-    let elem = elems[i];
-    if (elem == document.activeElement) {{
-      focal_index = i;
+  if (document.activeElement) {{
+    focal_index = elems.indexOf(document.activeElement);
+    if (focal_index < 0) {{
+      let dom_id = document.activeElement.dom_id;
+      for (let i = 0; i < elems.length; i++) {{
+        if (dom_id < elems[i].dom_id) {{
+          focal_index = i;
+          if (!reverse) {{
+            focal_index--;
+          }}
+          break;
+        }}
+      }}
+      if (dom_id >= elems[elems.length - 1].dom_id) {{
+        focal_index = elems.length - 1;
+        if (reverse) {{
+          focal_index++;
+        }}
+      }}
     }}
   }}
   let focal_elem = null;
