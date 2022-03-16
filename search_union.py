@@ -687,8 +687,8 @@ def P(*args, end="\n", file=sys.stdout):
 
 def PrintResultCGI(script_name, entries, query, searcher, details):
   for entry in entries:
-    P('<section class="entry_view" lang="en">')
     word = entry["word"]
+    P('<article class="entry_view" lang="en" title="{}">', word)
     pron = entry.get("pronunciation")
     translations = entry.get("translation")
     hint = ""
@@ -705,10 +705,10 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
           text = text[:70] + "..."
         hint = text
         break
-    P('<nav class="entry_navi">')
+    P('<div class="entry_navi">')
     P('<span class="entry_icon star_icon" data-word="{}" data-hint="{}"' +
-      ' onclick="toggle_star(this, -1)">&#x2605;</span>', word, hint)
-    P('</nav>')
+      ' onclick="toggle_star(this, -1)" aria-label="star">&#x2605;</span>', word, hint)
+    P('</div>')
     word_url = "{}?q={}".format(script_name, urllib.parse.quote(word))
     P('<h2 class="entry_word focal" tabindex="-1">', end="")
     P('<a href="{}" class="word_link">{}</a>', word_url, word, end="")
@@ -968,7 +968,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
       P('<div class="item item_omit">', label)
       P('<a href="{}" class="omit_link">... ...</a>', word_url)
       P('</div>')
-    P('</section>')
+    P('</article>')
 
 
 def PrintItemTextCGI(text):
@@ -986,11 +986,11 @@ def PrintItemTextCGI(text):
 
 
 def PrintResultCGIList(script_name, entries, query):
-  P('<div class="list_view">')
+  P('<section class="list_view">')
   for entry in entries:
     word = entry["word"]
     word_url = "{}?q={}".format(script_name, urllib.parse.quote(word))
-    P('<div class="list_item">')
+    P('<article class="list_item" lang="en" title="{}">', word)
     P('<a href="{}" class="list_head focal">{}</a> :', word_url, word)
     poses = []
     for pos in GetEntryPoses(entry):
@@ -1004,7 +1004,7 @@ def PrintResultCGIList(script_name, entries, query):
       fields = []
       for tran in translations[:8]:
         tran_url = "{}?q={}".format(script_name, urllib.parse.quote(tran))
-        value = '<a href="{}" class="list_tran">{}</a>'.format(esc(tran_url), esc(tran))
+        value = '<a href="{}" class="list_tran" lang="ja">{}</a>'.format(esc(tran_url), esc(tran))
         fields.append(value)
       print(", ".join(fields), end="")
     else:
@@ -1016,8 +1016,8 @@ def PrintResultCGIList(script_name, entries, query):
         text = CutTextByWidth(text, 70)
         P('<span class="list_gross">{}</span>', text)
     P('</span>')
-    P('</div>')
-  P('</div>')
+    P('</article>')
+  P('</section>')
 
 
 def PrintResultCGIAnnot(script_name, spans, head_level, file=sys.stdout):
