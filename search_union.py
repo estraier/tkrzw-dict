@@ -95,14 +95,14 @@ WORDNET_ATTRS = {
   "usage": "用法",
 }
 TEXT_ATTRS = {
-  "可算": "c",
-  "不可算": "u",
-  "自動詞": "vi",
-  "他動詞": "vt",
-  "countable": "c",
-  "uncountable": "u",
-  "intransitive": "vi",
-  "transitive": "vt",
+  "可算": "C",
+  "不可算": "U",
+  "自動詞": "自",
+  "他動詞": "他",
+  "countable": "C",
+  "uncountable": "U",
+  "intransitive": "自",
+  "transitive": "他",
 }
 
 
@@ -710,7 +710,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
       ' onclick="toggle_star(this, -1)" aria-label="star">&#x2605;</span>', word, hint)
     P('</div>')
     word_url = "{}?q={}".format(script_name, urllib.parse.quote(word))
-    P('<h2 class="entry_word focal" tabindex="-1">', end="")
+    P('<h2 class="entry_word focal1 focal2" tabindex="-1" role="">', end="")
     P('<a href="{}" class="word_link">{}</a>', word_url, word, end="")
     if not details and pron:
       P(' <span class="title_pron">{}</span>', pron, end="")
@@ -725,12 +725,13 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
         value = '<a href="{}" class="tran">{}</a>'.format(esc(tran_url), esc(tran))
         fields.append(value)
       if fields:
-        P('<div class="attr attr_tran focal" tabindex="-1" lang="ja" role="translation">', end="")
+        P('<div class="attr attr_tran focal1 focal2" tabindex="-1" lang="ja" role="">', end="")
         print(", ".join(fields), end="")
         P('</div>')
     if details:
       if pron:
-        P('<div class="attr attr_pron"><span class="attr_label">発音</span>' +
+        P('<div class="attr attr_pron focal2" tabindex="-1" role="">' +
+          '<span class="attr_label" lang="ja">発音</span>' +
           ' <span class="attr_value">{}</span></div>', pron)
       for attr_list in INFLECTIONS:
         fields = []
@@ -741,12 +742,12 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
                      ' <span class="attr_value">{}</span>').format(esc(label), esc(value))
             fields.append(value)
         if fields:
-          P('<div class="attr attr_infl">', end="")
+          P('<div class="attr attr_infl focal2" tabindex="-1" role="">', end="")
           print(", ".join(fields), end="")
           P('</div>')
       alternatives = entry.get("alternative")
       if alternatives:
-        P('<div class="attr attr_infl">', end="")
+        P('<div class="attr attr_infl focal2" tabindex="-1" role="">', end="")
         P('<span class="attr_label">代替</span>', end="")
         P(' <span class="attr_value">{}</span>', ", ".join(alternatives), end="")
         P('</div>')
@@ -770,9 +771,9 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
         if attr_label:
           section = section[len(attr_match.group(0)):].strip()
       P('<div class="item item_{}">', label)
-      P('<div class="item_text item_text1">')
+      P('<div class="item_text item_text1 focal1 focal2" tabindex="-1" role="">')
       P('<span class="label">{}</span>', label.upper())
-      P('<span class="pos">{}</span>', pos)
+      P('<span class="pos" lang="ja">{}</span>', pos)
       if attr_label:
         fields = []
         annots = []
@@ -790,8 +791,8 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
             fields.append('<a href="{}" class="subword">{}</a>'.format(
               esc(subword_url), esc(subword)))
         if fields:
-          P('<span class="subattr_label">{}</span>', attr_label)
-          P('<span class="text focal" tabindex="-1" role="definition">', end="")
+          P('<span class="subattr_label" lang="ja">{}</span>', attr_label)
+          P('<span class="text">', end="")
           if annots:
             for annot in annots:
               P('<span class="annot">{}</span>', annot)
@@ -808,8 +809,8 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
             if attr_label: break
           if not attr_label: break
           section = section[len(attr_match.group(0)):].strip()
-          P('<span class="subattr_label">{}</span>', attr_label)
-        P('<span class="text focal" tabindex="-1" role="definition">', end="")
+          P('<span class="subattr_label" lang="ja">{}</span>', attr_label)
+        P('<span class="text">', end="")
         PrintItemTextCGI(section)
         P('</span>')
       P('</div>')
@@ -829,9 +830,9 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
             subattr_label = "例"
             section = section[len(eg_match.group(0)):].strip()
           subsections = section.split(" [--] ")
-          P('<div class="item_text item_text2 item_text_n">')
+          P('<div class="item_text item_text2 item_text_n focal2" tabindex="-1" role="">')
           if subattr_label:
-            P('<span class="subattr_label">{}</span>', subattr_label)
+            P('<span class="subattr_label" lang="ja">{}</span>', subattr_label)
           if subattr_link:
             attr_words = FilterWordsWithinWidth(subsections[0].split(","), 70, 4)
             fields = []
@@ -865,7 +866,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
       if phrases:
         for phrase in phrases:
           pword = phrase["w"]
-          P('<div class="attr attr_phrase">')
+          P('<div class="attr attr_phrase focal2" tabindex="-1" role="">')
           P('<span class="attr_label">句</span>')
           P('<span class="text">')
           if "i" in phrase:
@@ -902,7 +903,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
             if parent_share and float(parent_share) < min_share: break
             text = GetEntryTranslation(parent_entry)
             if text:
-              P('<div class="attr attr_parent">')
+              P('<div class="attr attr_parent focal2" tabindex="-1" role="">')
               P('<span class="attr_label">語幹</span>')
               P('<span class="text">')
               P('<a href="{}?q={}">{}</a> : {}',
@@ -914,7 +915,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
       for rel_name, rel_label in rel_name_labels:
         related = entry.get(rel_name)
         if related:
-          P('<div class="attr attr_{}">', rel_name)
+          P('<div class="attr attr_{} focal2" tabindex="-1" role="">', rel_name)
           P('<span class="attr_label">{}</span>', rel_label)
           P('<span class="text">')
           fields = []
@@ -942,7 +943,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
         etym_fields.append('<span class="attr_value">+{}</span>'.format(
           esc(etym_suffix)))
       if etym_fields:
-        P('<div class="attr attr_etym">')
+        P('<div class="attr attr_etym focal2" tabindex="-1" role="">')
         P('<span class="attr_label">語源</span>')
         P('<span class="text">')
         print(" ".join(etym_fields))
@@ -951,17 +952,17 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
       prob = entry.get("probability")
       aoa = entry.get("aoa") or entry.get("aoa_concept") or entry.get("aoa_base")
       if aoa or prob:
-        P('<div class="attr attr_prob">')
+        P('<div class="attr attr_prob focal2" tabindex="-1" lang="ja" role="">')
         if prob:
           prob = float(prob)
           if prob > 0:
             fmt = "{{:.{}f}}".format(min(max(int(math.log10(prob) * -1 + 1), 3), 6))
             prob_expr = regex.sub(r"\.(\d{3})(\d*?)0+$", r".\1\2", fmt.format(prob * 100))
-            P('<span class="attr_label">頻度</span>' +
+            P('<span class="attr_label" lang="ja">頻度</span>' +
               ' <span class="attr_value">{}%</span>', prob_expr)
         if aoa:
           aoa = float(aoa)
-          P('<span class="attr_label">年齢</span>' +
+          P('<span class="attr_label" lang="ja">年齢</span>' +
             ' <span class="attr_value">{:.2f}</span>', aoa)
         P('</div>')
     if omitted:
@@ -991,12 +992,12 @@ def PrintResultCGIList(script_name, entries, query):
     word = entry["word"]
     word_url = "{}?q={}".format(script_name, urllib.parse.quote(word))
     P('<article class="list_item" lang="en" title="{}">', word)
-    P('<a href="{}" class="list_head focal">{}</a> :', word_url, word)
+    P('<a href="{}" class="list_head focal1 focal2" role="">{}</a> :', word_url, word)
     poses = []
     for pos in GetEntryPoses(entry):
       pos = POSES.get(pos) or pos[:1]
-      P('<span class="list_label">{}</span>', pos, end="")
-    P('<span class="list_text focal" tabindex="-1" role="translations" lang="ja">', end="")
+      P('<span class="list_label" lang="ja">{}</span>', pos, end="")
+    P('<span class="list_text focal2" tabindex="-1" role="" lang="ja">', end="")
     translations = entry.get("translation")
     if translations:
       if tkrzw_dict.PredictLanguage(query) != "en":
@@ -1355,11 +1356,19 @@ function startup() {{
       event.preventDefault();
     }}
     if (event.key == "ArrowLeft" && event.shiftKey) {{
-      move_focus(true);
+      move_focus("focal1", true);
       event.preventDefault();
     }}
     if (event.key == "ArrowRight" && event.shiftKey) {{
-      move_focus(false);
+      move_focus("focal1", false);
+      event.preventDefault();
+    }}
+    if (event.key == "ArrowUp" && event.shiftKey) {{
+      move_focus("focal2", true);
+      event.preventDefault();
+    }}
+    if (event.key == "ArrowDown" && event.shiftKey) {{
+      move_focus("focal2", false);
       event.preventDefault();
     }}
   }}, false);
@@ -1387,7 +1396,7 @@ function clear_query() {{
   }}
 }}
 let init_dom_ids = false;
-function move_focus(reverse) {{
+function move_focus(class_name, reverse) {{
   if (!init_dom_ids) {{
     let dom_id = 0;
     document.querySelectorAll('*').forEach(function(node) {{
@@ -1397,7 +1406,7 @@ function move_focus(reverse) {{
     init_dom_ids = true;
   }}
   let elems = [];
-  for (let elem of document.getElementsByClassName("focal")) {{
+  for (let elem of document.getElementsByClassName(class_name)) {{
     elems.push(elem);
   }}
   if (elems.length < 1) {{
@@ -2040,7 +2049,7 @@ def main_cgi():
 <p>入力欄にURLを指定すると、そのURLのWebページの内容を対象として処理を行います。HTMLとプレーンテキストに対応し、一度に{}KBまでのデータを処理することができます。</p>
 </div>""".format(int(CGI_MAX_QUERY_LENGTH / 1024)))
   elif extra_mode == "help":
-    print("""<div class="help">
+    print("""<div class="help" lang="ja">
 <p>検索窓に検索語を入れて、「検索」ボタンを押してください。デフォルトでは、英語の検索語が入力されると英和の索引が検索され、日本語の検索語が入力されると和英の索引が検索されます。オプションで索引を明示的に指定できます。英和屈折は、単語の過去形などの屈折形を吸収した検索を行います。等級は、検索語を無視して全ての見出し語を重要度順に表示します。注釈は、英文を和訳の注釈付きの形式に整形します。</p>
 <p>検索条件のデフォルトは、完全一致です。つまり、入力語そのものを見出しに含む語が表示されます。ただし、該当がない場合には自動的に曖昧検索が行われて、綴りが似た語が表示されます。オプションで検索条件を以下のものから明示的に選択できます。</p>
 <ul>
