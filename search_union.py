@@ -1725,7 +1725,7 @@ def main_cgi():
     P('</header>')
   if index_mode == "annot":
     if not is_http_query:
-      P('<nav class="search_form">')
+      P('<nav class="search_form" title="annotation">')
       P('<form method="post" name="search_form" action="{}">', script_name)
       P('<div id="query_line">')
       P('<textarea name="q" id="query_input_annot" cols="80" rows="10">{}</textarea>', query)
@@ -1738,7 +1738,7 @@ def main_cgi():
       P('</form>')
       P('</nav>')
   elif extra_mode != "popup":
-    P('<nav class="search_form">')
+    P('<nav class="search_form" title="search">')
     P('<form method="get" name="search_form" onsubmit="check_search_form()">')
     P('<div id="query_line">')
     P('<input type="text" name="q" value="{}" id="query_input"/>', query)
@@ -2032,7 +2032,7 @@ def main_cgi():
 </div>""")
   elif extra_mode == "stars":
     print("""<section id="star_info" class="message_view">
-<nav class="pagenavi">
+<nav class="pagenavi" title="stars">
 <span class="page_icon" onclick="toggle_star_hints()">&#x263C;</span>
 <span class="page_icon" onclick="reorder_stars()">&#x2B83;</span>
 <span class="page_icon" onclick="clear_stars()">&#x2604;</span>
