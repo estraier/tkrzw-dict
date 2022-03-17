@@ -177,6 +177,12 @@ def GetEntryTranslation(entry):
   return text
 
 
+def GetLang(text):
+  if regex.search(r"[\p{Han}\p{Hiragana}\p{Katakana}]", text):
+    return "ja"
+  return "en"
+
+
 def PrintWrappedText(text, indent):
   sys.stdout.write(" " * indent)
   width = indent
@@ -687,8 +693,8 @@ def P(*args, end="\n", file=sys.stdout):
 
 def PrintResultCGI(script_name, entries, query, searcher, details):
   for entry in entries:
+    P('<article class="entry_view">')
     word = entry["word"]
-    P('<article class="entry_view" lang="en" title="{}">', word)
     pron = entry.get("pronunciation")
     translations = entry.get("translation")
     hint = ""
@@ -711,7 +717,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
     P('</div>')
     word_url = "{}?q={}".format(script_name, urllib.parse.quote(word))
     P('<h2 class="entry_word focal1 focal2" tabindex="-1" role="">', end="")
-    P('<a href="{}" class="word_link">{}</a>', word_url, word, end="")
+    P('<a href="{}" class="word_link" lang="en">{}</a>', word_url, word, end="")
     if not details and pron:
       P(' <span class="title_pron">{}</span>', pron, end="")
     P('</h2>')
@@ -725,13 +731,13 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
         value = '<a href="{}" class="tran">{}</a>'.format(esc(tran_url), esc(tran))
         fields.append(value)
       if fields:
-        P('<div class="attr attr_tran focal1 focal2" tabindex="-1" lang="ja" role="">', end="")
+        P('<div class="attr attr_tran focal1 focal2" tabindex="-1" role="">', end="")
         print(", ".join(fields), end="")
         P('</div>')
     if details:
       if pron:
         P('<div class="attr attr_pron focal2" tabindex="-1" role="">' +
-          '<span class="attr_label" lang="ja">発音</span>' +
+          '<span class="attr_label">発音</span>' +
           ' <span class="attr_value">{}</span></div>', pron)
       for attr_list in INFLECTIONS:
         fields = []
@@ -739,7 +745,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
           value = entry.get(name)
           if value:
             value = ('<span class="attr_label">{}</span>'
-                     ' <span class="attr_value">{}</span>').format(esc(label), esc(value))
+                     ' <span class="attr_value" lang="en">{}</span>').format(esc(label), esc(value))
             fields.append(value)
         if fields:
           P('<div class="attr attr_infl focal2" tabindex="-1" role="">', end="")
@@ -772,8 +778,8 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
           section = section[len(attr_match.group(0)):].strip()
       P('<div class="item item_{}">', label)
       P('<div class="item_text item_text1 focal1 focal2" tabindex="-1" role="">')
-      P('<span class="label">{}</span>', label.upper())
-      P('<span class="pos" lang="ja">{}</span>', pos)
+      P('<span class="label" lang="en">{}</span>', label.upper())
+      P('<span class="pos">{}</span>', pos)
       if attr_label:
         fields = []
         annots = []
@@ -791,11 +797,11 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
             fields.append('<a href="{}" class="subword">{}</a>'.format(
               esc(subword_url), esc(subword)))
         if fields:
-          P('<span class="subattr_label" lang="ja">{}</span>', attr_label)
+          P('<span class="subattr_label">{}</span>', attr_label)
           P('<span class="text">', end="")
           if annots:
             for annot in annots:
-              P('<span class="annot">{}</span>', annot)
+              P('<span class="annot" lang="{}">{}</span>', GetLang(annot), annot)
             P(' ')
           print(", ".join(fields))
           P('</span>')
@@ -809,7 +815,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
             if attr_label: break
           if not attr_label: break
           section = section[len(attr_match.group(0)):].strip()
-          P('<span class="subattr_label" lang="ja">{}</span>', attr_label)
+          P('<span class="subattr_label">{}</span>', attr_label)
         P('<span class="text">', end="")
         PrintItemTextCGI(section)
         P('</span>')
@@ -832,7 +838,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
           subsections = section.split(" [--] ")
           P('<div class="item_text item_text2 item_text_n focal2" tabindex="-1" role="">')
           if subattr_label:
-            P('<span class="subattr_label" lang="ja">{}</span>', subattr_label)
+            P('<span class="subattr_label">{}</span>', subattr_label)
           if subattr_link:
             attr_words = FilterWordsWithinWidth(subsections[0].split(","), 70, 4)
             fields = []
@@ -840,8 +846,8 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
               subword = subword.strip()
               if subword:
                 subword_url = "{}?q={}".format(script_name, urllib.parse.quote(subword))
-                fields.append('<a href="{}" class="subword">{}</a>'.format(
-                  esc(subword_url), esc(subword)))
+                fields.append('<a href="{}" class="subword" lang="{}">{}</a>'.format(
+                  esc(subword_url), GetLang(subword), esc(subword)))
             if fields:
               P('<span class="text">', end="")
               print(", ".join(fields), end="")
@@ -870,9 +876,9 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
           P('<span class="attr_label">句</span>')
           P('<span class="text">')
           if "i" in phrase:
-            P('<a href="{}?q={}">{}</a>', script_name, urllib.parse.quote(pword), pword)
+            P('<a href="{}?q={}" lang="en">{}</a>', script_name, urllib.parse.quote(pword), pword)
           else:
-            P('{}', pword)
+            P('<span lang="en">{}</span>', pword)
           P(' : ')
           tran_exprs = []
           phrase_trans = FilterWordsWithinWidth(phrase["x"], 50, 3)
@@ -906,7 +912,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
               P('<div class="attr attr_parent focal2" tabindex="-1" role="">')
               P('<span class="attr_label">語幹</span>')
               P('<span class="text">')
-              P('<a href="{}?q={}">{}</a> : {}',
+              P('<a href="{}?q={}" lang="en">{}</a> : {}',
                 script_name, urllib.parse.quote(parent_word), parent_word, text)
               P('</span>')
               P('</div>')
@@ -922,7 +928,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
           related = FilterWordsWithinWidth(related, 80, 4)
           for subword in related:
             subword_url = "{}?q={}".format(script_name, urllib.parse.quote(subword))
-            fields.append('<a href="{}" class="subword">{}</a>'.format(
+            fields.append('<a href="{}" class="subword" lang="en">{}</a>'.format(
               esc(subword_url), esc(subword)))
           print(", ".join(fields), end="")
           P('</span>')
@@ -952,17 +958,17 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
       prob = entry.get("probability")
       aoa = entry.get("aoa") or entry.get("aoa_concept") or entry.get("aoa_base")
       if aoa or prob:
-        P('<div class="attr attr_prob focal2" tabindex="-1" lang="ja" role="">')
+        P('<div class="attr attr_prob focal2" tabindex="-1" role="">')
         if prob:
           prob = float(prob)
           if prob > 0:
             fmt = "{{:.{}f}}".format(min(max(int(math.log10(prob) * -1 + 1), 3), 6))
             prob_expr = regex.sub(r"\.(\d{3})(\d*?)0+$", r".\1\2", fmt.format(prob * 100))
-            P('<span class="attr_label" lang="ja">頻度</span>' +
+            P('<span class="attr_label">頻度</span>' +
               ' <span class="attr_value">{}%</span>', prob_expr)
         if aoa:
           aoa = float(aoa)
-          P('<span class="attr_label" lang="ja">年齢</span>' +
+          P('<span class="attr_label">年齢</span>' +
             ' <span class="attr_value">{:.2f}</span>', aoa)
         P('</div>')
     if omitted:
@@ -973,7 +979,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
 
 
 def PrintItemTextCGI(text):
-  P('<span class="text">', end="")
+  P('<span class="text" lang="{}">', GetLang(text), end="")
   while text:
     match = regex.search("(^|.*?[。、])([\(（〔《].+?[\)）〕》])", text)
     if match:
@@ -991,13 +997,13 @@ def PrintResultCGIList(script_name, entries, query):
   for entry in entries:
     word = entry["word"]
     word_url = "{}?q={}".format(script_name, urllib.parse.quote(word))
-    P('<article class="list_item" lang="en" title="{}">', word)
-    P('<a href="{}" class="list_head focal1 focal2" role="">{}</a> :', word_url, word)
+    P('<article class="list_item focal1 focal2" tabindex="-1" role="">')
+    P('<a href="{}" class="list_head" lang="en">{}</a> :', word_url, word)
     poses = []
     for pos in GetEntryPoses(entry):
       pos = POSES.get(pos) or pos[:1]
-      P('<span class="list_label" lang="ja">{}</span>', pos, end="")
-    P('<span class="list_text focal2" tabindex="-1" role="" lang="ja">', end="")
+      P('<span class="list_label">{}</span>', pos, end="")
+    P('<span class="list_text">', end="")
     translations = entry.get("translation")
     if translations:
       if tkrzw_dict.PredictLanguage(query) != "en":
@@ -1005,7 +1011,7 @@ def PrintResultCGIList(script_name, entries, query):
       fields = []
       for tran in translations[:8]:
         tran_url = "{}?q={}".format(script_name, urllib.parse.quote(tran))
-        value = '<a href="{}" class="list_tran" lang="ja">{}</a>'.format(esc(tran_url), esc(tran))
+        value = '<a href="{}" class="list_tran">{}</a>'.format(esc(tran_url), esc(tran))
         fields.append(value)
       print(", ".join(fields), end="")
     else:
@@ -1279,6 +1285,11 @@ a.star_word {{ display: inline-block; min-width: 10ex; padding: 0ex 0.5ex;
   background: #fff8aa;
   opacity: 1.0;
 }}
+
+/*
+*[lang=en] {{ background: yellow; }}
+*/
+
 .word:hover {{ text-decoration: underline; }}
 .word:hover .tip {{ visibility: visible; }}
 .annot_entry {{ margin: 0.3ex 0.3ex; }}
@@ -1757,14 +1768,15 @@ def main_cgi():
   PrintCGIHeader(page_title, extra_mode)
   if extra_mode != "popup":
     P('<header>')
-    P('<h1><a href="{}">統合英和辞書検索</a></h1>', script_name)
+    P('<h1><a href="{}" id="page_link">統合英和辞書検索</a></h1>', script_name)
     P('</header>')
   if index_mode == "annot":
     if not is_http_query:
       P('<nav class="search_form" title="annotation">')
       P('<form method="post" name="search_form" action="{}">', script_name)
       P('<div id="query_line">')
-      P('<textarea name="q" id="query_input_annot" cols="80" rows="10">{}</textarea>', query)
+      P('<textarea name="q" id="query_input_annot" cols="80" rows="10" autocomplete="off">' +
+        '{}</textarea>', query)
       P('</div>')
       P('<div id="query_line">')
       P('<input type="hidden" name="i" value="annot"/>')
@@ -1777,7 +1789,7 @@ def main_cgi():
     P('<nav class="search_form" title="search">')
     P('<form method="get" name="search_form" onsubmit="check_search_form()">')
     P('<div id="query_line">')
-    P('<input type="text" name="q" value="{}" id="query_input"/>', query)
+    P('<input type="text" name="q" value="{}" id="query_input" autocomplete="off"/>', query)
     P('<input type="submit" value="検索" id="submit_button"/>')
     P('</div>')
     P('<div id="query_line">')
@@ -2043,13 +2055,13 @@ def main_cgi():
       if edit_result:
         PrintResultCGIList(script_name, edit_result, "")
   elif index_mode == "annot":
-    print("""<div class="help" lang="ja">
+    print("""<div class="help">
 <p>これは、英文の自動注釈付与機能です。入力欄に英文を入れて、「注釈」ボタンを押してください。入力された英文の中に現れる全ての語句を英和辞書で調べ、その語義をルビと付箋で表示します。結果に現れた語句が難しそうな場合、その和訳がルビとして振られます。「注釈想定年齢」を変更すると、ルビを振る基準となる難易度が変更されます。</p>
 <p>英文中の語句にポインタを合わせると、より詳しい語義が書いてある付箋が表示されます。語句をクリックすると付箋が固定されるので、その付箋の中をスクロールしたり、見出し語をクリックしたりできます。見出し語をクリックすると、その見出し語で英和辞書の検索が行われます。付箋の範囲からポインタを外すと付箋は消えます。</p>
 <p>入力欄にURLを指定すると、そのURLのWebページの内容を対象として処理を行います。HTMLとプレーンテキストに対応し、一度に{}KBまでのデータを処理することができます。</p>
 </div>""".format(int(CGI_MAX_QUERY_LENGTH / 1024)))
   elif extra_mode == "help":
-    print("""<div class="help" lang="ja">
+    print("""<div class="help">
 <p>検索窓に検索語を入れて、「検索」ボタンを押してください。デフォルトでは、英語の検索語が入力されると英和の索引が検索され、日本語の検索語が入力されると和英の索引が検索されます。オプションで索引を明示的に指定できます。英和屈折は、単語の過去形などの屈折形を吸収した検索を行います。等級は、検索語を無視して全ての見出し語を重要度順に表示します。注釈は、英文を和訳の注釈付きの形式に整形します。</p>
 <p>検索条件のデフォルトは、完全一致です。つまり、入力語そのものを見出しに含む語が表示されます。ただし、該当がない場合には自動的に曖昧検索が行われて、綴りが似た語が表示されます。オプションで検索条件を以下のものから明示的に選択できます。</p>
 <ul>
