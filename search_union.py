@@ -716,8 +716,8 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
       ' onclick="toggle_star(this, -1)" aria-label="star">&#x2605;</span>', word, hint)
     P('</div>')
     word_url = "{}?q={}".format(script_name, urllib.parse.quote(word))
-    P('<h2 class="entry_word focal1 focal2" tabindex="-1" role="">', end="")
-    P('<a href="{}" class="word_link" lang="en">{}</a>', word_url, word, end="")
+    P('<h2 class="entry_word">', end="")
+    P('<a href="{}" class="word_link focal1 focal2" lang="en">{}</a>', word_url, word, end="")
     if not details and pron:
       P(' <span class="title_pron">{}</span>', pron, end="")
     P('</h2>')
@@ -731,31 +731,31 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
         value = '<a href="{}" class="tran">{}</a>'.format(esc(tran_url), esc(tran))
         fields.append(value)
       if fields:
-        P('<div class="attr attr_tran focal1 focal2" tabindex="-1" role="">', end="")
+        P('<div class="attr attr_tran focal1 focal2" tabindex="-1" role="text">', end="")
         print(", ".join(fields), end="")
         P('</div>')
     if details:
       if pron:
-        P('<div class="attr attr_pron focal2" tabindex="-1" role="">' +
-          '<span class="attr_label">発音</span>' +
+        P('<div class="attr attr_pron">' +
+          '<span class="attr_label focal2" tabindex="-1" role="tooltip">発音</span>' +
           ' <span class="attr_value">{}</span></div>', pron)
       for attr_list in INFLECTIONS:
         fields = []
         for name, label in attr_list:
           value = entry.get(name)
           if value:
-            value = ('<span class="attr_label">{}</span>'
+            value = ('<span class="attr_label focal2" tabindex="-1" role="tooltip">{}</span>'
                      ' <span class="attr_value" lang="en">{}</span>').format(esc(label), esc(value))
             fields.append(value)
         if fields:
-          P('<div class="attr attr_infl focal2" tabindex="-1" role="">', end="")
+          P('<div class="attr attr_infl">', end="")
           print(", ".join(fields), end="")
           P('</div>')
       alternatives = entry.get("alternative")
       if alternatives:
-        P('<div class="attr attr_infl focal2" tabindex="-1" role="">', end="")
-        P('<span class="attr_label">代替</span>', end="")
-        P(' <span class="attr_value">{}</span>', ", ".join(alternatives), end="")
+        P('<div class="attr attr_infl">', end="")
+        P('<span class="attr_label focal2" tabindex="-1" role="tooltip">代替</span>', end="")
+        P(' <span class="attr_value" lang="en">{}</span>', ", ".join(alternatives), end="")
         P('</div>')
     omitted = False
     for num_items, item in enumerate(entry["item"]):
@@ -777,8 +777,8 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
         if attr_label:
           section = section[len(attr_match.group(0)):].strip()
       P('<div class="item item_{}">', label)
-      P('<div class="item_text item_text1 focal1 focal2" tabindex="-1" role="">')
-      P('<span class="label" lang="en">{}</span>', label.upper())
+      P('<div class="item_text item_text1">')
+      P('<span class="label focal1 focal2" tabindex="-1" role="tooltip" lang="en">{}</span>', label.upper())
       P('<span class="pos">{}</span>', pos)
       if attr_label:
         fields = []
@@ -836,9 +836,9 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
             subattr_label = "例"
             section = section[len(eg_match.group(0)):].strip()
           subsections = section.split(" [--] ")
-          P('<div class="item_text item_text2 item_text_n focal2" tabindex="-1" role="">')
+          P('<div class="item_text item_text2 item_text_n">')
           if subattr_label:
-            P('<span class="subattr_label">{}</span>', subattr_label)
+            P('<span class="subattr_label focal2" tabindex="-1" role="tooltip">{}</span>', subattr_label)
           if subattr_link:
             attr_words = FilterWordsWithinWidth(subsections[0].split(","), 70, 4)
             fields = []
@@ -872,8 +872,8 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
       if phrases:
         for phrase in phrases:
           pword = phrase["w"]
-          P('<div class="attr attr_phrase focal2" tabindex="-1" role="">')
-          P('<span class="attr_label">句</span>')
+          P('<div class="attr attr_phrase">')
+          P('<span class="attr_label focal2" tabindex="-1" role="tooltip">句</span>')
           P('<span class="text">')
           if "i" in phrase:
             P('<a href="{}?q={}" lang="en">{}</a>', script_name, urllib.parse.quote(pword), pword)
@@ -909,8 +909,8 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
             if parent_share and float(parent_share) < min_share: break
             text = GetEntryTranslation(parent_entry)
             if text:
-              P('<div class="attr attr_parent focal2" tabindex="-1" role="">')
-              P('<span class="attr_label">語幹</span>')
+              P('<div class="attr attr_parent">')
+              P('<span class="attr_label focal2" tabindex="-1" role="tooltip">語幹</span>')
               P('<span class="text">')
               P('<a href="{}?q={}" lang="en">{}</a> : {}',
                 script_name, urllib.parse.quote(parent_word), parent_word, text)
@@ -921,8 +921,8 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
       for rel_name, rel_label in rel_name_labels:
         related = entry.get(rel_name)
         if related:
-          P('<div class="attr attr_{} focal2" tabindex="-1" role="">', rel_name)
-          P('<span class="attr_label">{}</span>', rel_label)
+          P('<div class="attr attr_{}">', rel_name)
+          P('<span class="attr_label focal2" tabindex="-1" role="tooltip">{}</span>', rel_label)
           P('<span class="text">')
           fields = []
           related = FilterWordsWithinWidth(related, 80, 4)
@@ -949,8 +949,8 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
         etym_fields.append('<span class="attr_value">+{}</span>'.format(
           esc(etym_suffix)))
       if etym_fields:
-        P('<div class="attr attr_etym focal2" tabindex="-1" role="">')
-        P('<span class="attr_label">語源</span>')
+        P('<div class="attr attr_etym">')
+        P('<span class="attr_label focal2" tabindex="-1" role="tooltip">語源</span>')
         P('<span class="text">')
         print(" ".join(etym_fields))
         P('</span>')
@@ -958,17 +958,17 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
       prob = entry.get("probability")
       aoa = entry.get("aoa") or entry.get("aoa_concept") or entry.get("aoa_base")
       if aoa or prob:
-        P('<div class="attr attr_prob focal2" tabindex="-1" role="">')
+        P('<div class="attr attr_prob">')
         if prob:
           prob = float(prob)
           if prob > 0:
             fmt = "{{:.{}f}}".format(min(max(int(math.log10(prob) * -1 + 1), 3), 6))
             prob_expr = regex.sub(r"\.(\d{3})(\d*?)0+$", r".\1\2", fmt.format(prob * 100))
-            P('<span class="attr_label">頻度</span>' +
+            P('<span class="attr_label focal2" tabindex="-1" role="tooltip">頻度</span>' +
               ' <span class="attr_value">{}%</span>', prob_expr)
         if aoa:
           aoa = float(aoa)
-          P('<span class="attr_label">年齢</span>' +
+          P('<span class="attr_label focal2" tabindex="-1" role="tooltip">年齢</span>' +
             ' <span class="attr_value">{:.2f}</span>', aoa)
         P('</div>')
     if omitted:
@@ -997,8 +997,8 @@ def PrintResultCGIList(script_name, entries, query):
   for entry in entries:
     word = entry["word"]
     word_url = "{}?q={}".format(script_name, urllib.parse.quote(word))
-    P('<article class="list_item focal1 focal2" tabindex="-1" role="">')
-    P('<a href="{}" class="list_head" lang="en">{}</a> :', word_url, word)
+    P('<article class="list_item">')
+    P('<a href="{}" class="list_head focal1 focal2" lang="en">{}</a> :', word_url, word)
     poses = []
     for pos in GetEntryPoses(entry):
       pos = POSES.get(pos) or pos[:1]
@@ -1285,11 +1285,6 @@ a.star_word {{ display: inline-block; min-width: 10ex; padding: 0ex 0.5ex;
   background: #fff8aa;
   opacity: 1.0;
 }}
-
-/*
-*[lang=en] {{ background: yellow; }}
-*/
-
 .word:hover {{ text-decoration: underline; }}
 .word:hover .tip {{ visibility: visible; }}
 .annot_entry {{ margin: 0.3ex 0.3ex; }}
@@ -1362,7 +1357,7 @@ function startup() {{
     if (event.isComposing || event.keyCode === 229) {{
       return;
     }}
-    if (event.key == "Home") {{
+    if (event.key == "Backspace" && event.shiftKey) {{
       clear_query();
       event.preventDefault();
     }}
@@ -1401,6 +1396,9 @@ function clear_query() {{
   if (!search_form) return;
   let query_input = search_form.elements['q'];
   if (query_input) {{
+    if (document.activeElement) {{
+      document.activeElement.blur()
+    }}
     query_input.value = "";
     query_input.focus();
     window.scrollTo(0, 0);
@@ -2075,7 +2073,7 @@ def main_cgi():
 </ul>
 <p>デフォルトでは、表示形式は自動的に設定されます。ヒット件数が1件の場合にはその語の語義が詳細に表示され、ヒット件数が5以下の場合には主要語義のみが表示され、ヒット件数がそれ以上の場合には翻訳語のみがリスト表示されます。結果の見出し語を選択すると詳細表示が見られます。右上にある星アイコンをクリックすると、その見出し語に星印がつけられます。</p>
 <p>トップ画面で「<a href="?x=help">&#xFF1F;</a>」をクリックすると、このヘルプ画面が表示されます。トップ画面で「<a href="?x=stars">&#x2606;</a>」をクリックすると、星印をつけた見出し語の一蘭が表示されます。</p>
-<p>アクセシビリティのためのショートカット機能があります。Homeボタンを押すと、フォーカスが検索窓に移動して、検索窓の語句が消去されます。つまり、素早く再検索するにはHomeボタンを使うと便利です。スクリーンリーダ等で検索結果の主要な内容を読み取るには、Shiftを押しながら矢印の左右を押すのが便利です。Shift+右を押すと、見出し語にフォーカスが進み、さらにShift+右を押すと、訳語のリストや語義説明にフォーカスが移ります。Shift+左で戻ります。同様にして、Shift+上とShift+下でも読み取りを行いますが、発音や派生語も飛ばさずに遷移します。</p>
+<p>アクセシビリティのためのショートカット機能があります。Shift+Backspaceを押すと、フォーカスが検索窓に移動して、検索窓の語句が消去されます。これは素早く再検索するのに便利です。スクリーンリーダ等で検索結果の主要な内容を読み取るには、Shiftを押しながら矢印の左右を押すのが便利です。Shift+右を押すと、見出し語にフォーカスが進み、さらにShift+右を押すと、訳語のリストにフォーカスが移ります。さらにShift+右を押していくと、各々の語義説明のラベルにフォーカスが移っていきます。Shift+左で戻ります。同様にして、Shift+上とShift+下でも読み取りを行いますが、発音や派生語も飛ばさずに遷移します。</p>
 <p>このサイトはオープンな英和辞書検索のデモです。辞書データは<a href="https://wordnet.princeton.edu/">WordNet</a>と<a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">日本語WordNet</a>と<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>と<a href="https://en.wiktionary.org/">Wiktionary英語版</a>と<a href="http://www.edrdg.org/jmdict/edict.html">EDict2</a>を統合したものです。検索システムは高性能データベースライブラリ<a href="https://dbmx.net/tkrzw/">Tkrzw</a>を用いて実装されています。<a href="https://github.com/estraier/tkrzw-dict">コードベース</a>はGitHubにて公開されています。</p>
 </div>""")
   elif extra_mode == "stars":
