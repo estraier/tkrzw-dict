@@ -75,7 +75,7 @@ PACKAGE_FOOTER_TEXT = """</spine>
 </package>
 """
 STYLE_TEXT = """html,body { margin: 0; padding: 0; background: #fff; color: #000; font-size: 12pt;
-  text-align: left; text-justify: none; }
+  text-align: left; text-justify: none; direction: ltr; }
 span.word { font-weight: bold; }
 span.pron { font-size: 90%; color: #444; }
 span.gross { font-size: 90%; color: #444; }
