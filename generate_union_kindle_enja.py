@@ -143,10 +143,10 @@ PACKAGE_FOOTER_TEXT = """</spine>
 </package>
 """
 STYLE_TEXT = """html,body { margin: 0; padding: 0; background: #fff; color: #000; font-size: 12pt;
-  text-align: left; text-justify: none; }
+  text-align: left; text-justify: none; direction: ltr; }
 span.word { font-weight: bold; }
 span.pron { font-size: 90%; color: #444; }
-span.pos,span.attr { font-size: 80%; color: #555; }
+span.pos,span.attr { font-size: 80%; color: #555; word-spacing: 0; letter-spacing: 0; }
 """
 NAVIGATION_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
