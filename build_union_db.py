@@ -885,9 +885,6 @@ class BuildUnionDBBatch:
                 if len(stem) >= 4 and stem[-1] == stem[-2]:
                   stems.add(stem[:-1])
     stems.discard(word)
-
-    #print("STEM", label, word, stems)
-    
     valid_stems = set()
     for pos, text in texts:
       match = regex.search(
@@ -968,9 +965,6 @@ class BuildUnionDBBatch:
       valid_stems.clear()
       valid_stems.add(force_parent)
     valid_stems.discard(word)
-
-    #print("VALID", word, valid_stems)
-    
     return list(valid_stems)
 
   def MergeRecord(self, key, word_dicts, aux_trans, aoa_words, keywords,
@@ -1119,6 +1113,21 @@ class BuildUnionDBBatch:
           value = entry.get(top_name)
           if value:
             value = unicodedata.normalize('NFKC', value)
+            if top_name in inflection_names:
+              infl_words = []
+              for infl_word in value.split(','):
+                infl_word = infl_word.strip()
+                if not infl_word: continue
+                if infl_word in infl_words: continue
+                infl_words.append(infl_word)
+              old_value = word_entry.get(top_name)
+              if old_value:
+                for infl_word in old_value.split(','):
+                  infl_word = infl_word.strip()
+                  if not infl_word: continue
+                  if infl_word in infl_words: continue
+                  infl_words.append(infl_word)
+              value = ", ".join(infl_words)
             word_entry[top_name] = value
         for infl_name in inflection_names:
           value = entry.get(infl_name)
@@ -1837,9 +1846,6 @@ class BuildUnionDBBatch:
       prob = self.GetPhraseProb(phrase_prob_dbm, "en", parent)
       scored_parents.append((parent, prob))
     scored_parents = sorted(scored_parents, key=lambda x: x[1], reverse=True)
-
-    #print("SP", word, scored_parents)
-    
     if scored_parents:
       word_entry["parent"] = [x[0] for x in scored_parents]
     scored_children = []
@@ -1987,7 +1993,16 @@ class BuildUnionDBBatch:
       root_verb = ing_value[:-4]
     for infl_name in inflection_names:
       value = entry.get(infl_name)
-      if value and not regex.fullmatch(r"[-\p{Latin}0-9', ]+", value):
+      if not value: continue
+      infl_words = []
+      for infl_word in value.split(","):
+        infl_word = infl_word.strip()
+        if not infl_word: continue
+        if not regex.fullmatch(r"[-\p{Latin}0-9', ]+", infl_word): continue
+        infl_words.append(infl_word)
+      if infl_words:
+        entry[infl_name] = ", ".join(infl_words)
+      else:
         del entry[infl_name]
     poses = set()
     for item in entry["item"]:

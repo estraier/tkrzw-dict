@@ -74,7 +74,7 @@ INFLECTIONS = [
   [("adverb_comparative", "副比"),
    ("adverb_superlative", "副最")]]
 WORDNET_ATTRS = {
-  "translation": "訳語",
+  "translation": "訳",
   "synonym": "同義",
   "antonym": "対義",
   "hypernym": "上位",
@@ -103,6 +103,7 @@ TEXT_ATTRS = {
   "uncountable": "U",
   "intransitive": "自",
   "transitive": "他",
+  "derivative": "派",
 }
 
 

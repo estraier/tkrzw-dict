@@ -127,7 +127,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
       if regex.search(r"^==([^=]+)==$", line):
         lang = regex.sub(r"^==([^=]+)==$", r"\1", line).strip()
         lang = lang.lower()
-        if lang in ("{{en}}", "{{eng}}", "{{english}}", "英語", "english"):
+        if lang in ("{{en}}", "{{eng}}", "{{english}}", "英語", "english", "{{l|en}}"):
           is_eng_head = True
         elif lang.startswith("{{") or lang.endswith("語"):
           is_eng_head = False
