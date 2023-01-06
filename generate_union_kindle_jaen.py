@@ -606,7 +606,7 @@ class GenerateUnionEPUBBatch:
         for synonym in syn_words:
           norm_syn = tkrzw_dict.NormalizeWord(synonym)
           uniq_trans.add(norm_syn)
-      if not hit_syn and num_lines < 8:
+      if not hit_syn and num_lines < 6:
         P('<div>{}</div>', tran)
         num_lines += 1
     P('</idx:entry>')

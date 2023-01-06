@@ -742,9 +742,9 @@ class GenerateUnionEPUBBatch:
       mid_shown_items = 5
       max_shown_items = 8
     else:
-      min_shown_items = 5
+      min_shown_items = 4
       mid_shown_items = 6
-      max_shown_items = 10
+      max_shown_items = 9
     max_dup_score = 0.3
     merged_items = []
     for item in items:
