@@ -483,11 +483,14 @@ class GenerateUnionEPUBBatch:
     is_major_word = prob >= 0.00001 and not regex.search("[A-Z]", word)
     poses = set()
     sub_poses = set()
+    is_vetted_verb = False
     for item in entry["item"][:10]:
       if item["label"] in self.supplement_labels:
         sub_poses.add(item["pos"])
       else:
         poses.add(item["pos"])
+      if item["label"] in self.vetted_labels and item["pos"] == "verb":
+        is_vetted_verb = True
     if not poses:
       poses = sub_poses
     infl_groups = collections.defaultdict(list)
@@ -598,6 +601,16 @@ class GenerateUnionEPUBBatch:
           P('<idx:iform name="alternative" value="{}"/>', alt_word)
         P('</idx:infl>')
     P('</idx:orth>')
+    if (regex.fullmatch("[a-z]+", word) and word not in PARTICLES and
+        pronunciation and translations and is_vetted_verb and prob >= 0.000001 and
+        len(items) >= 3 and len(label_items) >= 2):
+      for participle in [
+          entry.get('verb_present_participle'), entry.get('verb_past_participle')]:
+        if not participle: continue
+        participle = regex.sub(r",.*", "", participle).strip()
+        if not participle: continue
+        if participle == word: continue
+        P('<idx:orth value="{}"></idx:orth>', participle)
     P('</span>')
     if pronunciation:
       P('&#x2003;<span class="pron">/{}/</span>', pronunciation)

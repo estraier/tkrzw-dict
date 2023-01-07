@@ -86,6 +86,10 @@ particles = {
   "till", "to", "together", "toward", "under", "until", "up", "upon", "with", "within",
   "without", "via",
 }
+obj_pronouns = [
+  "me", "us", "you", "it", "him", "her", "them", "this", "these", "that", "those",
+  "myself", "ourselves", "yourself", "yourselves", "itself", "himself", "herself", "themselves",
+]
 misc_stop_words = {
   "the", "a", "an", "I", "my", "me", "mine", "you", "your", "yours", "he", "his", "him",
   "she", "her", "hers", "it", "its", "they", "their", "them", "theirs",
@@ -1198,6 +1202,14 @@ class BuildUnionDBBatch:
             prob *= 0.5
           else:
             prob *= 0.1
+        if "verb" in word_poses:
+          tokens = word.split(" ")
+          if len(tokens) == 2 and tokens[-1] in particles:
+            for pronoun in obj_pronouns:
+              phrase = " ".join(tokens[0:-1]) + " " + pronoun + " " + tokens[-1]
+              pron_prob = self.GetPhraseProb(phrase_prob_dbm, "en", phrase)
+              if pron_prob > 0.0000001:
+                prob += pron_prob
         word_entry["probability"] = "{:.7f}".format(prob).replace("0.", ".")
         if self.min_prob_map:
           has_good_label = False
@@ -2478,15 +2490,24 @@ class BuildUnionDBBatch:
     phrases = []
     for particle in particles:
       phrase = word + " " + particle
-      phrase_prob = float(phrase_prob_dbm.GetStr(phrase) or 0.0)
+      phrase_prob = None
+      phrase_entries = merged_dict.get(phrase)
+      if phrase_entries:
+        for phrase_entry in phrase_entries:
+          if phrase_entry["word"] == phrase:
+            phrase_prob_expr = phrase_entry["probability"]
+            if phrase_prob_expr:
+              phrase_prob = float(phrase_prob_expr)
+              break
+      if not phrase_prob:
+        phrase_prob = float(phrase_prob_dbm.GetStr(phrase) or 0.0)
+        if is_verb and phrase_prob / word_mod_prob >= 0.005:
+          for pron in obj_pronouns:
+            pron_phrase = word + " " + pron + " " + particle
+            pron_phrase_prob = float(phrase_prob_dbm.GetStr(pron_phrase) or 0.0)
+            if pron_phrase_prob > 0.0:
+              phrase_prob += pron_phrase_prob
       ratio = phrase_prob / word_mod_prob
-      if is_verb and ratio >= 0.005:
-        for pron in ("me", "us", "you", "him", "her", "it", "them"):
-          pron_phrase = word + " " + pron + " " + particle
-          pron_phrase_prob = float(phrase_prob_dbm.GetStr(pron_phrase) or 0.0)
-          if pron_phrase_prob > 0.0:
-            phrase_prob += pron_phrase_prob * 2.0
-            ratio = phrase_prob / word_mod_prob
       phrases.append((phrase, True, ratio, ratio, phrase_prob))
       if ratio >= 0.005:
         for sub_particle in particles:
