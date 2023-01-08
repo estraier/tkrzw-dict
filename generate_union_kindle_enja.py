@@ -419,7 +419,7 @@ class GenerateUnionEPUBBatch:
           for attr_list in INFLECTIONS:
             for name, label in attr_list:
               value = parent_entry.get(name)
-              if value and value == word:
+              if value and word in value:
                 match_infl = True
           if not match_infl:
             return True
@@ -444,7 +444,7 @@ class GenerateUnionEPUBBatch:
           for name, label in attr_list:
             value = entry.get(name)
             if value:
-              for infl in value.split(","):
+              for infl in value:
                 infl = infl.strip()
                 if infl:
                   old_rec = infl_probs.get(infl)
@@ -515,7 +515,8 @@ class GenerateUnionEPUBBatch:
             suffix = suffix.replace("_", " ")
           value = entry.get(name)
           if value:
-            infl_groups[pos].append((suffix, value, label))
+            for infl in value:
+              infl_groups[pos].append((suffix, infl, label))
     main_labels = set()
     label_items = collections.defaultdict(list)
     for item in entry["item"]:
@@ -586,12 +587,9 @@ class GenerateUnionEPUBBatch:
     P('<idx:orth>{}', word)
     for pos, values in infl_groups.items():
       kind_infls = []
-      for kind, value, label in values:
-        for infl in value.split(","):
-          infl = infl.strip()
-          if not infl: continue
-          if inflections.get(infl) != word: continue
-          kind_infls.append((kind, infl))
+      for kind, infl, label in values:
+        if inflections.get(infl) != word: continue
+        kind_infls.append((kind, infl))
       if not kind_infls: continue
       P('<idx:infl inflgrp="{}">', pos)
       for kind, infl in kind_infls:
@@ -616,8 +614,6 @@ class GenerateUnionEPUBBatch:
       for infl_name in infl_names:
         infl_value = entry.get(infl_name)
         if not infl_value: continue
-        if type(infl_value) == str:
-          infl_value = infl_value.split(",")
         for participle in infl_value:
           participle = participle.strip()
           if not participle: continue

@@ -234,7 +234,7 @@ def PrintResult(entries, mode, query, searcher):
         for name, label in attr_list:
           value = entry.get(name)
           if value:
-            fields.append("{}: {}".format(label, value))
+            fields.append("{}: {}".format(label, ", ".join(value)))
         if fields:
           PrintWrappedText("  ".join(fields), 4)
       alternatives = entry.get("alternative")
@@ -746,7 +746,8 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
           value = entry.get(name)
           if value:
             value = ('<span class="attr_label focal2" tabindex="-1" role="tooltip">{}</span>'
-                     ' <span class="attr_value" lang="en">{}</span>').format(esc(label), esc(value))
+                     ' <span class="attr_value" lang="en">{}</span>').format(
+                       esc(label), esc(", ".join(value)))
             fields.append(value)
         if fields:
           P('<div class="attr attr_infl">', end="")
@@ -779,7 +780,8 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
           section = section[len(attr_match.group(0)):].strip()
       P('<div class="item item_{}">', label)
       P('<div class="item_text item_text1">')
-      P('<span class="label focal1 focal2" tabindex="-1" role="tooltip" lang="en">{}</span>', label.upper())
+      P('<span class="label focal1 focal2" tabindex="-1" role="tooltip" lang="en">{}</span>',
+        label.upper())
       P('<span class="pos">{}</span>', pos)
       if attr_label:
         fields = []
@@ -839,7 +841,8 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
           subsections = section.split(" [--] ")
           P('<div class="item_text item_text2 item_text_n">')
           if subattr_label:
-            P('<span class="subattr_label focal2" tabindex="-1" role="tooltip">{}</span>', subattr_label)
+            P('<span class="subattr_label focal2" tabindex="-1" role="tooltip">{}</span>',
+              subattr_label)
           if subattr_link:
             attr_words = FilterWordsWithinWidth(subsections[0].split(","), 70, 4)
             fields = []

@@ -2784,10 +2784,18 @@ class BuildUnionDBBatch:
     for infl_name in inflection_names:
       infl_value = word_entry.get(infl_name)
       if infl_value:
-        for infl in infl_value.split(","):
+        named_infls = []
+        for infl in regex.split(r"[,|]", infl_value):
           infl = infl.strip()
-          if infl and infl != word and infl not in infls:
-            infls.append(infl)
+          if infl and infl != word:
+            if infl not in infls:
+              infls.append(infl)
+            if infl not in named_infls:
+              named_infls.append(infl)
+        if named_infls:
+          word_entry[infl_name] = named_infls
+        else:
+          del word_entry[infl_name]
     phrases = []
     for infl in infls:
       infl_entries = merged_dict.get(infl)

@@ -70,7 +70,7 @@ class ExtractKeysBatch:
         for infl_name in infl_names:
           inflection = word_entry.get(infl_name)
           if inflection:
-            for infl_value in regex.split(r"[,|]", inflection):
+            for infl_value in inflection:
               infl_value = tkrzw_dict.NormalizeWord(infl_value.strip())
               if not regex.search(r"\p{Latin}", infl_value): continue
               if infl_value == key: continue

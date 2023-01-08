@@ -354,9 +354,11 @@ class GenerateUnionEPUBBatch:
           for infl_rules in INFLECTIONS:
             for infl_name, infl_label in infl_rules:
               infl_value = entry.get(infl_name)
-              if infl_value and infl_value not in uniq_infls:
-                P('<value value="{}"/>', infl_value)
-                uniq_infls.add(infl_value)
+              if infl_value:
+                for infl_word in infl_value:
+                  if infl_word not in uniq_infls:
+                    P('<value value="{}"/>', infl_word)
+                  uniq_infls.add(infl_word)
           P('</match>')
           P('</search-key-group>')
       print(SKMAP_FOOTER_TEXT, file=out_file, end="")
@@ -458,7 +460,7 @@ class GenerateUnionEPUBBatch:
         value = entry.get(name)
         if value:
           value = ('<span class="attr_name">{}</span>'
-                   ' <span class="attr_value">{}</span>').format(esc(label), esc(value))
+                   ' <span class="attr_value">{}</span>').format(esc(label), esc(", ".join(value)))
           fields.append(value)
       if fields:
         P('<li class="top_attr">')
