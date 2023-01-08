@@ -97,8 +97,10 @@ TEXT_ATTRS = {
   "intransitive": "vi",
   "transitive": "vt",
 }
-ARTICLES = set (["a", "the", "an"])
-PARTICLES = set([
+ARTICLES = {
+  "a", "the", "an",
+}
+PARTICLES = {
   "aback", "about", "above", "abroad", "across", "after", "against", "ahead", "along",
   "amid", "among", "apart", "around", "as", "at", "away", "back", "before", "behind",
   "below", "beneath", "between", "beside", "beyond", "by", "despite", "during", "down",
@@ -106,7 +108,10 @@ PARTICLES = set([
   "onto", "out", "outside", "over", "per", "re", "since", "than", "through", "throughout",
   "till", "to", "together", "toward", "under", "until", "up", "upon", "with", "within",
   "without", "via",
-])
+}
+BASE_VETTED_VERBS = {
+  "be", "have",
+}
 CURRENT_UUID = str(uuid.uuid1())
 CURRENT_DATETIME = regex.sub(r"\..*", "Z", datetime.datetime.now(
   datetime.timezone.utc).isoformat())
@@ -606,15 +611,29 @@ class GenerateUnionEPUBBatch:
           P('<idx:iform name="alternative" value="{}"/>', alt_word)
         P('</idx:infl>')
     P('</idx:orth>')
-    if (regex.fullmatch("[a-z]+", word) and word not in PARTICLES and
-        pronunciation and translations and is_vetted_verb and prob >= 0.00001 and
-        len(items) >= 3 and len(label_items) >= 2):
-      for participle in [
-          entry.get('verb_present_participle'), entry.get('verb_past_participle')]:
-        if not participle: continue
-        participle = regex.sub(r",.*", "", participle).strip()
-        if not participle: continue
-        if participle == word: continue
+    def GetParticiples(infl_names, first_only):
+      participles = []
+      for infl_name in infl_names:
+        infl_value = entry.get(infl_name)
+        if not infl_value: continue
+        if type(infl_value) == str:
+          infl_value = infl_value.split(",")
+        for participle in infl_value:
+          participle = participle.strip()
+          if not participle: continue
+          if participle not in participles and participle != word:
+            participles.append(participle)
+          if first_only: break
+      return participles
+    if word in BASE_VETTED_VERBS:
+      for participle in GetParticiples([
+          "verb_singular", "verb_present_participle",
+          "verb_past", "verb_past_participle", "alternative"], False):
+        P('<idx:orth value="{}"></idx:orth>', participle)
+    elif (regex.fullmatch("[a-z]+", word) and word not in PARTICLES and
+          pronunciation and translations and is_vetted_verb and prob >= 0.000001 and
+          len(label_items) >= 2):
+      for participle in GetParticiples(["verb_present_participle", "verb_past_participle"], True):
         P('<idx:orth value="{}"></idx:orth>', participle)
     P('</span>')
     if pronunciation:
