@@ -351,7 +351,7 @@ class GenerateUnionEPUBBatch:
         prob = float(entry.get("probability") or "0")
         words[word] = max(words.get(word) or 0.0, prob)
       it.Next()
-    logger.info("Checking words done: {}".format(len(words)))
+    logger.info("Checking words done: {}/{}".format(len(words), input_dbm.Count()))
     return words
 
   def IsGoodEntry(self, entry, input_dbm, keywords):
@@ -369,9 +369,14 @@ class GenerateUnionEPUBBatch:
       labels.add(item["label"])
     if word in keywords:
       return True
+    has_good_label = False
     for label in labels:
       if label in self.trustable_labels:
         return True
+      if label not in self.supplement_labels:
+        has_good_label = True
+    if not has_good_label:
+      return False
     if regex.search(r"[A-Z]", word) and prob < self.min_prob_capital:
       return False
     if word.find(" ") >= 0 and prob < self.min_prob_multi:
@@ -602,7 +607,7 @@ class GenerateUnionEPUBBatch:
         P('</idx:infl>')
     P('</idx:orth>')
     if (regex.fullmatch("[a-z]+", word) and word not in PARTICLES and
-        pronunciation and translations and is_vetted_verb and prob >= 0.000001 and
+        pronunciation and translations and is_vetted_verb and prob >= 0.00001 and
         len(items) >= 3 and len(label_items) >= 2):
       for participle in [
           entry.get('verb_present_participle'), entry.get('verb_past_participle')]:
@@ -757,7 +762,7 @@ class GenerateUnionEPUBBatch:
     else:
       min_shown_items = 4
       mid_shown_items = 6
-      max_shown_items = 9
+      max_shown_items = 10
     max_dup_score = 0.3
     merged_items = []
     for item in items:
