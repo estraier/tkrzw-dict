@@ -1136,7 +1136,10 @@ class BuildUnionDBBatch:
         for infl_name in inflection_names:
           value = entry.get(infl_name)
           if value:
-            surfaces.add(value.lower())
+            for infl_word in value.split(','):
+              infl_word = infl_word.strip()
+              if not infl_word: continue
+              surfaces.add(infl_word.lower())
       if merged_entry and not effective_labels:
         continue
       for label, entry in entries:
