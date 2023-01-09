@@ -54,6 +54,7 @@ POSES = {
   "prefix": "接頭",
   "suffix": "接尾",
   "abbreviation": "省略",
+  "phrase": "句",
   "misc": "他",
 }
 INFLECTIONS = [
@@ -88,14 +89,15 @@ WORDNET_ATTRS = {
   "usage": "用法",
 }
 TEXT_ATTRS = {
-  "可算": "c",
-  "不可算": "u",
-  "自動詞": "vi",
-  "他動詞": "vt",
-  "countable": "c",
-  "uncountable": "u",
-  "intransitive": "vi",
-  "transitive": "vt",
+  "可算": "C",
+  "不可算": "U",
+  "自動詞": "自",
+  "他動詞": "他",
+  "countable": "C",
+  "uncountable": "U",
+  "intransitive": "自",
+  "transitive": "他",
+  "derivative": "派",
 }
 ARTICLES = {
   "a", "the", "an",
