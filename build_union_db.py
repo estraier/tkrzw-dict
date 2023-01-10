@@ -2193,7 +2193,8 @@ class BuildUnionDBBatch:
                                   expr, regex.IGNORECASE)
       preps = ["of", "in", "at", "from", "by", "part of", "out of", "inside",
                "relating to", "related to", "associated with",
-               "characterized by", "pertaining to", "derived from"]
+               "characterized by", "pertaining to", "derived from", "covered with",
+               "resembling", "having"]
       prep_expr = None
       for prep in preps:
         if len(expr) > len(prep):
