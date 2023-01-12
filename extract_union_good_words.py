@@ -4,10 +4,10 @@
 # Script to extract good words from the union dictionary
 #
 # Usage:
-#   extract_union_good_words.py input_db [core_label] [min_labels]
+#   extract_union_good_words.py input_db [core_label] [min_labels] [keyword_files]
 #
 # Example
-#   ./extract_union_good_words.py union-body.tkh wn 2
+#   ./extract_union_good_words.py union-body.tkh wn 2 
 #
 # Copyright 2020 Google LLC
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
@@ -33,6 +33,13 @@ def main():
   input_path = args[0]
   core_label = args[1] if len(args) > 1 else "wn"
   min_labels = int(args[2]) if len(args) > 2 else 0
+  keywords = set()
+  if len(args) > 3:
+    with open(args[3]) as input_file:
+      for line in input_file:
+        keyword = line.strip().lower()
+        if keyword:
+          keywords.add(keyword)
   dbm = tkrzw.DBM()
   dbm.Open(input_path, False).OrDie()
   it = dbm.MakeIterator()
@@ -42,6 +49,7 @@ def main():
     record = it.GetStr()
     if not record: break;
     key, data = record
+    is_keyword = key in keywords
     entries = json.loads(data)
     for entry in entries:
       word = entry["word"]
@@ -59,7 +67,8 @@ def main():
         for item in entry["item"]:
           poses.append(pos)
           break
-      if ((core_label in labels and len(labels) >= min_labels and prob > 0) or
+      if ((is_keyword and prob > 0.000001) or
+          (core_label in labels and len(labels) >= min_labels and prob > 0) or
           (space_count < 1 and len(labels) >= min_labels and prob >= 0.00001)):
         fields = []
         fields.append(word)
