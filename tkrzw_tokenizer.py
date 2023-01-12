@@ -296,6 +296,30 @@ class Tokenizer:
       return fields
     return ["", "", "", "", ""]
 
+  def NormalizeJaWordStyle(self, word):
+    if not regex.search(r"[\p{Hiragana}]$", word):
+      return word
+    tokens = self.GetJaPosList(word)
+    if (len(tokens) >= 3 and tokens[-2][1] == '助動詞' and tokens[-2][3] in ('ます', 'です') and
+        tokens[-1][1] == '助動詞' and tokens[-1][3] == 'う'):
+      tokens = tokens[:-2]
+      tokens[-1][0] = tokens[-1][3]
+      word = "".join([x[0] for x in tokens])
+    elif (len(tokens) >= 3 and tokens[-2][1] == '助動詞' and tokens[-2][3] == 'ます' and
+        tokens[-1][1] == '助動詞' and tokens[-1][3] == 'ん'):
+      tokens = tokens[:-2]
+      if tokens[-1][3] in ("ある", "有る"):
+        tokens = tokens[:-1]
+      word = "".join([x[0] for x in tokens]) + "ない"
+    elif len(tokens) >= 2 and tokens[-1][1] == "助動詞" and tokens[-1][3] == "ます":
+      tokens = tokens[:-1]
+      tokens[-1][0] = tokens[-1][3]
+      word = "".join([x[0] for x in tokens])
+    elif len(tokens) >= 2 and tokens[-1][1] == "助動詞" and tokens[-1][3] == "です":
+      tokens = tokens[:-1]
+      word = "".join([x[0] for x in tokens])
+    return word
+
   def NormalizeJaWordForPos(self, pos, tran):
     if not regex.search(r"[\p{Han}\p{Hiragana}\p{Katakana}ー]$", tran):
       return tran

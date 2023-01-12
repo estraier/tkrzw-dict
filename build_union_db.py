@@ -409,6 +409,7 @@ class BuildUnionDBBatch:
           tran = self.NormalizeText(tran)
           tran = regex.sub(r"[\p{Ps}\p{Pe}\p{C}]", "", tran)
           tran = regex.sub(r"[\p{Z}\p{C}]+", " ", tran).strip()
+          tran = self.tokenizer.NormalizeJaWordStyle(tran)
           norm_tran = tkrzw_dict.NormalizeWord(tran)
           if not tran or not norm_tran: continue
           if regex.search(r"\p{Latin}.*の.*(形|分詞|級)", tran): continue
@@ -1651,6 +1652,8 @@ class BuildUnionDBBatch:
     for tran, score in deduped_translations:
       tran = regex.sub(r"^を.*", "", tran)
       tran = regex.sub(r"・", "", tran)
+      tran = self.tokenizer.NormalizeJaWordStyle(tran)
+      tran = tkrzw_dict.NormalizeWord(tran)
       norm_tran = tkrzw_dict.NormalizeWord(tran)
       if not norm_tran or norm_tran in uniq_trans:
         continue
@@ -1666,6 +1669,7 @@ class BuildUnionDBBatch:
     for aux_tran, count in sorted_aux_trans:
       aux_tran = regex.sub(r"^を.*", "", aux_tran)
       aux_tran = regex.sub(r"・", "", aux_tran)
+      aux_tran = self.tokenizer.NormalizeJaWordStyle(aux_tran)
       if pure_noun:
         aux_tran = self.MakeTranNoun(aux_tran)
       if pure_verb:
