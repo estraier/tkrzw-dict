@@ -1949,8 +1949,10 @@ def main_cgi():
             infl_result = []
             for lemma in lemmas:
               for entry in searcher.SearchExact(lemma, CGI_CAPACITY):
-                if entry["word"] in words: continue
+                lemma_word = entry["word"]
+                if lemma_word in words: continue
                 infl_result.append(entry)
+                words.add(lemma_word)
             if infl_result:
               PrintResultCGIList(script_name, infl_result, "")
       elif view_mode == "full":
