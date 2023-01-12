@@ -112,7 +112,7 @@ PARTICLES = {
   "without", "via",
 }
 BASE_VETTED_VERBS = {
-  "be", "have",
+  "be", "have", "see",
 }
 CURRENT_UUID = str(uuid.uuid1())
 CURRENT_DATETIME = regex.sub(r"\..*", "Z", datetime.datetime.now(
@@ -187,7 +187,7 @@ OVERVIEW_TEXT = """<?xml version="1.0" encoding="utf-8"?>
 <h2>Overview</h2>
 <p>This dictionary is made from data sources published as open-source data.  They include <a href="https://wordnet.princeton.edu/">WordNet</a>, <a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">Japanese WordNet</a>, <a href="https://ja.wiktionary.org/">Japanese Wiktionary</a>, <a href="https://en.wiktionary.org/">English Wiktionary</a>, and <a href="http://www.edrdg.org/jmdict/edict.html">EDict2</a>.  See <a href="https://dbmx.net/dict/">the homepage</a> for details to organize the data.  Using and/or redistributing this data should be done according to the license of each data source.</p>
 <p>In each word entry, the title word is shown in bold.  Some words have a pronounciation expression in the IPA format, bracketed as "/.../".  A list of translations can come next.  Then, definitions of the word come in English or Japanese.  Each definition is led by a part of speech label.  Additional information such as inflections and varints can come next.</p>
-<p>The number of words is {}.  The number of words with translations is {}.  The number of definition items is {}.</p>
+<p>The number of words is {}.  The number of words with translations is {}.  The number of definition items is {}.  The number of inflections is {}.  The number of redirections is {}.</p>
 <h2>Copyright</h2>
 <div>WordNet Copyright 2021 The Trustees of Princeton University.</div>
 <div>Japanese Wordnet Copyright 2009-2011 NICT, 2012-2015 Francis Bond and 2016-2017 Francis Bond, Takayuki Kuribayashi.</div>
@@ -308,6 +308,8 @@ class GenerateUnionEPUBBatch:
     self.num_trans = 0
     self.num_items = 0
     self.num_aux_items = 0
+    self.num_inflections = 0
+    self.num_redirections = 0
     self.label_counters = collections.defaultdict(int)
     self.tokenizer = tkrzw_tokenizer.Tokenizer()
 
@@ -332,8 +334,9 @@ class GenerateUnionEPUBBatch:
     input_dbm.Close().OrDie()
     for label, count in self.label_counters.items():
       logger.info("Adopted label: {}: {}".format(label, count))
-    logger.info("Stats: num_words={}, num_trans={}, num_items={}, num_aux_items={}".format(
-      self.num_words, self.num_trans, self.num_items, self.num_aux_items))
+    logger.info("Stats: words={}, trans={}, items={}, aux_items={}, infls={}, redirs={}".format(
+      self.num_words, self.num_trans, self.num_items, self.num_aux_items,
+      self.num_inflections, self.num_redirections))
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
   def ListUpWords(self, input_dbm):
@@ -435,26 +438,34 @@ class GenerateUnionEPUBBatch:
 
   def MakeMain(self, input_dbm, keys, words):
     infl_probs = {}
+    rel_probs = {}
     for key in keys:
       serialized = input_dbm.GetStr(key)
       if not serialized: continue
       entries = json.loads(serialized)
       for entry in entries:
         word = entry["word"]
-        prob = float(entry["probability"])
+        prob = float(entry.get("probability") or 0)
         for attr_list in INFLECTIONS:
           for name, label in attr_list:
             value = entry.get(name)
             if value:
               for infl in value:
-                infl = infl.strip()
-                if infl:
-                  old_rec = infl_probs.get(infl)
-                  if not old_rec or prob > old_rec[0]:
-                    infl_probs[infl] = (prob, word)
+                old_rec = infl_probs.get(infl)
+                if not old_rec or prob > old_rec[0]:
+                  infl_probs[infl] = (prob, word)
+        for rel_words, base_score in [(entry.get("parent"), 10), (entry.get("child"), 1)]:
+          if not rel_words: continue
+          for rel_word in rel_words:
+            old_rec = rel_probs.get(rel_word)
+            if not old_rec or prob > old_rec[0]:
+              rel_probs[rel_word] = (base_score * prob, word)
     inflections = {}
     for infl, pair in infl_probs.items():
       inflections[infl] = pair[1]
+    boss_words = {}
+    for rel_word, pair in rel_probs.items():
+      boss_words[rel_word] = pair[1]
     out_files = {}
     for key in keys:
       key_prefix = GetKeyPrefix(key)
@@ -475,12 +486,12 @@ class GenerateUnionEPUBBatch:
         share = entry.get("share")
         min_share = 0.3 if regex.search("[A-Z]", word) else 0.2
         if share and float(share) < min_share: break
-        self.MakeMainEntry(out_file, entry, input_dbm, keys, inflections)
+        self.MakeMainEntry(out_file, entry, input_dbm, keys, inflections, boss_words)
     for key_prefix, out_file in out_files.items():
       print(MAIN_FOOTER_TEXT, file=out_file, end="")
       out_file.close()
 
-  def MakeMainEntry(self, out_file, entry, input_dbm, keys, inflections):
+  def MakeMainEntry(self, out_file, entry, input_dbm, keys, inflections, boss_words):
     def P(*args, end="\n"):
       esc_args = []
       for arg in args[1:]:
@@ -596,20 +607,28 @@ class GenerateUnionEPUBBatch:
       P('<idx:infl inflgrp="{}">', pos)
       for kind, infl in kind_infls:
         P('<idx:iform name="{}" value="{}"/>', kind, infl)
+        self.num_inflections += 1
       P('</idx:infl>')
-    alternatives = entry.get("alternative")
-    if alternatives:
-      alt_words = []
-      for alternative in alternatives:
-        alt_norm = tkrzw_dict.NormalizeWord(alternative)
-        if not alt_norm or alt_norm in keys or alt_norm in inflections:
+    sub_words = []
+    for label, rel_words in [("parent", entry.get("parent")), ("child", entry.get("child"))]:
+      if not rel_words: continue
+      for rel_word in rel_words:
+        rel_norm = tkrzw_dict.NormalizeWord(rel_word)
+        if not rel_norm or rel_norm in keys or rel_norm in inflections:
           continue
-        alt_words.append(alternative)
-      if alt_words:
-        P('<idx:infl inflgrp="common">')
-        for alt_word in alt_words:
-          P('<idx:iform name="alternative" value="{}"/>', alt_word)
-        P('</idx:infl>')
+        if boss_words.get(rel_norm) != word: continue
+        sub_words.append((label, rel_word))
+    for rel_word in entry.get("alternative") or []:
+      rel_norm = tkrzw_dict.NormalizeWord(rel_word)
+      if not rel_norm or rel_norm in keys or rel_norm in inflections or rel_norm in boss_words:
+        continue
+      sub_words.append(("alternative", rel_word))
+    if sub_words:
+      P('<idx:infl inflgrp="common">')
+      for sub_name, sub_word in sub_words:
+        P('<idx:iform name="{}" value="{}"/>', sub_name, sub_word)
+        self.num_redirections += 1
+      P('</idx:infl>')
     P('</idx:orth>')
     def GetParticiples(infl_names, first_only):
       participles = []
@@ -736,7 +755,8 @@ class GenerateUnionEPUBBatch:
     out_path = os.path.join(self.output_path, "overview.xhtml")
     logger.info("Creating: {}".format(out_path))
     with open(out_path, "w") as out_file:
-      print(OVERVIEW_TEXT.format(esc(self.title), self.num_words, self.num_trans, self.num_items),
+      print(OVERVIEW_TEXT.format(esc(self.title), self.num_words, self.num_trans, self.num_items,
+                                 self.num_inflections, self.num_redirections),
             file=out_file, end="")
 
   def MakeStyle(self):
