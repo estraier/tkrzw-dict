@@ -1109,6 +1109,11 @@ class BuildUnionDBBatch:
               break
           if particle_suffix:
             is_keyword = True
+      if not is_keyword:
+        for label, entry in entries:
+          core_word = entry.get('etymology_core')
+          if core_word and core_word in keywords:
+            is_keyword = True
       is_super_keyword = is_keyword and bool(regex.fullmatch(r"\p{Latin}{3,}", word))
       for label, entry in entries:
         if label not in self.surfeit_labels or is_keyword:
