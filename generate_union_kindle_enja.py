@@ -321,13 +321,14 @@ class GenerateUnionEPUBBatch:
     input_dbm.Open(self.input_path, False, dbm="HashDBM").OrDie()
     os.makedirs(self.output_path, exist_ok=True)
     etym_dict = collections.defaultdict(list)
-    words = self.ListUpWords(input_dbm, etym_dict)
+    infl_dict = collections.defaultdict(list)
+    words = self.ListUpWords(input_dbm, etym_dict, infl_dict)
     keys = sorted(set([tkrzw_dict.NormalizeWord(word) for word, prob in words.items()]))
     key_prefixes = set()
     for key in keys:
       key_prefixes.add(GetKeyPrefix(key))
     key_prefixes = sorted(list(key_prefixes), key=lambda x: 1000 if x == "_" else ord(x))
-    self.MakeMain(input_dbm, keys, words, etym_dict)
+    self.MakeMain(input_dbm, keys, words, etym_dict, infl_dict)
     self.MakeNavigation(key_prefixes)
     self.MakeOverview()
     self.MakeStyle()
@@ -340,7 +341,7 @@ class GenerateUnionEPUBBatch:
       self.num_inflections, self.num_redirections))
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
-  def ListUpWords(self, input_dbm, etym_dict):
+  def ListUpWords(self, input_dbm, etym_dict, infl_dict):
     logger.info("Checking words")
     keywords = set()
     if self.keyword_path:
@@ -361,6 +362,12 @@ class GenerateUnionEPUBBatch:
         core = entry.get("etymology_core")
         if core:
           etym_dict[core].append(word)
+        for attr_list in INFLECTIONS:
+          for name, label in attr_list:
+            infls = entry.get(name)
+            if infls:
+              for infl in infls:
+                infl_dict[word].append(infl)
         if not self.IsGoodEntry(entry, input_dbm, keywords): continue
         prob = float(entry.get("probability") or "0")
         words[word] = max(words.get(word) or 0.0, prob)
@@ -440,7 +447,7 @@ class GenerateUnionEPUBBatch:
       return False
     return True
 
-  def MakeMain(self, input_dbm, keys, words, etym_dict):
+  def MakeMain(self, input_dbm, keys, words, etym_dict, infl_dict):
     infl_probs = {}
     rel_probs = {}
     for key in keys:
@@ -490,12 +497,14 @@ class GenerateUnionEPUBBatch:
         share = entry.get("share")
         min_share = 0.3 if regex.search("[A-Z]", word) else 0.2
         if share and float(share) < min_share: break
-        self.MakeMainEntry(out_file, entry, input_dbm, etym_dict, keys, inflections, boss_words)
+        self.MakeMainEntry(out_file, entry, input_dbm, etym_dict, infl_dict,
+                           keys, inflections, boss_words)
     for key_prefix, out_file in out_files.items():
       print(MAIN_FOOTER_TEXT, file=out_file, end="")
       out_file.close()
 
-  def MakeMainEntry(self, out_file, entry, input_dbm, etym_dict, keys, inflections, boss_words):
+  def MakeMainEntry(self, out_file, entry, input_dbm, etym_dict, infl_dict,
+                    keys, inflections, boss_words):
     def P(*args, end="\n"):
       esc_args = []
       for arg in args[1:]:
@@ -624,14 +633,22 @@ class GenerateUnionEPUBBatch:
         boss = boss_words.get(rel_norm)
         if boss and boss != word: continue
         sub_words.append((label, rel_word))
+        for rel_infl in infl_dict.get(rel_word) or []:
+          infl_norm = tkrzw_dict.NormalizeWord(rel_infl)
+          if not infl_norm or infl_norm in keys or infl_norm in inflections:
+            continue
+          sub_words.append((label, rel_infl))
     for rel_word in entry.get("alternative") or []:
       rel_norm = tkrzw_dict.NormalizeWord(rel_word)
       if not rel_norm or rel_norm in keys or rel_norm in inflections or rel_norm in boss_words:
         continue
       sub_words.append(("alternative", rel_word))
     if sub_words:
+      uniq_sub_words = set()
       P('<idx:infl inflgrp="common">')
       for sub_name, sub_word in sub_words:
+        if sub_word in uniq_sub_words: continue
+        uniq_sub_words.add(sub_word)
         P('<idx:iform name="{}" value="{}"/>', sub_name, sub_word)
         self.num_redirections += 1
       P('</idx:infl>')
