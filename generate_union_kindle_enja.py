@@ -671,7 +671,10 @@ class GenerateUnionEPUBBatch:
     if phrases:
       for phrase in phrases:
         self.MakeMainEntryPhraseItem(P, phrase)
-    parents = entry.get("parent")
+    parents = entry.get("parent") or []
+    etym_core = entry.get("etymology_core")
+    if etym_core and etym_core not in parents:
+      parents.append(etym_core)
     if parents:
       for parent in parents:
         self.MakeMainEntryParentItem(P, parent, input_dbm)

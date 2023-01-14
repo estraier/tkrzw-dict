@@ -284,6 +284,9 @@ def PrintResult(entries, mode, query, searcher):
         num_items += 1
       if mode == "full":
         phrases = entry.get("phrase")
+        etym_prefix = entry.get("etymology_prefix")
+        etym_core = entry.get("etymology_core")
+        etym_suffix = entry.get("etymology_suffix")
         if phrases:
           for phrase in phrases:
             phrase_trans = FilterWordsWithinWidth(phrase["x"], 50, 3)
@@ -292,7 +295,9 @@ def PrintResult(entries, mode, query, searcher):
             if pp:
               text += " ({:.3f}%)".format(float(pp) * 100)
             PrintWrappedText(text, 4)
-        parents = entry.get("parent")
+        parents = entry.get("parent") or []
+        if etym_core and etym_core not in parents:
+          parents.append(etym_core)
         if parents:
           for parent in parents:
             parent_entries = searcher.SearchExact(parent, 1)
@@ -328,12 +333,12 @@ def PrintResult(entries, mode, query, searcher):
           text = "[共起] {}".format(", ".join(coocs))
           PrintWrappedText(text, 4)
         etym_parts = []
-        etym_prefix = entry.get("etymology_prefix")
-        if etym_prefix: etym_parts.append(etym_prefix + "-")
-        etym_core = entry.get("etymology_core")
-        if etym_core: etym_parts.append(etym_core)
-        etym_suffix = entry.get("etymology_suffix")
-        if etym_suffix: etym_parts.append("-" + etym_suffix)
+        if etym_prefix:
+          etym_parts.append(etym_prefix + "-")
+        if etym_core:
+          etym_parts.append(etym_core)
+        if etym_suffix:
+          etym_parts.append("-" + etym_suffix)
         if etym_parts:
           text = "[語源] {}".format(" + ".join(etym_parts))
           PrintWrappedText(text, 4)
@@ -901,7 +906,12 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
             P('<span class="annot">({}%)</span>', pp_expr)
           P('</span>')
           P('</div>')
-      parents = entry.get("parent")
+      parents = entry.get("parent") or []
+      etym_prefix = entry.get("etymology_prefix")
+      etym_core = entry.get("etymology_core")
+      etym_suffix = entry.get("etymology_suffix")
+      if etym_core and etym_core not in parents:
+        parents.append(etym_core)
       if parents:
         for parent in parents:
           parent_entries = searcher.SearchExact(parent, 1)
@@ -939,16 +949,13 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
           P('</div>')
     if details:
       etym_fields = []
-      etym_prefix = entry.get("etymology_prefix")
       if etym_prefix:
         etym_fields.append('<span class="attr_value">{}+</span>'.format(
           esc(etym_prefix)))
-      etym_core = entry.get("etymology_core")
       if etym_core:
         etym_core_url = "{}?q={}".format(script_name, urllib.parse.quote(etym_core))
         etym_fields.append('<a href="{}" class="subword">{}</a>'.format(
             esc(etym_core_url), esc(etym_core)))
-      etym_suffix = entry.get("etymology_suffix")
       if etym_suffix:
         etym_fields.append('<span class="attr_value">+{}</span>'.format(
           esc(etym_suffix)))
