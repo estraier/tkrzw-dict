@@ -67,7 +67,9 @@ def main():
         for item in entry["item"]:
           poses.append(pos)
           break
+      core = entry.get("etymology_core")
       if ((is_keyword and prob > 0.000001) or
+          (core and core in keywords) or
           (core_label in labels and len(labels) >= min_labels and prob > 0) or
           (space_count < 1 and len(labels) >= min_labels and prob >= 0.00001)):
         fields = []

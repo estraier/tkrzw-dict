@@ -320,13 +320,14 @@ class GenerateUnionEPUBBatch:
     input_dbm = tkrzw.DBM()
     input_dbm.Open(self.input_path, False, dbm="HashDBM").OrDie()
     os.makedirs(self.output_path, exist_ok=True)
-    words = self.ListUpWords(input_dbm)
+    etym_dict = collections.defaultdict(list)
+    words = self.ListUpWords(input_dbm, etym_dict)
     keys = sorted(set([tkrzw_dict.NormalizeWord(word) for word, prob in words.items()]))
     key_prefixes = set()
     for key in keys:
       key_prefixes.add(GetKeyPrefix(key))
     key_prefixes = sorted(list(key_prefixes), key=lambda x: 1000 if x == "_" else ord(x))
-    self.MakeMain(input_dbm, keys, words)
+    self.MakeMain(input_dbm, keys, words, etym_dict)
     self.MakeNavigation(key_prefixes)
     self.MakeOverview()
     self.MakeStyle()
@@ -339,7 +340,7 @@ class GenerateUnionEPUBBatch:
       self.num_inflections, self.num_redirections))
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
-  def ListUpWords(self, input_dbm):
+  def ListUpWords(self, input_dbm, etym_dict):
     logger.info("Checking words")
     keywords = set()
     if self.keyword_path:
@@ -356,8 +357,11 @@ class GenerateUnionEPUBBatch:
       if rec == None: break
       entries = json.loads(rec[1])
       for entry in entries:
-        if not self.IsGoodEntry(entry, input_dbm, keywords): continue
         word = entry["word"]
+        core = entry.get("etymology_core")
+        if core:
+          etym_dict[core].append(word)
+        if not self.IsGoodEntry(entry, input_dbm, keywords): continue
         prob = float(entry.get("probability") or "0")
         words[word] = max(words.get(word) or 0.0, prob)
       it.Next()
@@ -436,7 +440,7 @@ class GenerateUnionEPUBBatch:
       return False
     return True
 
-  def MakeMain(self, input_dbm, keys, words):
+  def MakeMain(self, input_dbm, keys, words, etym_dict):
     infl_probs = {}
     rel_probs = {}
     for key in keys:
@@ -486,12 +490,12 @@ class GenerateUnionEPUBBatch:
         share = entry.get("share")
         min_share = 0.3 if regex.search("[A-Z]", word) else 0.2
         if share and float(share) < min_share: break
-        self.MakeMainEntry(out_file, entry, input_dbm, keys, inflections, boss_words)
+        self.MakeMainEntry(out_file, entry, input_dbm, etym_dict, keys, inflections, boss_words)
     for key_prefix, out_file in out_files.items():
       print(MAIN_FOOTER_TEXT, file=out_file, end="")
       out_file.close()
 
-  def MakeMainEntry(self, out_file, entry, input_dbm, keys, inflections, boss_words):
+  def MakeMainEntry(self, out_file, entry, input_dbm, etym_dict, keys, inflections, boss_words):
     def P(*args, end="\n"):
       esc_args = []
       for arg in args[1:]:
@@ -610,13 +614,15 @@ class GenerateUnionEPUBBatch:
         self.num_inflections += 1
       P('</idx:infl>')
     sub_words = []
-    for label, rel_words in [("parent", entry.get("parent")), ("child", entry.get("child"))]:
+    for label, rel_words in [("parent", entry.get("parent")), ("child", entry.get("child")),
+                             ("relative", etym_dict.get(word))]:
       if not rel_words: continue
       for rel_word in rel_words:
         rel_norm = tkrzw_dict.NormalizeWord(rel_word)
         if not rel_norm or rel_norm in keys or rel_norm in inflections:
           continue
-        if boss_words.get(rel_norm) != word: continue
+        boss = boss_words.get(rel_norm)
+        if boss and boss != word: continue
         sub_words.append((label, rel_word))
     for rel_word in entry.get("alternative") or []:
       rel_norm = tkrzw_dict.NormalizeWord(rel_word)
