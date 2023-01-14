@@ -1080,6 +1080,18 @@ class BuildUnionDBBatch:
       surfaces = set([word.lower()])
       is_keyword = (word in aux_trans or word in aoa_words or word in keywords or
                     (core and core in keywords))
+      has_pronunciation = False
+      has_translation = False
+      for label, entry in entries:
+        if "pronunciation" in entry:
+          has_pronunciation = True
+        texts = entry.get("text")
+        if texts:
+          for pos, text in texts:
+            if text.find("[translation]:") >= 0:
+              has_translation = True
+      if word.count(" ") == 0 and len(entries) >= 2:
+        is_keyword = True
       word_poses = poses[word]
       for pos in word_poses:
         for rule_pos, suffixes in (
