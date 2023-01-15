@@ -672,7 +672,7 @@ class BuildUnionDBBatch:
       for word_entry in merged_entry:
         self.SetPhraseTranslations(word_entry, merged_dict, aux_trans, aux_last_trans,
                                    tran_prob_dbm, phrase_prob_dbm, noun_words, verb_words,
-                                   live_words, rev_live_words)
+                                   live_words, rev_live_words, keywords)
         self.FilterParents(word_entry, merged_dict)
         self.AbsorbInflections(word_entry, merged_dict)
       num_entries += 1
@@ -2509,7 +2509,7 @@ class BuildUnionDBBatch:
 
   def SetPhraseTranslations(self, entry, merged_dict, aux_trans, aux_last_trans,
                             tran_prob_dbm, phrase_prob_dbm, noun_words, verb_words,
-                            live_words, rev_live_words):
+                            live_words, rev_live_words, keywords):
     if not tran_prob_dbm or not phrase_prob_dbm:
       return
     word = entry["word"]
@@ -2520,7 +2520,10 @@ class BuildUnionDBBatch:
     is_noun = word in noun_words
     is_verb = word in verb_words
     word_prob = float(phrase_prob_dbm.GetStr(word) or 0.0)
-    if word_prob < 0.00001:
+    min_prob = 0.00001
+    if word in keywords:
+      min_prob /= 10
+    if word_prob < min_prob:
       return
     word_mod_prob = min(word_prob, 0.001)
     norm_word = " ".join(self.tokenizer.Tokenize("en", word, True, True))
@@ -2583,7 +2586,7 @@ class BuildUnionDBBatch:
       if not phrase.startswith(word + " "): break
       phrase_prob = float(phrase_prob)
       ratio = phrase_prob / word_prob
-      if ratio >= 0.05:
+      if ratio >= 0.05 or phrase in keywords:
         phrases.append((phrase, True, ratio, ratio, phrase_prob))
       it.Next()
     it = rev_live_words.MakeIterator()
@@ -2595,7 +2598,7 @@ class BuildUnionDBBatch:
       if not phrase.startswith(word + " "): break
       phrase_prob = float(phrase_prob)
       ratio = phrase_prob / word_prob
-      if ratio >= 0.05:
+      if ratio >= 0.05 or phrase in keywords:
         phrase = " ".join(reversed(phrase.split(" ")))
         phrases.append((phrase, True, ratio, ratio, phrase_prob))
       it.Next()
