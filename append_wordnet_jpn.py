@@ -673,6 +673,8 @@ class AppendWordnetJPNBatch:
 
   def IsValidPosTran(self, tokenizer, pos, tran):
     tran_surface, tran_pos, tran_subpos, tran_lemma = tokenizer.GetJaLastPos(tran)
+    if len(tran) <= 1 and tran != tran_lemma:
+      return False
     if pos == "noun":
       if tran_pos == "名詞":
         return True
