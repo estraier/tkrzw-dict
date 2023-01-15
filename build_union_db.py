@@ -358,12 +358,26 @@ class BuildUnionDBBatch:
               if alt_word:
                 alternatives.append(alt_word)
           elif name in poses:
+            match = regex.search(r"-\] *Synonyms?: *(.*)", value)
+            if match:
+              syn_expr = match.group(1)
+              syn_expr = regex.sub(r"\[-.*", "", syn_expr).strip()
+              if regex.fullmatch(r"[-', \p{Latin}0-9]+", syn_expr):
+                old_value = rel_words.get("synonym")
+                if old_value:
+                  rel_words["synonym"] = old_value + ", " + syn_expr
+                else:
+                  rel_words["synonym"] = syn_expr
             if slim:
               value = regex.sub(r" \[-+\] .*", "", value).strip()
             if value:
               texts.append((name, value))
           elif name in rel_weights:
-            rel_words[name] = value
+            old_value = rel_words.get(name)
+            if old_value:
+              rel_words[name] = old_value + ", " + value
+            else:
+              rel_words[name] = value
           elif name == "mode":
             mode = value
         if not ipa and sampa:
