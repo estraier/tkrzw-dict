@@ -152,12 +152,12 @@ def IsNumericWord(word):
 
 
 _regex_stop_word_num = re.compile(r"[0-9]")
-_set_en_stop_words = set(("the", "a", "an", "be", "do", "not", "and", "or", "but",
-                          "no", "any", "some", "this", "these", "that", "those",
-                          "i", "my", "me", "mine", "you", "your", "yours",
-                          "we", "our", "us", "ours",
-                          "he", "his", "him", "she", "her", "hers",
-                          "it", "its", "they", "them", "their"))
+_set_en_stop_words = {"the", "a", "an", "be", "do", "not", "and", "or", "but",
+                      "no", "any", "some", "this", "these", "that", "those",
+                      "i", "my", "me", "mine", "you", "your", "yours",
+                      "we", "our", "us", "ours",
+                      "he", "his", "him", "she", "her", "hers",
+                      "it", "its", "they", "them", "their"}
 _regex_stop_word_ja_hiragana = regex.compile(r"^[\p{Hiragana}ー]+$")
 _regex_stop_word_ja_date = re.compile(r"^[年月日]*$")
 _regex_stop_word_ja_latin = regex.compile(r"[\p{Latin}]")
