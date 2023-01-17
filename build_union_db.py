@@ -94,7 +94,7 @@ misc_stop_words = {
   "the", "a", "an", "I", "my", "me", "mine", "you", "your", "yours", "he", "his", "him",
   "she", "her", "hers", "it", "its", "they", "their", "them", "theirs",
   "we", "our", "us", "ours", "some", "any", "one", "someone", "something",
-  "myself", "yourself", "yourselves", "himself", "herself", "itself", "themselves",
+  "myself", "yourself", "yourselves", "himself", "herself", "itself", "themselves", "oneself",
   "who", "whom", "whose", "what", "where", "when", "why", "how", "and", "but", "not", "no",
   "never", "ever", "time", "place", "people", "person", "this", "these", "that", "those",
   "other", "another", "yes", "thou",
@@ -606,12 +606,19 @@ class BuildUnionDBBatch:
     start_time = time.time()
     logger.info("Merging entries: num_keys={}".format(len(keys)))
     merged_entries = []
+    core_word_probs = {}
     for key in keys:
       merged_entry = self.MergeRecord(
         key, word_dicts, aux_trans, aoa_words, keywords,
         phrase_prob_dbm, tran_prob_dbm, rev_prob_dbm, cooc_prob_dbm)
       if not merged_entry: continue
       merged_entries.append((key, merged_entry))
+      if key.find(" ") < 0:
+        for word_entry in merged_entry:
+          word = word_entry["word"]
+          prob = float(word_entry.get("probability") or 0)
+          if prob >= 0.000001:
+            core_word_probs[word] = prob
       if len(merged_entries) % 1000 == 0:
         logger.info("Merging entries:: num_entries={}".format(len(merged_entries)))
     logger.info("Making records done: num_records={}, elapsed_time={:.2f}s".format(
@@ -623,14 +630,29 @@ class BuildUnionDBBatch:
     live_words.Open("", True, dbm="BabyDBM").OrDie()
     rev_live_words = tkrzw.DBM()
     rev_live_words.Open("", True, dbm="BabyDBM").OrDie()
+    pivot_live_words = collections.defaultdict(list)
     for key, merged_entry in merged_entries:
       for word_entry in merged_entry:
         word = word_entry["word"]
         prob = float(word_entry.get("probability") or 0)
+        tokens = word.split(" ")
         value = "{:.8f}".format(prob)
         live_words.Set(word, value).OrDie()
         rev_word = " ".join(reversed(word.split(" ")))
         rev_live_words.Set(rev_word, value).OrDie()
+        if len(tokens) > 1 and prob >= 0.000001:
+          min_token_prob = 1
+          pivot_token = None
+          for token in tokens:
+            if token in particles or token in misc_stop_words: continue
+            if not regex.fullmatch("[-'\p{Latin}]+", token): continue
+            token_prob = core_word_probs.get(token) or 0
+            if token_prob <= min_token_prob:
+              min_token_prob = token_prob
+              pivot_token = token
+          if pivot_token:
+            value = "{}|{:.8f}".format(word, prob)
+            pivot_live_words[pivot_token].append(value)
     num_entries = 0
     for key, merged_entry in merged_entries:
       for word_entry in merged_entry:
@@ -644,7 +666,8 @@ class BuildUnionDBBatch:
               entries.append((label, entry))
         self.SetAOA(word_entry, entries, aoa_words, live_words, phrase_prob_dbm)
         self.SetTranslations(word_entry, aux_trans, tran_prob_dbm, rev_prob_dbm)
-        self.SetRelations(word_entry, entries, word_dicts, live_words, rev_live_words,
+        self.SetRelations(word_entry, entries, word_dicts,
+                          live_words, rev_live_words, pivot_live_words,
                           phrase_prob_dbm, tran_prob_dbm, cooc_prob_dbm, extra_word_bases,
                           verb_words, adj_words, adv_words)
         if phrase_prob_dbm and cooc_prob_dbm:
@@ -672,7 +695,7 @@ class BuildUnionDBBatch:
       for word_entry in merged_entry:
         self.SetPhraseTranslations(word_entry, merged_dict, aux_trans, aux_last_trans,
                                    tran_prob_dbm, phrase_prob_dbm, noun_words, verb_words,
-                                   live_words, rev_live_words, keywords)
+                                   live_words, rev_live_words, pivot_live_words, keywords)
         self.FilterParents(word_entry, merged_dict)
         self.AbsorbInflections(word_entry, merged_dict)
       num_entries += 1
@@ -1718,7 +1741,8 @@ class BuildUnionDBBatch:
     if final_translations:
       entry["translation"] = final_translations
 
-  def SetRelations(self, word_entry, entries, word_dicts, live_words, rev_live_words,
+  def SetRelations(self, word_entry, entries, word_dicts,
+                   live_words, rev_live_words, pivot_live_words,
                    phrase_prob_dbm, tran_prob_dbm, cooc_prob_dbm, extra_word_bases,
                    verb_words, adj_words, adv_words):
     word = word_entry["word"]
@@ -1952,9 +1976,29 @@ class BuildUnionDBBatch:
             cmp_score *= 3.0
           if cmp_word in verb_words or cmp_word in adj_words or cmp_word in adv_words:
             cmp_score *= 3.0
-          cmp_score * 0.9
+          cmp_score *= 0.9
           idioms.append((cmp_word, cmp_score))
         it.Next()
+      pivot_exprs = pivot_live_words.get(word)
+      if pivot_exprs:
+        for pivot_expr in pivot_exprs:
+          pivot_fields = pivot_expr.split("|")
+          if len(pivot_fields) != 2: continue
+          cmp_word = pivot_fields[0]
+          cmp_prob = float(pivot_fields[1])
+          cmp_score = cmp_prob / prob
+          if cmp_score >= 0.001:
+            has_particle = False
+            for cmp_token in cmp_word.split(" "):
+              if cmp_token in particles:
+                has_particle = True
+                break
+            if has_particle:
+              cmp_score *= 3.0
+            if cmp_word in verb_words or cmp_word in adj_words or cmp_word in adv_words:
+              cmp_score *= 3.0
+            cmp_score *= 0.8
+          idioms.append((cmp_word, cmp_score))
       idioms = sorted(idioms, key=lambda x: x[1], reverse=True)
       uniq_idioms = set()
       final_idioms = []
@@ -2509,7 +2553,7 @@ class BuildUnionDBBatch:
 
   def SetPhraseTranslations(self, entry, merged_dict, aux_trans, aux_last_trans,
                             tran_prob_dbm, phrase_prob_dbm, noun_words, verb_words,
-                            live_words, rev_live_words, keywords):
+                            live_words, rev_live_words, pivot_live_words, keywords):
     if not tran_prob_dbm or not phrase_prob_dbm:
       return
     word = entry["word"]
@@ -2520,10 +2564,8 @@ class BuildUnionDBBatch:
     is_noun = word in noun_words
     is_verb = word in verb_words
     word_prob = float(phrase_prob_dbm.GetStr(word) or 0.0)
-    min_prob = 0.00001
-    if word in keywords:
-      min_prob /= 10
-    if word_prob < min_prob:
+    min_core_prob = 0.000001 if word in keywords else 0.00001
+    if word_prob < min_core_prob:
       return
     word_mod_prob = min(word_prob, 0.001)
     norm_word = " ".join(self.tokenizer.Tokenize("en", word, True, True))
@@ -2586,7 +2628,8 @@ class BuildUnionDBBatch:
       if not phrase.startswith(word + " "): break
       phrase_prob = float(phrase_prob)
       ratio = phrase_prob / word_prob
-      if ratio >= 0.05 or phrase in keywords:
+      min_phrase_ratio = 0.01 if phrase in keywords else 0.05
+      if ratio >= min_phrase_ratio:
         phrases.append((phrase, True, ratio, ratio, phrase_prob))
       it.Next()
     it = rev_live_words.MakeIterator()
@@ -2598,10 +2641,39 @@ class BuildUnionDBBatch:
       if not phrase.startswith(word + " "): break
       phrase_prob = float(phrase_prob)
       ratio = phrase_prob / word_prob
-      if ratio >= 0.05 or phrase in keywords:
+      min_phrase_ratio = 0.01 if phrase in keywords else 0.05
+      if ratio >= min_phrase_ratio:
         phrase = " ".join(reversed(phrase.split(" ")))
         phrases.append((phrase, True, ratio, ratio, phrase_prob))
       it.Next()
+    uniq_pivots = set()
+    for pivot in [word, entry.get("verb_present_participle"), entry.get("verb_past_participle")]:
+      if not pivot: continue
+      pivot = regex.sub(r",.*", "", pivot).strip()
+      if pivot in uniq_pivots: continue
+      uniq_pivots.add(pivot)
+      pivot_prob = None
+      if pivot != word:
+        pivot_key = tkrzw_dict.NormalizeWord(pivot)
+        pivot_entries = merged_dict.get(pivot_key)
+        if pivot_entries:
+          for pivot_entry in pivot_entries:
+            if pivot_entry["word"] != pivot: continue
+            pivot_prob = float(pivot_entry.get("probability") or 0)
+      if not pivot_prob or pivot_prob > word_prob:
+        pivot_prob = word_prob
+      weight = 0.9 if pivot == word else 0.8
+      pivot_exprs = pivot_live_words.get(pivot)
+      if pivot_exprs:
+        for pivot_expr in pivot_exprs:
+          pivot_fields = pivot_expr.split("|")
+          if len(pivot_fields) != 2: continue
+          phrase = pivot_fields[0]
+          phrase_prob = float(pivot_fields[1])
+          ratio = phrase_prob / pivot_prob
+          min_phrase_ratio = 0.01 if phrase in keywords else 0.05
+          if ratio >= min_phrase_ratio:
+            phrases.append((phrase, False, ratio, ratio * weight, phrase_prob))
     if not phrases:
       return
     orig_trans = {}
