@@ -624,35 +624,62 @@ class BuildUnionDBBatch:
     logger.info("Making records done: num_records={}, elapsed_time={:.2f}s".format(
       len(merged_entries), time.time() - start_time))
     start_time = time.time()
-    logger.info("Modifying entries")
-    merged_entries = sorted(merged_entries)
+    logger.info("Extracting phrases")
     live_words = tkrzw.DBM()
     live_words.Open("", True, dbm="BabyDBM").OrDie()
     rev_live_words = tkrzw.DBM()
     rev_live_words.Open("", True, dbm="BabyDBM").OrDie()
     pivot_live_words = collections.defaultdict(list)
-    for key, merged_entry in merged_entries:
-      for word_entry in merged_entry:
-        word = word_entry["word"]
-        prob = float(word_entry.get("probability") or 0)
+    pivot_dead_words = collections.defaultdict(list)
+    if phrase_prob_dbm:
+      for key, merged_entry in merged_entries:
+        for word_entry in merged_entry:
+          word = word_entry["word"]
+          prob = float(word_entry.get("probability") or 0)
+          tokens = word.split(" ")
+          value = "{:.8f}".format(prob)
+          live_words.Set(word, value).OrDie()
+          rev_word = " ".join(reversed(word.split(" ")))
+          rev_live_words.Set(rev_word, value).OrDie()
+          if len(tokens) > 1 and prob >= 0.000001:
+            min_token_prob = 1
+            pivot_token = None
+            for token in tokens:
+              if token in particles or token in misc_stop_words: continue
+              if not regex.fullmatch("[-'\p{Latin}]+", token): continue
+              token_prob = core_word_probs.get(token) or 0
+              if token_prob <= min_token_prob:
+                min_token_prob = token_prob
+                pivot_token = token
+            if pivot_token:
+              value = "{}|{:.8f}".format(word, prob)
+              pivot_live_words[pivot_token].append(value)
+      for word, trans in aux_trans.items():
+        key = self.NormalizeText(word)
+        if key in keys: continue
+        if key not in keywords: continue
+        if not regex.fullmatch("[-'\p{Latin} ]+", word): continue
         tokens = word.split(" ")
-        value = "{:.8f}".format(prob)
-        live_words.Set(word, value).OrDie()
-        rev_word = " ".join(reversed(word.split(" ")))
-        rev_live_words.Set(rev_word, value).OrDie()
-        if len(tokens) > 1 and prob >= 0.000001:
-          min_token_prob = 1
-          pivot_token = None
-          for token in tokens:
-            if token in particles or token in misc_stop_words: continue
-            if not regex.fullmatch("[-'\p{Latin}]+", token): continue
-            token_prob = core_word_probs.get(token) or 0
-            if token_prob <= min_token_prob:
-              min_token_prob = token_prob
-              pivot_token = token
-          if pivot_token:
-            value = "{}|{:.8f}".format(word, prob)
-            pivot_live_words[pivot_token].append(value)
+        if len(tokens) < 2 or len(tokens) > 3: continue
+        min_token_prob = 1
+        pivot_token = None
+        for token in tokens:
+          if token in particles or token in misc_stop_words: continue
+          if not regex.fullmatch("[-'\p{Latin}]+", token): continue
+          token_prob = core_word_probs.get(token) or 0
+          if token_prob <= min_token_prob:
+            min_token_prob = token_prob
+            pivot_token = token
+        if not pivot_token or min_token_prob < 0.000001: continue
+        prob = self.GetPhraseProb(phrase_prob_dbm, "en", word)
+        value = "{}|{:.8f}".format(word, prob)
+        pivot_dead_words[pivot_token].append(value)
+    logger.info("Extracting phrases done: num_records={}:{}:{}:{}, elapsed_time={:.2f}s".format(
+      len(live_words), len(rev_live_words), len(pivot_live_words), len(pivot_dead_words),
+      time.time() - start_time))
+    start_time = time.time()
+    logger.info("Modifying entries")
+    merged_entries = sorted(merged_entries)
     num_entries = 0
     for key, merged_entry in merged_entries:
       for word_entry in merged_entry:
@@ -695,7 +722,8 @@ class BuildUnionDBBatch:
       for word_entry in merged_entry:
         self.SetPhraseTranslations(word_entry, merged_dict, aux_trans, aux_last_trans,
                                    tran_prob_dbm, phrase_prob_dbm, noun_words, verb_words,
-                                   live_words, rev_live_words, pivot_live_words, keywords)
+                                   live_words, rev_live_words, pivot_live_words, pivot_dead_words,
+                                   keywords)
         self.FilterParents(word_entry, merged_dict)
         self.AbsorbInflections(word_entry, merged_dict)
       num_entries += 1
@@ -2553,7 +2581,8 @@ class BuildUnionDBBatch:
 
   def SetPhraseTranslations(self, entry, merged_dict, aux_trans, aux_last_trans,
                             tran_prob_dbm, phrase_prob_dbm, noun_words, verb_words,
-                            live_words, rev_live_words, pivot_live_words, keywords):
+                            live_words, rev_live_words, pivot_live_words, pivot_dead_words,
+                            keywords):
     if not tran_prob_dbm or not phrase_prob_dbm:
       return
     word = entry["word"]
@@ -2592,13 +2621,13 @@ class BuildUnionDBBatch:
             if pron_phrase_prob > 0.0:
               phrase_prob += pron_phrase_prob
       ratio = phrase_prob / word_mod_prob
-      phrases.append((phrase, True, ratio, ratio, phrase_prob))
+      phrases.append((phrase, True, True, ratio, ratio, phrase_prob))
       if ratio >= 0.005:
         for sub_particle in particles:
           sub_phrase = phrase + " " + sub_particle
           sub_phrase_prob = float(phrase_prob_dbm.GetStr(sub_phrase) or 0.0)
           sub_ratio = max(sub_phrase_prob / phrase_prob, 0.01)
-          phrases.append((sub_phrase, True, max(sub_ratio, ratio),
+          phrases.append((sub_phrase, True, True, max(sub_ratio, ratio),
                           ratio * (sub_ratio ** 0.005), sub_phrase_prob))
     verb_prob = 0.0
     if is_verb:
@@ -2612,13 +2641,13 @@ class BuildUnionDBBatch:
       if particle == "to":
         phrase_prob -= verb_prob
       ratio = phrase_prob / word_mod_prob
-      phrases.append((phrase, False, ratio, ratio, phrase_prob))
+      phrases.append((phrase, True, False, ratio, ratio, phrase_prob))
       if is_noun:
         for art in ("the", "a", "an"):
           sub_phrase = particle + " " + art + " " + word
           sub_phrase_prob = float(phrase_prob_dbm.GetStr(sub_phrase) or 0.0)
           sub_ratio = sub_phrase_prob / word_mod_prob
-          phrases.append((sub_phrase, False, sub_ratio, sub_ratio, sub_phrase_prob))
+          phrases.append((sub_phrase, True, False, sub_ratio, sub_ratio, sub_phrase_prob))
     it = live_words.MakeIterator()
     it.Jump(word + " ")
     while True:
@@ -2630,7 +2659,7 @@ class BuildUnionDBBatch:
       ratio = phrase_prob / word_prob
       min_phrase_ratio = 0.01 if phrase in keywords else 0.05
       if ratio >= min_phrase_ratio:
-        phrases.append((phrase, True, ratio, ratio, phrase_prob))
+        phrases.append((phrase, True, True, ratio, ratio, phrase_prob))
       it.Next()
     it = rev_live_words.MakeIterator()
     it.Jump(word + " ")
@@ -2644,7 +2673,7 @@ class BuildUnionDBBatch:
       min_phrase_ratio = 0.01 if phrase in keywords else 0.05
       if ratio >= min_phrase_ratio:
         phrase = " ".join(reversed(phrase.split(" ")))
-        phrases.append((phrase, True, ratio, ratio, phrase_prob))
+        phrases.append((phrase, True, True, ratio, ratio, phrase_prob))
       it.Next()
     uniq_pivots = set()
     for pivot in [word, entry.get("verb_present_participle"), entry.get("verb_past_participle")]:
@@ -2660,20 +2689,22 @@ class BuildUnionDBBatch:
           for pivot_entry in pivot_entries:
             if pivot_entry["word"] != pivot: continue
             pivot_prob = float(pivot_entry.get("probability") or 0)
-      if not pivot_prob or pivot_prob > word_prob:
-        pivot_prob = word_prob
-      weight = 0.9 if pivot == word else 0.8
-      pivot_exprs = pivot_live_words.get(pivot)
-      if pivot_exprs:
-        for pivot_expr in pivot_exprs:
-          pivot_fields = pivot_expr.split("|")
-          if len(pivot_fields) != 2: continue
-          phrase = pivot_fields[0]
-          phrase_prob = float(pivot_fields[1])
-          ratio = phrase_prob / pivot_prob
-          min_phrase_ratio = 0.01 if phrase in keywords else 0.05
-          if ratio >= min_phrase_ratio:
-            phrases.append((phrase, False, ratio, ratio * weight, phrase_prob))
+      if not pivot_prob or pivot_prob > word_mod_prob:
+        pivot_prob = word_mod_prob
+      pivot_weight = 0.9 if pivot == word else 0.8
+      for corpus_weight, pivot_exprs in [(1.0, pivot_live_words.get(pivot)),
+                                         (0.9, pivot_dead_words.get(pivot))]:
+        if pivot_exprs:
+          for pivot_expr in pivot_exprs:
+            pivot_fields = pivot_expr.split("|")
+            if len(pivot_fields) != 2: continue
+            phrase = pivot_fields[0]
+            phrase_prob = float(pivot_fields[1])
+            ratio = phrase_prob / pivot_prob
+            min_phrase_ratio = 0.01 if phrase in keywords else 0.05
+            if ratio >= min_phrase_ratio:
+              score = ratio * pivot_weight * corpus_weight
+              phrases.append((phrase, False, False, ratio, score, phrase_prob))
     if not phrases:
       return
     orig_trans = {}
@@ -2700,12 +2731,14 @@ class BuildUnionDBBatch:
         base_score *= 0.9
     final_phrases = []
     uniq_phrases = set()
-    for phrase, is_suffix, mod_prob, phrase_score, raw_prob in phrases:
+    for phrase, is_live, is_suffix, mod_prob, phrase_score, raw_prob in phrases:
       if phrase in uniq_phrases: continue
       uniq_phrases.add(phrase)
       phrase_trans = {}
       phrase_prefixes = {}
-      pos_match = is_verb if is_suffix else is_noun
+      pos_match = False
+      if is_live:
+        pos_match = is_verb if is_suffix else is_noun
       if mod_prob >= 0.02:
         if pos_match:
           tsv = tran_prob_dbm.GetStr(phrase)
