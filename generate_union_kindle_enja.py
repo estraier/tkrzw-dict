@@ -366,7 +366,7 @@ class GenerateUnionEPUBBatch:
           for name, label in attr_list:
             infls = entry.get(name)
             if infls:
-              for infl in infls:
+              for infl in infls[:1]:
                 infl_dict[word].append(infl)
         if not self.IsGoodEntry(entry, input_dbm, keywords): continue
         prob = float(entry.get("probability") or "0")
@@ -516,6 +516,7 @@ class GenerateUnionEPUBBatch:
     prob = float(entry.get("probability") or "0")
     pronunciation = entry.get("pronunciation")
     translations = entry.get("translation")
+    phrases = entry.get("phrase")
     is_major_word = prob >= 0.00001 and not regex.search("[A-Z]", word)
     poses = set()
     sub_poses = set()
@@ -643,6 +644,18 @@ class GenerateUnionEPUBBatch:
       if not rel_norm or rel_norm in keys or rel_norm in inflections or rel_norm in boss_words:
         continue
       sub_words.append(("alternative", rel_word))
+    if phrases:
+      for phrase in phrases:
+        rel_word = phrase["w"]
+        rel_norm = tkrzw_dict.NormalizeWord(rel_word)
+        if not rel_norm or rel_norm in keys or rel_norm in inflections or rel_norm in boss_words:
+          continue
+        sub_words.append(("phrase", rel_word))
+        for rel_infl in infl_dict.get(rel_word) or []:
+          infl_norm = tkrzw_dict.NormalizeWord(rel_infl)
+          if not infl_norm or infl_norm in keys or infl_norm in inflections:
+            continue
+          sub_words.append(("phrase", rel_infl))
     if sub_words:
       uniq_sub_words = set()
       P('<idx:infl inflgrp="common">')
@@ -684,7 +697,6 @@ class GenerateUnionEPUBBatch:
       P('<div>{}</div>', ", ".join(translations[:6]))
     for item in items:
       self.MakeMainEntryItem(P, item)
-    phrases = entry.get("phrase")
     if phrases:
       for phrase in phrases:
         self.MakeMainEntryPhraseItem(P, phrase)
