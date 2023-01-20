@@ -100,6 +100,9 @@ misc_stop_words = {
   "other", "another", "yes", "thou",
   "back", "much", "many", "more", "most", "good", "well", "better", "best", "all",
 }
+phrase_wildcards = {
+  "one", "one's", "someone", "someone's", "something", "something's",
+}
 wiki_stop_words = {
   "wikipedia", "encyclopedia", "page", "pages", "edit", "edits", "comment", "comments",
 }
@@ -665,13 +668,34 @@ class BuildUnionDBBatch:
         pivot_token = None
         for token in tokens:
           if token in particles or token in misc_stop_words: continue
+          if token in phrase_wildcards: continue
           if not regex.fullmatch("[-'\p{Latin}]+", token): continue
           token_prob = core_word_probs.get(token) or 0
+          norm_token = " ".join(self.tokenizer.Tokenize("en", token, False, True))
+          if norm_token != token:
+            norm_token_prob = core_word_probs.get(norm_token) or 0
+            token_prob = max(token_prob, norm_token_prob)
           if token_prob <= min_token_prob:
             min_token_prob = token_prob
             pivot_token = token
         if not pivot_token or min_token_prob < 0.000001: continue
         prob = self.GetPhraseProb(phrase_prob_dbm, "en", word)
+        alt_prob = 0
+        alt_phrases = set()
+        match = regex.search(r"(.*)(\W)(one's|someone's|something's)(\W)(.*)", word)
+        if match:
+          for pron in ["my", "our", "your", "its", "his", "her", "their"]:
+            alt_phrase = match.group(1) + match.group(2) + pron + match.group(4) + match.group(5)
+            alt_phrases.add(alt_phrase)
+        else:
+          match = regex.search(r"(.*)(\W)(someone|something)(\W)(.*)", word)
+          if match:
+            for pron in ["me", "us", "you", "it", "him", "her", "them"]:
+              alt_phrase = match.group(1) + match.group(2) + pron + match.group(4) + match.group(5)
+              alt_phrases.add(alt_phrase)
+        for alt_phrase in alt_phrases:
+          alt_prob += self.GetPhraseProb(phrase_prob_dbm, "en", alt_phrase)
+        prob += min(alt_prob * 4, min_token_prob * 0.05)
         value = "{}|{:.8f}".format(word, prob)
         pivot_dead_words[pivot_token].append(value)
     logger.info("Extracting phrases done: num_records={}:{}:{}:{}, elapsed_time={:.2f}s".format(
@@ -2739,69 +2763,68 @@ class BuildUnionDBBatch:
       pos_match = False
       if is_live:
         pos_match = is_verb if is_suffix else is_noun
-      if mod_prob >= 0.02:
-        if pos_match:
-          tsv = tran_prob_dbm.GetStr(phrase)
-          if tsv:
-            fields = tsv.split("\t")
-            for i in range(0, len(fields), 3):
-              src, trg, prob = fields[i], fields[i + 1], float(fields[i + 2])
-              if src != phrase:
-                continue
-              if regex.search("[っん]$", trg) and self.tokenizer.GetJaLastPos(trg)[1] == "動詞":
-                continue
-              if (is_verb and regex.search("[いきしちにひみり]$", trg) and
-                  self.tokenizer.GetJaLastPos(trg)[1] == "動詞"):
-                continue
-              trg = regex.sub(r"[～〜]", "", trg)
-              trg, trg_prefix, trg_suffix = self.tokenizer.StripJaParticles(trg)
-              if not trg or regex.fullmatch(r"[\p{Katakana}ー]+", trg):
-                continue
-              pos = self.tokenizer.GetJaLastPos(trg)
-              if (is_noun and is_suffix and pos[1] == "名詞" and
-                  not self.tokenizer.IsJaWordSahenNoun(trg)):
-                continue
-              if is_noun and is_suffix and trg in ("ある", "いる", "です", "ます"):
-                continue
-              orig_prob = orig_trans.get(trg) or 0.0
-              if is_verb:
-                if self.tokenizer.IsJaWordSahenNoun(trg):
-                  orig_prob = max(orig_prob, orig_trans.get(trg + "する") or 0.0)
-                for ext_suffix in ("する", "した", "して", "される", "された", "されて"):
-                  orig_prob = max(orig_prob, orig_trans.get(trg[:len(ext_suffix)]) or 0.0)
-              if (is_suffix and is_verb and not trg_prefix and trg_suffix and
-                  (pos[1] == "動詞" or self.tokenizer.IsJaWordSahenNoun(trg))):
-                trg_prefix = trg_suffix
-                trg_suffix = ""
-              elif is_suffix and is_noun and not trg_prefix:
-                if trg_suffix == "のため":
-                  trg_suffix = "ための"
-                trg_prefix = trg_suffix
-                trg_suffix = ""
-              elif not trg_suffix and trg_prefix in ("ための", "のため"):
-                if trg.endswith("する"):
-                  trg += "ための"
-                else:
-                  trg += "のため"
-                trg_prefix = ""
-              elif trg_suffix:
-                trg += trg_suffix
-              sum_prob = orig_prob + prob
-              if sum_prob >= 0.1:
-                if is_verb and pos[1] == "動詞":
-                  sum_prob += 0.1
-                phrase_trans[trg] = float(phrase_trans.get(trg) or 0.0) + sum_prob
-                if trg_prefix and not trg_suffix:
-                  part_key = trg + ":" + trg_prefix
-                  phrase_prefixes[part_key] = float(phrase_trans.get(part_key) or 0.0) + sum_prob
-        for aux_phrase_trans in (aux_trans.get(phrase), aux_last_trans.get(phrase)):
-          if aux_phrase_trans:
-            for trg in aux_phrase_trans:
-              trg = regex.sub(r"[～〜]", "", trg)
-              trg, trg_prefix, trg_suffix = self.tokenizer.StripJaParticles(trg)
-              if is_noun and is_suffix and trg in ("ある", "いる", "です", "ます"):
-                continue
-              phrase_trans[trg] = float(phrase_trans.get(trg) or 0.0) + 0.1
+      if mod_prob >= 0.02 and pos_match:
+        tsv = tran_prob_dbm.GetStr(phrase)
+        if tsv:
+          fields = tsv.split("\t")
+          for i in range(0, len(fields), 3):
+            src, trg, prob = fields[i], fields[i + 1], float(fields[i + 2])
+            if src != phrase:
+              continue
+            if regex.search("[っん]$", trg) and self.tokenizer.GetJaLastPos(trg)[1] == "動詞":
+              continue
+            if (is_verb and regex.search("[いきしちにひみり]$", trg) and
+                self.tokenizer.GetJaLastPos(trg)[1] == "動詞"):
+              continue
+            trg = regex.sub(r"[～〜]", "", trg)
+            trg, trg_prefix, trg_suffix = self.tokenizer.StripJaParticles(trg)
+            if not trg or regex.fullmatch(r"[\p{Katakana}ー]+", trg):
+              continue
+            pos = self.tokenizer.GetJaLastPos(trg)
+            if (is_noun and is_suffix and pos[1] == "名詞" and
+                not self.tokenizer.IsJaWordSahenNoun(trg)):
+              continue
+            if is_noun and is_suffix and trg in ("ある", "いる", "です", "ます"):
+              continue
+            orig_prob = orig_trans.get(trg) or 0.0
+            if is_verb:
+              if self.tokenizer.IsJaWordSahenNoun(trg):
+                orig_prob = max(orig_prob, orig_trans.get(trg + "する") or 0.0)
+              for ext_suffix in ("する", "した", "して", "される", "された", "されて"):
+                orig_prob = max(orig_prob, orig_trans.get(trg[:len(ext_suffix)]) or 0.0)
+            if (is_suffix and is_verb and not trg_prefix and trg_suffix and
+                (pos[1] == "動詞" or self.tokenizer.IsJaWordSahenNoun(trg))):
+              trg_prefix = trg_suffix
+              trg_suffix = ""
+            elif is_suffix and is_noun and not trg_prefix:
+              if trg_suffix == "のため":
+                trg_suffix = "ための"
+              trg_prefix = trg_suffix
+              trg_suffix = ""
+            elif not trg_suffix and trg_prefix in ("ための", "のため"):
+              if trg.endswith("する"):
+                trg += "ための"
+              else:
+                trg += "のため"
+              trg_prefix = ""
+            elif trg_suffix:
+              trg += trg_suffix
+            sum_prob = orig_prob + prob
+            if sum_prob >= 0.1:
+              if is_verb and pos[1] == "動詞":
+                sum_prob += 0.1
+              phrase_trans[trg] = float(phrase_trans.get(trg) or 0.0) + sum_prob
+              if trg_prefix and not trg_suffix:
+                part_key = trg + ":" + trg_prefix
+                phrase_prefixes[part_key] = float(phrase_trans.get(part_key) or 0.0) + sum_prob
+      for aux_phrase_trans in (aux_trans.get(phrase), aux_last_trans.get(phrase)):
+        if aux_phrase_trans:
+          for trg in aux_phrase_trans:
+            trg = regex.sub(r"[～〜]", "", trg)
+            trg, trg_prefix, trg_suffix = self.tokenizer.StripJaParticles(trg)
+            if is_noun and is_suffix and trg in ("ある", "いる", "です", "ます"):
+              continue
+            phrase_trans[trg] = float(phrase_trans.get(trg) or 0.0) + 0.1
       if mod_prob >= 0.001:
         phrase_entries = merged_dict.get(phrase)
         if phrase_entries:
