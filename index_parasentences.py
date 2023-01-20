@@ -5,7 +5,8 @@
 #
 # Usage:
 #   index_parasentences.py [--output str] [--phrase_prob str]
-#     [--keywords str] [--max_words num] [--max_ngram num] [--quiet]
+#     [--keywords str] [--max_words num] [--max_ngram num] [--max_samples num]
+#     [--num_buckets num] [--quiet]
 #     (It reads the standard input)
 #
 # Example:
@@ -26,6 +27,7 @@ import collections
 import logging
 import math
 import os
+import random
 import regex
 import sys
 import time
@@ -39,17 +41,21 @@ logger = tkrzw_dict.GetLogger()
 
 
 class MakeIndexBatch:
-  def __init__(self, output_path, phrase_prob_path, keywords_path, max_words, max_ngram):
+  def __init__(self, output_path, phrase_prob_path, keywords_path,
+               max_words, max_ngram, max_samples, num_buckets):
     self.output_path = output_path
     self.phrase_prob_path = phrase_prob_path
     self.keywords_path = keywords_path
     self.max_words = max_words
     self.max_ngram = max_ngram
+    self.max_samples = max_samples
+    self.num_buckets = num_buckets
     self.tokenizer = tkrzw_tokenizer.Tokenizer()
     self.output_dbm = None
     self.phrase_prob_dbm = None
     self.focus_keywords = set()
-    self.word_index = collections.defaultdict(list)
+    self.word_index = {}
+    self.random = random.Random(19780211)
 
   def Run(self):
     start_time = time.time()
@@ -61,7 +67,8 @@ class MakeIndexBatch:
     if self.keywords_path:
       self.ReadKeywords()
     self.output_dbm = tkrzw.DBM()
-    self.output_dbm.Open(self.output_path, True, dbm="HashDBM", truncate=True).OrDie()
+    self.output_dbm.Open(self.output_path, True, dbm="HashDBM",
+                         truncate=True, num_buckets=self.num_buckets).OrDie()
     self.ProcessRecords()
     self.OutputIndex()
     self.output_dbm.Close().OrDie()
@@ -79,6 +86,8 @@ class MakeIndexBatch:
         if not line: continue
         line = line.lower()
         self.focus_keywords.add(line)
+        norm_line = " ".join(self.tokenizer.Tokenize("en", line, False, True))
+        self.focus_keywords.add(norm_line)
         num_lines += 1
         if num_lines % 10000 == 0:
           logger.info("Reading keywords: lines={}".format(num_lines))
@@ -130,9 +139,11 @@ class MakeIndexBatch:
       line = line.strip()
       if not line: continue
       fields = line.split("\t")
-      sentence = fields[0]
-      words = self.tokenizer.Tokenize("en", sentence, False, True)
-      num_words += len(words)
+      sentence = fields[0].strip()
+      mod_sentence = sentence.lower()
+      mod_sentence = regex.sub(r'[\u2018\u2019\u201C\u201D]', r'"', mod_sentence)
+      mod_sentence = regex.sub(r'([-\p{Latin}0-9])"([-\p{Latin}0-9])', r'\1" \2', mod_sentence)
+      words = mod_sentence.split(" ")
       start_index = 0
       phrases = []
       uniq_phrases = set()
@@ -141,14 +152,33 @@ class MakeIndexBatch:
         end_index = min(start_index + self.max_ngram, len(words))
         tokens = []
         while index < end_index:
-          tokens.append(words[index])
+          word = words[index]
+          head_symbol = False
+          match = regex.search(r"^([^-\p{Latin}0-9_]+)(.*)$", word)
+          if match:
+            head_symbol = True
+            word = match.group(2)
+          tail_symbol = False
+          match = regex.search(r"^(.*?)([^-\p{Latin}0-9_]+)$", word)
+          if match:
+            tail_symbol = True
+            word = match.group(1)
+          if not regex.search(r"[\p{Latin}0-9]", word): break
+          num_words += 1
+          if head_symbol and index > start_index: break
+          tokens.append(word)
           index += 1
           phrase = " ".join(tokens)
-          if self.focus_keywords and phrase.lower() not in self.focus_keywords:
-            continue
-          if phrase not in uniq_phrases:
+          is_good = True
+          if self.focus_keywords:
+            if phrase not in self.focus_keywords:
+              norm_phrase = " ".join(self.tokenizer.Tokenize("en", phrase, False, True))
+              if norm_phrase not in self.focus_keywords:
+                is_good = False
+          if is_good and phrase not in uniq_phrases:
             phrases.append(phrase)
             uniq_phrases.add(phrase)
+          if tail_symbol: break
         start_index += 1
       if len(phrases) > self.max_words:
         if self.phrase_prob_dbm:
@@ -158,18 +188,21 @@ class MakeIndexBatch:
             scored_phrases.append((phrase, prob))
           scored_phrases = sorted(scored_phrases, key=lambda x: x[1])
           phrases = [x[0] for x in scored_phrases]
-      norm_phrases = []
-      norm_uniq_phrases = set()
-      for phrase in phrases:
-        norm_phrase = phrase.lower()
-        if norm_phrase in norm_uniq_phrases: continue
-        norm_phrases.append(norm_phrase)
-        norm_uniq_phrases.add(norm_phrase)
       key = "[{}]".format(num_lines)
       self.output_dbm.Set(key, line).OrDie()
-      for phrase in norm_phrases[:self.max_words]:
-        key = phrase.lower()
-        self.word_index[key].append(num_lines)
+      for phrase in phrases[:self.max_words]:
+        old_record = self.word_index.get(phrase)
+        if old_record:
+          num_samples = old_record[0] + 1
+          if len(old_record) <= self.max_samples:
+            old_record.append(num_lines)
+          else:
+            rnd_value = self.random.randint(1, num_samples)
+            if rnd_value < self.max_samples:
+              old_record[rnd_value] = num_lines
+          old_record[0] = num_samples
+        else:
+          self.word_index[phrase] = [1, num_lines]
       num_lines += 1
       if num_lines % 10000 == 0:
         logger.info("Processing records: lines={}".format(num_lines))    
@@ -181,6 +214,7 @@ class MakeIndexBatch:
     logger.info("Outputting index:")
     num_records = 0
     for word, ids in self.word_index.items():
+      ids = sorted(ids[1:])
       value = ",".join([str(x) for x in ids])
       self.output_dbm.Set(word, value).OrDie()
       num_records += 1
@@ -195,8 +229,10 @@ def main():
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or ""
   phrase_prob_path = tkrzw_dict.GetCommandFlag(args, "--phrase_prob", 1) or ""
   keywords_path = tkrzw_dict.GetCommandFlag(args, "--keywords", 1) or ""
-  max_words = int(tkrzw_dict.GetCommandFlag(args, "--max_words", 1) or 10)
+  max_words = int(tkrzw_dict.GetCommandFlag(args, "--max_words", 1) or 50)
   max_ngram = int(tkrzw_dict.GetCommandFlag(args, "--max_ngram", 1) or 3)
+  max_samples = int(tkrzw_dict.GetCommandFlag(args, "--max_samples", 1) or 100)
+  num_buckets = int(tkrzw_dict.GetCommandFlag(args, "--num_buckets", 1) or 1000000)
   if tkrzw_dict.GetCommandFlag(args, "--quiet", 0):
     logger.setLevel(logging.ERROR)
   unused_flag = tkrzw_dict.GetUnusedFlag(args)
@@ -205,7 +241,8 @@ def main():
   inputs = tkrzw_dict.GetArguments(args)
   if not output_path:
     raise RuntimeError("output path is required")
-  MakeIndexBatch(output_path, phrase_prob_path, keywords_path, max_words, max_ngram).Run()
+  MakeIndexBatch(output_path, phrase_prob_path, keywords_path,
+                 max_words, max_ngram, max_samples, num_buckets).Run()
 
 
 if __name__=="__main__":
