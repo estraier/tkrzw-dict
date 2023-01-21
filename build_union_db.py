@@ -2791,7 +2791,8 @@ class BuildUnionDBBatch:
               if self.tokenizer.IsJaWordSahenNoun(trg):
                 orig_prob = max(orig_prob, orig_trans.get(trg + "する") or 0.0)
               for ext_suffix in ("する", "した", "して", "される", "された", "されて"):
-                orig_prob = max(orig_prob, orig_trans.get(trg[:len(ext_suffix)]) or 0.0)
+                if len(trg) >= len(ext_suffix) + 2 and trg.endswith(ext_suffix):
+                  orig_prob = max(orig_prob, orig_trans.get(trg[:-len(ext_suffix)]) or 0.0)
             if (is_suffix and is_verb and not trg_prefix and trg_suffix and
                 (pos[1] == "動詞" or self.tokenizer.IsJaWordSahenNoun(trg))):
               trg_prefix = trg_suffix
