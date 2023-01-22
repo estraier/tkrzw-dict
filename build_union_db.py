@@ -2948,6 +2948,8 @@ class BuildUnionDBBatch:
 
   def AbsorbInflections(self, word_entry, merged_dict):
     word = word_entry["word"]
+    is_capital = bool(regex.search(r"[A-Z]", word))
+    has_space = word.find(" ") >= 0
     infls = []
     for infl_name in inflection_names:
       infl_value = word_entry.get(infl_name)
@@ -2955,11 +2957,13 @@ class BuildUnionDBBatch:
         named_infls = []
         for infl in regex.split(r"[,|]", infl_value):
           infl = infl.strip()
-          if infl:
-            if infl not in infls:
-              infls.append(infl)
-            if infl not in named_infls:
-              named_infls.append(infl)
+          if not infl: continue
+          if not is_capital and regex.search(r"[A-Z]", infl): continue
+          if not has_space and infl.find(" ") >= 0: continue
+          if infl not in infls:
+            infls.append(infl)
+          if infl not in named_infls:
+            named_infls.append(infl)
         if named_infls:
           word_entry[infl_name] = named_infls
         else:
