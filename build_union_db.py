@@ -2955,7 +2955,7 @@ class BuildUnionDBBatch:
         named_infls = []
         for infl in regex.split(r"[,|]", infl_value):
           infl = infl.strip()
-          if infl and infl != word:
+          if infl:
             if infl not in infls:
               infls.append(infl)
             if infl not in named_infls:
