@@ -30,11 +30,12 @@ inflection_names = [
   ("verb_singular", "vs"),
   ("verb_present_participle", "vc"),
   ("verb_past", "vp"),
-  ("verb_past_participle", "vpp"),
+  ("verb_past_participle", "vx"),
   ("adjective_comparative", "ajc"),
   ("adjective_superlative", "ajs"),
   ("adverb_comparative", "avc"),
   ("adverb_superlative", "avs"),
+  ("alternative", "a"),
 ]
 
 def main():
@@ -54,12 +55,21 @@ def main():
     entries = json.loads(data)
     for entry in entries:
       word = entry["word"]
+      has_symbol = bool(regex.search("[^\p{Latin}]", word))
       fields = [word]
       for attr, abbr in inflection_names:
         values = entry.get(attr)
         if values:
-          fields.append(abbr + ":" + ",".join(values))
+          infls = []
+          for infl in values:
+            if has_symbol != bool(regex.search("[^\p{Latin}]", infl)): continue
+            infls.append(infl)
+          if infls:
+            fields.append(abbr + ":" + ",".join(infls))
       if len(fields) > 1:
+        prob = float(entry.get("probability") or 0)
+        idfexpr = "{:.3f}".format(-math.log(prob)) if prob > math.exp(-20) else "20"
+        fields.append("i:" + idfexpr)
         print("\t".join(fields))
     it.Next()
   dbm.Close().OrDie()
