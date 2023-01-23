@@ -516,7 +516,6 @@ class GenerateUnionEPUBBatch:
     prob = float(entry.get("probability") or "0")
     pronunciation = entry.get("pronunciation")
     translations = entry.get("translation")
-    phrases = entry.get("phrase")
     is_major_word = prob >= 0.00001 and not regex.search("[A-Z]", word)
     poses = set()
     sub_poses = set()
@@ -607,6 +606,13 @@ class GenerateUnionEPUBBatch:
       items = tran_items
     if not items: return
     items = self.MergeShownItems(items, sub_items)
+    phrases = []
+    for phrase in entry.get("phrase") or []:
+      is_good = False
+      phrase_word = phrase["w"]
+      phrase_prob = float(phrase.get("p") or 0)
+      if phrase_word.find(" ") < 0 or phrase_prob > 0.001 or phrase.get("i"):
+        phrases.append(phrase)
     self.num_words += 1
     P('<idx:entry>')
     P('<div>')
@@ -837,7 +843,7 @@ class GenerateUnionEPUBBatch:
     else:
       min_shown_items = 4
       mid_shown_items = 6
-      max_shown_items = 10
+      max_shown_items = 12
     max_dup_score = 0.3
     merged_items = []
     for item in items:
