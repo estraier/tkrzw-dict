@@ -2970,6 +2970,7 @@ class BuildUnionDBBatch:
           del word_entry[infl_name]
     phrases = []
     for infl in infls:
+      if infl == word: continue
       infl_entries = merged_dict.get(infl)
       if not infl_entries: continue
       for infl_entry in infl_entries:
