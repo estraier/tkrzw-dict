@@ -2756,6 +2756,7 @@ class BuildUnionDBBatch:
     final_phrases = []
     uniq_phrases = set()
     for phrase, is_live, is_suffix, mod_prob, phrase_score, raw_prob in phrases:
+      if regex.search(r"^([b-z]|am|are|is|was|were|has|gets|becomes) ", phrase): continue
       if phrase in uniq_phrases: continue
       uniq_phrases.add(phrase)
       phrase_trans = {}
@@ -2842,6 +2843,12 @@ class BuildUnionDBBatch:
                   phrase_prefixes[part_key] = float(phrase_trans.get(part_key) or 0.0) + base_score
                 base_score *= 0.9
       if not phrase_trans:
+        continue
+      is_base = word in phrase.split(" ")
+      max_tran_prob = 0
+      for _, tran_prob in phrase_trans.items():
+        max_tran_prob = max(max_tran_prob, tran_prob)
+      if (not is_base or raw_prob < 0.01) and not is_live and max_tran_prob < 0.2:
         continue
       for tran in list(phrase_trans.keys()):
         if not regex.search(r"[\p{Han}\p{Katakana}]", tran):
@@ -2949,7 +2956,7 @@ class BuildUnionDBBatch:
   def AbsorbInflections(self, word_entry, merged_dict):
     word = word_entry["word"]
     is_capital = bool(regex.search(r"[A-Z]", word))
-    has_space = word.find(" ") >= 0
+    num_word_tokens = word.count(" ") + 1
     infls = []
     for infl_name in inflection_names:
       infl_value = word_entry.get(infl_name)
@@ -2959,7 +2966,7 @@ class BuildUnionDBBatch:
           infl = infl.strip()
           if not infl: continue
           if not is_capital and regex.search(r"[A-Z]", infl): continue
-          if not has_space and infl.find(" ") >= 0: continue
+          if num_word_tokens == 1 and infl.find(" ") >= 0: continue
           if infl not in infls:
             infls.append(infl)
           if infl not in named_infls:
@@ -2997,11 +3004,35 @@ class BuildUnionDBBatch:
           if alive:
             phrase["i"] = "1"
           phrases.append(phrase)
-    if phrases:
-      old_phrases = word_entry.get("phrase")
-      if old_phrases:
-        phrases = phrases + old_phrases
-      word_entry["phrase"] = phrases
+    phrases = phrases + (word_entry.get("phrase") or [])
+    map_phrases = {}
+    for phrase in phrases:
+      text = phrase["w"]
+      map_phrases[text] = phrase
+    surfaces = {word}
+    for infl_name in inflection_names:
+      for infl in word_entry.get(infl_name) or []:
+        surfaces.add(infl)
+    new_phrases = []
+    unique_phrases = set()
+    for phrase in phrases:
+      text = phrase["w"]
+      if text in unique_phrases: continue
+      unique_phrases.add(text)
+      new_phrases.append(phrase)
+      tokens = text.split(" ")
+      if len(tokens) > num_word_tokens and tokens[0] in surfaces:
+        infl_tokens = tokens.copy()
+        for surface in surfaces:
+          if surface == tokens[0]: continue
+          infl_tokens[0] = surface
+          infl_text = " ".join(infl_tokens)
+          if infl_text in unique_phrases: continue
+          infl_phrase = map_phrases.get(infl_text)
+          if infl_phrase:
+            new_phrases.append(infl_phrase)
+            unique_phrases.add(infl_text)
+    word_entry["phrase"] = new_phrases
 
 
 def main():
