@@ -304,20 +304,20 @@ class Tokenizer:
         tokens[-1][1] == '助動詞' and tokens[-1][3] == 'う'):
       tokens = tokens[:-2]
       tokens[-1][0] = tokens[-1][3]
-      word = "".join([x[0] for x in tokens])
+      word = self.JoinParsedTokens(tokens)
     elif (len(tokens) >= 3 and tokens[-2][1] == '助動詞' and tokens[-2][3] == 'ます' and
         tokens[-1][1] == '助動詞' and tokens[-1][3] == 'ん'):
       tokens = tokens[:-2]
       if tokens[-1][3] in ("ある", "有る"):
         tokens = tokens[:-1]
-      word = "".join([x[0] for x in tokens]) + "ない"
+      word = self.JoinParsedTokens(tokens) + "ない"
     elif len(tokens) >= 2 and tokens[-1][1] == "助動詞" and tokens[-1][3] == "ます":
       tokens = tokens[:-1]
       tokens[-1][0] = tokens[-1][3]
-      word = "".join([x[0] for x in tokens])
+      word = self.JoinParsedTokens(tokens)
     elif len(tokens) >= 2 and tokens[-1][1] == "助動詞" and tokens[-1][3] == "です":
       tokens = tokens[:-1]
-      word = "".join([x[0] for x in tokens])
+      word = self.JoinParsedTokens(tokens)
     return word
 
   def NormalizeJaWordForPos(self, pos, tran):
@@ -422,7 +422,7 @@ class Tokenizer:
       parsed = parsed[:-1]
     if len(parsed) == len(tokens):
       return (word, "", "")
-    return ("".join([x[0] for x in parsed]), prefix, suffix)
+    return (self.JoinParsedTokens(parsed), prefix, suffix)
 
   def InitMecabYomi(self):
     mecab = importlib.import_module("MeCab")
@@ -432,3 +432,13 @@ class Tokenizer:
   def GetJaYomi(self, text):
     self.InitMecabYomi()
     return tkrzw_dict.ConvertKatakanaToHiragana(self.tagger_mecab_yomi.parse(text)).strip()
+
+  def JoinParsedTokens(self, tokens):
+    text = ""
+    for token in tokens:
+      if (text and (
+          not regex.search("[\p{Han}\p{Katakana}\p{Hiragana}ー]", text[-1]) and
+          not regex.search("[\p{Han}\p{Katakana}\p{Hiragana}ー]", token[0]))):
+        text += " "
+      text += token[0]
+    return text
