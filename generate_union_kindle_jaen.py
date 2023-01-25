@@ -148,16 +148,14 @@ def esc(expr):
 class GenerateUnionEPUBBatch:
   def __init__(self, input_path, output_path, supplement_labels,
                tran_prob_path, phrase_prob_path, rev_prob_path,
-               yomi_first_paths, yomi_second_paths,
-               tran_aux_paths, conj_verb_path, conj_adj_path, title):
+               yomi_paths, tran_aux_paths, conj_verb_path, conj_adj_path, title):
     self.input_path = input_path
     self.output_path = output_path
     self.supplement_labels = supplement_labels
     self.tran_prob_path = tran_prob_path
     self.phrase_prob_path = phrase_prob_path
     self.rev_prob_path = rev_prob_path
-    self.yomi_first_paths = yomi_first_paths
-    self.yomi_second_paths = yomi_second_paths
+    self.yomi_paths = yomi_paths
     self.tran_aux_paths = tran_aux_paths
     self.conj_verb_path = conj_verb_path
     self.conj_adj_path = conj_adj_path
@@ -412,37 +410,24 @@ class GenerateUnionEPUBBatch:
     return new_word_dict
 
   def MakeYomiDict(self, word_dict):
-    yomi_first_map = collections.defaultdict(list)
-    for yomi_path in self.yomi_first_paths:
+    yomi_map = collections.defaultdict(list)
+    for yomi_path in self.yomi_paths:
       if not yomi_path: continue
-      self.ReadYomiMap(yomi_path, yomi_first_map)
-    yomi_second_map = collections.defaultdict(list)
-    for yomi_path in self.yomi_second_paths:
-      if not yomi_path: continue
-      self.ReadYomiMap(yomi_path, yomi_second_map)
+      self.ReadYomiMap(yomi_path, yomi_map)
     yomi_dict = collections.defaultdict(list)
     for word, items in word_dict.items():
       word_yomi = ""
-      part_yomis = yomi_first_map.get(word)
+      part_yomis = yomi_map.get(word)
       if part_yomis:
         word_yomi = self.ChooseBestYomi(word, part_yomis, False)
-      if not word_yomi:
-        part_yomis = yomi_second_map.get(word)
-        if part_yomis:
-          word_yomi = self.ChooseBestYomi(word, part_yomis, True)
       if not word_yomi:
         trg_word = word
         stem, prefix, suffix = self.tokenizer.StripJaParticles(word)
         if stem != word:
-          part_yomis = yomi_first_map.get(stem)
+          part_yomis = yomi_map.get(stem)
           if part_yomis:
             part_yomis = [prefix + x + suffix for x in part_yomis]
             trg_word = self.ChooseBestYomi(word, part_yomis, True)
-          else:
-            part_yomis = yomi_second_map.get(stem)
-            if part_yomis:
-              part_yomis = [prefix + x + suffix for x in part_yomis]
-              trg_word = self.ChooseBestYomi(word, part_yomis, True)
         word_yomi = self.tokenizer.GetJaYomi(trg_word)
       if not word_yomi: continue
       first = word_yomi[0]
@@ -457,11 +442,13 @@ class GenerateUnionEPUBBatch:
     return sorted_yomi_dict
 
   def ReadYomiMap(self, path, yomi_map):
+    print("READ", path)
     if path:
+      print(path)
       with open(path) as input_file:
         for line in input_file:
           fields = line.strip().split("\t")
-          if len(fields) <= 2: continue
+          if len(fields) < 2: continue
           kanji, yomis = fields[0], fields[1:]
           yomi_map[kanji].extend(yomis)
     return yomi_map
@@ -469,12 +456,19 @@ class GenerateUnionEPUBBatch:
   def ChooseBestYomi(self, word, yomis, sort_by_length):
     if len(yomis) == 1:
       return yomis[0]
-    word_yomi = self.tokenizer.GetJaYomi(word)
-    if word_yomi in yomis:
-      return word_yomi
-    if sort_by_length:
-      yomis = sorted(yomis, key=lambda x: len(x))
-    return yomis[0]
+    yomis = yomis + [self.tokenizer.GetJaYomi(word)]
+    counts = {}
+    i = 0
+    while i < len(yomis):
+      yomi = yomis[i]
+      score = len(yomi) if sort_by_length else i
+      values = counts.get(yomi) or [0, score]
+      values[0] += 1
+      counts[yomi] = values
+      i += 1
+    counts = sorted(counts.items(), key=lambda x: (x[1][0], -x[1][-1]), reverse=True)
+
+    return counts[0][0]
 
   def GetPhraseProb(self, prob_dbm, language, word):
     base_prob = 0.000000001
@@ -665,8 +659,7 @@ def main():
   tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
   phrase_prob_path = tkrzw_dict.GetCommandFlag(args, "--phrase_prob", 1) or ""
   rev_prob_path = tkrzw_dict.GetCommandFlag(args, "--rev_prob", 1) or ""
-  yomi_first_paths = (tkrzw_dict.GetCommandFlag(args, "--yomi_first", 1) or "").split(",")
-  yomi_second_paths = (tkrzw_dict.GetCommandFlag(args, "--yomi_second", 1) or "").split(",")
+  yomi_paths = (tkrzw_dict.GetCommandFlag(args, "--yomi", 1) or "").split(",")
   tran_aux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or "").split(",")
   conj_verb_path = tkrzw_dict.GetCommandFlag(args, "--conj_verb", 1)
   conj_adj_path = tkrzw_dict.GetCommandFlag(args, "--conj_adj", 1)
@@ -677,8 +670,7 @@ def main():
     raise RuntimeError("an output path is required")
   GenerateUnionEPUBBatch(
     input_path, output_path, supplement_labels, tran_prob_path, phrase_prob_path, rev_prob_path,
-    yomi_first_paths, yomi_second_paths,
-    tran_aux_paths, conj_verb_path, conj_adj_path, title).Run()
+    yomi_paths, tran_aux_paths, conj_verb_path, conj_adj_path, title).Run()
 
 
 if __name__=="__main__":
