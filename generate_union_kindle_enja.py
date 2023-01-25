@@ -650,18 +650,17 @@ class GenerateUnionEPUBBatch:
       if not rel_norm or rel_norm in keys or rel_norm in inflections or rel_norm in boss_words:
         continue
       sub_words.append(("alternative", rel_word))
-    if phrases:
-      for phrase in phrases:
-        rel_word = phrase["w"]
-        rel_norm = tkrzw_dict.NormalizeWord(rel_word)
-        if not rel_norm or rel_norm in keys or rel_norm in inflections or rel_norm in boss_words:
+    for phrase in phrases:
+      rel_word = phrase["w"]
+      rel_norm = tkrzw_dict.NormalizeWord(rel_word)
+      if not rel_norm or rel_norm in keys or rel_norm in inflections or rel_norm in boss_words:
+        continue
+      sub_words.append(("phrase", rel_word))
+      for rel_infl in infl_dict.get(rel_word) or []:
+        infl_norm = tkrzw_dict.NormalizeWord(rel_infl)
+        if not infl_norm or infl_norm in keys or infl_norm in inflections:
           continue
-        sub_words.append(("phrase", rel_word))
-        for rel_infl in infl_dict.get(rel_word) or []:
-          infl_norm = tkrzw_dict.NormalizeWord(rel_infl)
-          if not infl_norm or infl_norm in keys or infl_norm in inflections:
-            continue
-          sub_words.append(("phrase", rel_infl))
+        sub_words.append(("phrase", rel_infl))
     if sub_words:
       uniq_sub_words = set()
       P('<idx:infl inflgrp="common">')
@@ -703,9 +702,8 @@ class GenerateUnionEPUBBatch:
       P('<div>{}</div>', ", ".join(translations[:6]))
     for item in items:
       self.MakeMainEntryItem(P, item)
-    if phrases:
-      for phrase in phrases:
-        self.MakeMainEntryPhraseItem(P, phrase)
+    for phrase in phrases:
+      self.MakeMainEntryPhraseItem(P, phrase)
     parents = entry.get("parent") or []
     etym_core = entry.get("etymology_core")
     if etym_core and etym_core not in parents:
@@ -755,7 +753,6 @@ class GenerateUnionEPUBBatch:
     P('</div>')
 
   def MakeMainEntryPhraseItem(self, P, phrase):
-    if phrase.get("i") != "1": return
     P('<div>')
     P('<span class="attr">[句]</span>')
     P('{} : {}', phrase["w"], ", ".join(phrase["x"]))
