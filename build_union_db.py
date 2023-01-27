@@ -2718,6 +2718,7 @@ class BuildUnionDBBatch:
           for pivot_entry in pivot_entries:
             if pivot_entry["word"] != pivot: continue
             pivot_prob = float(pivot_entry.get("probability") or 0)
+      if pivot_prob and pivot_prob > word_prob: continue
       if not pivot_prob or pivot_prob > word_mod_prob:
         pivot_prob = word_mod_prob
       pivot_weight = 0.9 if pivot == word else 0.8
