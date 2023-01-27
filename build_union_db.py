@@ -1608,16 +1608,21 @@ class BuildUnionDBBatch:
           continue
         text = regex.sub(r" \[-+\] .*", "", text).strip()
         text = regex.sub(r" -+ .*", "", text).strip()
-        for tran in regex.split("[。|、|；|,|;]", text):
+        text = regex.sub(r"。$", "", text).strip()
+        text_segments = regex.split("[。|、|；|,|;]", text)
+        max_tokens = 5 if len(text_segments) == 1 else 4
+        for tran in text_segments:
           if len(translations) > 1:
             if tran in ("また", "または", "又は", "しばしば"):
               continue
           if regex.search(r"^[ \p{Latin}]+〜", tran):
             continue
+          if regex.search(r"[\p{P}]", tran):
+            continue
           tran = regex.sub(r"^[\p{S}\p{P}]+ *(が|の|を|に|へ|と|より|から|で|や)", "", tran)
           tran = regex.sub(r"[～〜]", "", tran)
           tokens = self.tokenizer.Tokenize("ja", tran, False, False)
-          if len(tokens) > 6:
+          if len(tokens) > max_tokens:
             break
           if regex.search(r"^[ \p{Latin}]+ *など", tran):
             continue
