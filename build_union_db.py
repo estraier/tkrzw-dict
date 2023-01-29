@@ -1764,7 +1764,6 @@ class BuildUnionDBBatch:
       tran = regex.sub(r"^を.*", "", tran)
       tran = regex.sub(r"・", "", tran)
       tran = self.tokenizer.NormalizeJaWordStyle(tran)
-      tran = tkrzw_dict.NormalizeWord(tran)
       norm_tran = tkrzw_dict.NormalizeWord(tran)
       if not norm_tran or norm_tran in uniq_trans:
         continue
