@@ -612,11 +612,15 @@ class AppendWordnetJPNBatch:
   _regex_stop_word_hiragana = regex.compile(r"[\p{Hiragana}ー]+")
   def SortWordsByScore(
       self, word, pos, input_trans, hand_trans, rev_prob_dbm, tokenizer, tran_prob_dbm):
+    norm_word = word.lower()
     scored_trans = []
     pure_translation_scores = []
     max_score = 0.0
     sum_score = 0.0
     for tran, score in input_trans:
+      norm_tran = tran.lower()
+      if norm_tran == norm_word:
+        tran = word
       tran_bias = score
       if self._regex_stop_word_katakana.search(tran):
         tran_bias *= 0.8
