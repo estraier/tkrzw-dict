@@ -388,8 +388,6 @@ class GenerateUnionEPUBBatch:
       poses.add(item["pos"])
       if item["text"].startswith("[translation]:"): continue
       labels.add(item["label"])
-    if word in keywords:
-      return True
     has_good_label = False
     for label in labels:
       if label in self.trustable_labels:
@@ -398,6 +396,8 @@ class GenerateUnionEPUBBatch:
         has_good_label = True
     if not has_good_label:
       return False
+    if word in keywords:
+      return True
     if regex.search(r"[A-Z]", word) and prob < self.min_prob_capital:
       return False
     if word.find(" ") >= 0 and prob < self.min_prob_multi:
