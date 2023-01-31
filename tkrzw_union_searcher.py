@@ -468,7 +468,7 @@ class UnionSearcher:
                 for infl_name in self.infl_names:
                   infl_values = entry.get(infl_name)
                   if infl_values:
-                    for infl_value in regex.split(r"[,|]", infl_values):
+                    for infl_value in infl_values:
                       if CheckSurfaceMatch(phrase, infl_value):
                         match = True
                         break

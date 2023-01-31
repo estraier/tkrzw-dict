@@ -1096,7 +1096,25 @@ def PrintResultCGIAnnot(script_name, spans, head_level, file=sys.stdout):
         pos_label = POSES.get(pos) or pos
         text = item["text"]
         text = regex.sub(r" \[-.*", "", text).strip()
-        P('<div class="annot_item"><span class="annot_pos">{}</span> {}</div>', pos_label, text)
+        attr_labels = []
+        attr_match = regex.search(r"^\[([a-z]+)\]: ", text)
+        if attr_match:
+          if attr_match.group(1) == "synset": continue
+          attr_label = WORDNET_ATTRS.get(attr_match.group(1))
+          if attr_label:
+            attr_labels.append(attr_label)
+            text = text[len(attr_match.group(0)):].strip()
+        attr_match = regex.search(r"^\(([a-z]+)\)", text)
+        if attr_match:
+          attr_label = TEXT_ATTRS.get(attr_match.group(1))
+          if attr_label:
+            attr_labels.append(attr_label)
+            text = text[len(attr_match.group(0)):].strip()
+        P('<div class="annot_item"><span class="annot_pos">{}</span>', pos_label, end="")
+        for attr_label in attr_labels:
+          P('<span class="annot_attr_label">{}</span>', attr_label, end="")
+        P(' {}', text, end="")
+        P('</div>', text)
       if len(items) > max_items:
         P('<a href="{}" class="annot_item_more">... ...</a>', word_url)
       P('</div>')
@@ -1275,14 +1293,15 @@ a.star_word {{ display: inline-block; min-width: 10ex; padding: 0ex 0.5ex;
 .word .tip {{
   visibility: hidden;
   position: absolute;
-  top: 3.2ex;
+  top: 2.8ex;
   left: -1.2ex;
   right: auto;
   width: 50ex;
   height: 40ex;
-  overflow: scroll;
+  overflow-x: hidden;
+  overflow-y: auto;
   line-height: initial;
-  background: #ffff99;
+  background: #ffffcc;
   opacity: 0.95;
   border-radius: 0.5ex;
   padding: 0.5ex 1ex;
@@ -1304,8 +1323,8 @@ a.star_word {{ display: inline-block; min-width: 10ex; padding: 0ex 0.5ex;
 .annot_title_pron:before,.annot_title_pron:after {{ content: "/"; font-size: 90%; color: #999999; }}
 .annot_title_aoa {{ font-size: 80%; color: #666666; margin-left: 1.5ex; opacity: 0.6; }}
 .annot_item {{ font-size: 95%; }}
-.annot_pos {{
-  display: inline-block; border: solid 1px #999999; border-radius: 0.5ex;
+.annot_pos,.annot_attr_label {{
+  display: inline-block; border: solid 0.8px #aaaaaa; border-radius: 0.5ex;
   font-size: 65%; min-width: 3.5ex; text-align: center;
   margin-right: -0.3ex; color: #333333; }}
 @media (max-width:500px) {{
