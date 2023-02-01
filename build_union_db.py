@@ -2638,6 +2638,7 @@ class BuildUnionDBBatch:
     norm_word = " ".join(self.tokenizer.Tokenize("en", word, True, True))
     if word != norm_word:
       return
+    cooccurrences = entry.get("cooccurrence") or []
     phrases = []
     for particle in particles:
       phrase = word + " " + particle
@@ -2696,6 +2697,12 @@ class BuildUnionDBBatch:
       phrase_prob = float(phrase_prob)
       ratio = phrase_prob / word_prob
       min_phrase_ratio = 0.01 if phrase in keywords else 0.05
+      is_colloc = False
+      for token in phrase.split(" "):
+        if token != word and token in cooccurrences:
+          is_colloc = True
+      if is_colloc:
+        min_phrase_ratio *= 0.5
       if ratio >= min_phrase_ratio:
         phrases.append((phrase, True, True, ratio, ratio, phrase_prob))
       it.Next()
@@ -2706,13 +2713,18 @@ class BuildUnionDBBatch:
       if not rec: break
       phrase, phrase_prob = rec
       if not phrase.startswith(word + " "): break
+      phrase = " ".join(reversed(phrase.split(" ")))
       phrase_prob = float(phrase_prob)
       ratio = phrase_prob / word_prob
       min_phrase_ratio = 0.01 if phrase in keywords else 0.05
-      if ratio >= min_phrase_ratio:
-        phrase = " ".join(reversed(phrase.split(" ")))
-        if not regex.search("^[A-Z][a-zA-Z]+ [a-z]", phrase):
-          phrases.append((phrase, True, True, ratio, ratio, phrase_prob))
+      is_colloc = False
+      for token in phrase.split(" "):
+        if token != word and token in cooccurrences:
+          is_colloc = True
+      if is_colloc:
+        min_phrase_ratio *= 0.5
+      if ratio >= min_phrase_ratio and not regex.search("^[A-Z][a-zA-Z]+ [a-z]", phrase):
+        phrases.append((phrase, True, True, ratio, ratio, phrase_prob))
       it.Next()
     uniq_pivots = set()
     for pivot in [word, entry.get("verb_present_participle"), entry.get("verb_past_participle")]:
@@ -3087,7 +3099,8 @@ class BuildUnionDBBatch:
           if infl_phrase:
             new_phrases.append(infl_phrase)
             unique_phrases.add(infl_text)
-    word_entry["phrase"] = new_phrases
+    if new_phrases:
+      word_entry["phrase"] = new_phrases
 
 
 def main():
