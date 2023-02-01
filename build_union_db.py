@@ -619,9 +619,11 @@ class BuildUnionDBBatch:
       if key.find(" ") < 0:
         for word_entry in merged_entry:
           word = word_entry["word"]
+          norm_word = tkrzw_dict.NormalizeWord(word)
           prob = float(word_entry.get("probability") or 0)
           if prob >= 0.000001:
-            core_word_probs[word] = prob
+            old_prob = core_word_probs.get(norm_word) or 0
+            core_word_probs[norm_word] = max(prob, old_prob)
       if len(merged_entries) % 1000 == 0:
         logger.info("Merging entries:: num_entries={}".format(len(merged_entries)))
     logger.info("Making records done: num_records={}, elapsed_time={:.2f}s".format(
@@ -645,12 +647,16 @@ class BuildUnionDBBatch:
           rev_word = " ".join(reversed(word.split(" ")))
           rev_live_words.Set(rev_word, value).OrDie()
           if len(tokens) > 1 and prob >= 0.000001:
+            if (tokens[0].lower() in particles and
+                regex.search(r"[A-Z]", tokens[0]) and not regex.search(r"[A-Z]", tokens[1])):
+              continue
             min_token_prob = 1
             pivot_token = None
             for token in tokens:
               if token in particles or token in misc_stop_words: continue
               if not regex.fullmatch("[-'\p{Latin}]+", token): continue
-              token_prob = core_word_probs.get(token) or 0
+              norm_token = tkrzw_dict.NormalizeWord(token)
+              token_prob = core_word_probs.get(norm_token) or 0
               if token_prob <= min_token_prob:
                 min_token_prob = token_prob
                 pivot_token = token
@@ -658,19 +664,23 @@ class BuildUnionDBBatch:
               value = "{}|{:.8f}".format(word, prob)
               pivot_live_words[pivot_token].append(value)
       for word, trans in aux_trans.items():
-        key = self.NormalizeText(word)
+        key = tkrzw_dict.NormalizeWord(word)
         if key in keys: continue
         if key not in keywords: continue
         if not regex.fullmatch("[-'\p{Latin} ]+", word): continue
         tokens = word.split(" ")
         if len(tokens) < 2 or len(tokens) > 3: continue
+        if (tokens[0].lower() in particles and
+            regex.search(r"[A-Z]", tokens[0]) and not regex.search(r"[A-Z]", tokens[1])):
+          continue
         min_token_prob = 1
         pivot_token = None
         for token in tokens:
-          if token in particles or token in misc_stop_words: continue
-          if token in phrase_wildcards: continue
+          norm_token = tkrzw_dict.NormalizeWord(token)
+          if norm_token in particles or norm_token in misc_stop_words: continue
+          if norm_token in phrase_wildcards: continue
           if not regex.fullmatch("[-'\p{Latin}]+", token): continue
-          token_prob = core_word_probs.get(token) or 0
+          token_prob = core_word_probs.get(norm_token) or 0
           norm_token = " ".join(self.tokenizer.Tokenize("en", token, False, True))
           if norm_token != token:
             norm_token_prob = core_word_probs.get(norm_token) or 0
@@ -2701,7 +2711,8 @@ class BuildUnionDBBatch:
       min_phrase_ratio = 0.01 if phrase in keywords else 0.05
       if ratio >= min_phrase_ratio:
         phrase = " ".join(reversed(phrase.split(" ")))
-        phrases.append((phrase, True, True, ratio, ratio, phrase_prob))
+        if not regex.search("^[A-Z][a-zA-Z]+ [a-z]", phrase):
+          phrases.append((phrase, True, True, ratio, ratio, phrase_prob))
       it.Next()
     uniq_pivots = set()
     for pivot in [word, entry.get("verb_present_participle"), entry.get("verb_past_participle")]:
@@ -2723,17 +2734,19 @@ class BuildUnionDBBatch:
       pivot_weight = 0.9 if pivot == word else 0.8
       for corpus_weight, pivot_exprs in [(1.0, pivot_live_words.get(pivot)),
                                          (0.9, pivot_dead_words.get(pivot))]:
-        if pivot_exprs:
-          for pivot_expr in pivot_exprs:
-            pivot_fields = pivot_expr.split("|")
-            if len(pivot_fields) != 2: continue
-            phrase = pivot_fields[0]
-            phrase_prob = float(pivot_fields[1])
-            ratio = phrase_prob / pivot_prob
-            min_phrase_ratio = 0.01 if phrase in keywords else 0.05
-            if ratio >= min_phrase_ratio:
-              score = ratio * pivot_weight * corpus_weight
-              phrases.append((phrase, False, False, ratio, score, phrase_prob))
+        if not pivot_exprs: continue
+        for pivot_expr in pivot_exprs:
+          pivot_fields = pivot_expr.split("|")
+          if len(pivot_fields) != 2: continue
+          phrase = pivot_fields[0]
+          phrase_prob = float(pivot_fields[1])
+          if phrase.lower().startswith("to "):
+            phrase_prob -= verb_prob
+          ratio = phrase_prob / pivot_prob
+          min_phrase_ratio = 0.01 if phrase in keywords else 0.05
+          if ratio >= min_phrase_ratio:
+            score = ratio * pivot_weight * corpus_weight
+            phrases.append((phrase, False, False, ratio, score, phrase_prob))
     if not phrases:
       return
     orig_trans = {}
@@ -2849,6 +2862,26 @@ class BuildUnionDBBatch:
                 base_score *= 0.9
       if not phrase_trans:
         continue
+      has_uniq_trans = False
+      if ent_orig_trans:
+        for phrase_tran, score in phrase_trans.items():
+          if regex.search("\p{Han}", phrase_tran):
+            has_uniq_trans = True
+          else:
+            katakana = regex.sub("[^\p{Katakana}ー]", "", phrase_tran)
+            if len(katakana) >= 2:
+              is_dup_tran = False
+              for orig_tran in ent_orig_trans:
+                if orig_tran.find(katakana) >= 0:
+                  is_dup_tran = True
+              if is_dup_tran:
+                continue
+            if phrase_tran not in ent_orig_trans:
+              has_uniq_trans = True
+      else:
+        has_uniq_trans = True
+      if not has_uniq_trans:
+        continue
       is_base = word in phrase.split(" ")
       max_tran_prob = 0
       for _, tran_prob in phrase_trans.items():
@@ -2960,6 +2993,7 @@ class BuildUnionDBBatch:
 
   def AbsorbInflections(self, word_entry, merged_dict):
     word = word_entry["word"]
+    translations = word_entry.get("translation")
     is_capital = bool(regex.search(r"[A-Z]", word))
     num_word_tokens = word.count(" ") + 1
     infls = []
@@ -3005,10 +3039,26 @@ class BuildUnionDBBatch:
           alive = False
         infl_trans = infl_entry.get("translation")
         if infl_trans:
-          phrase = {"w": infl, "x": infl_trans[:4]}
-          if alive:
-            phrase["i"] = "1"
-          phrases.append(phrase)
+          has_uniq_trans = False
+          if translations:
+            for infl_tran in infl_trans:
+              katakana = regex.sub("[^\p{Katakana}ー]", "", infl_tran)
+              if len(katakana) >= 2:
+                is_dup_tran = False
+                for orig_tran in translations:
+                  if orig_tran.find(katakana) >= 0:
+                    is_dup_tran = True
+                if is_dup_tran:
+                  continue
+              if not infl_tran in translations:
+                has_uniq_trans = True
+          else:
+            has_uniq_trans = True
+          if has_uniq_trans:
+            phrase = {"w": infl, "x": infl_trans[:4]}
+            if alive:
+              phrase["i"] = "1"
+            phrases.append(phrase)
     phrases = phrases + (word_entry.get("phrase") or [])
     map_phrases = {}
     for phrase in phrases:
