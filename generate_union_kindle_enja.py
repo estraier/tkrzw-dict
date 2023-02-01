@@ -656,7 +656,20 @@ class GenerateUnionEPUBBatch:
       if not rel_norm or rel_norm in keys or rel_norm in inflections or rel_norm in boss_words:
         continue
       sub_words.append(("phrase", rel_word))
-      for rel_infl in infl_dict.get(rel_word) or []:
+      rel_infls = infl_dict.get(rel_word) or []
+      rel_tokens = rel_word.split(" ")
+      if not rel_infls:
+        i = 0
+        while i < len(rel_tokens):
+          if rel_tokens[i] == word:
+            copy_rel_tokens = rel_tokens.copy()
+            for rel_pos, rel_attrs in infl_groups.items():
+              for _, rel_infl, _ in rel_attrs:
+                copy_rel_tokens[i] = rel_infl
+                sub_words.append(("phrase", " ".join(copy_rel_tokens)))
+            break
+          i += 1
+      for rel_infl in rel_infls:
         infl_norm = tkrzw_dict.NormalizeWord(rel_infl)
         if not infl_norm or infl_norm in keys or infl_norm in inflections:
           continue
