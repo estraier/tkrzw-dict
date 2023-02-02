@@ -718,6 +718,9 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
         hint = text
         break
     P('<div class="entry_navi">')
+    related_url = "{}?q={}&s=related".format(script_name, urllib.parse.quote(word))
+    P('<a class="entry_icon relsearch_icon" href="{}" aria-label="related words">&#x2252;</a>',
+      related_url)
     P('<span class="entry_icon star_icon" data-word="{}" data-hint="{}"' +
       ' onclick="toggle_star(this, -1)" aria-label="star">&#x2605;</span>', word, hint)
     P('</div>')
@@ -1256,7 +1259,8 @@ a.navi_link:hover {{ background: #dddddd; opacity: 1; }}
 .entry_navi {{ position: absolute; top: 0.7ex; right: 0.5ex; font-size: 95%; }}
 .entry_icon {{ display: inline-block; width: 3ex; text-align: center;
   color: #cccccc; opacity: 0.8; }}
-.entry_icon:hover {{ opacity: 1; cursor: pointer; }}
+.entry_icon:hover {{ opacity: 1; cursor: pointer; text-decoration: none; }}
+.relsearch_icon:hover {{ color: #888888; }}
 #star_list div {{ white-space: nowrap; overflow: hidden; }}
 .star_hint {{ display: none; }}
 #star_list div:hover .star_hint {{ display: unset; }}
