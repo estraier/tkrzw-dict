@@ -508,6 +508,9 @@ class BuildUnionDBBatch:
     for label, word_dict in word_dicts:
       for key in word_dict.keys():
         if key.find("\t") >= 0: continue
+
+        if not key.startswith("z"): continue
+        
         keys.add(key)
     logger.info("Extracting keys done: num_keys={}, elapsed_time={:.2f}s".format(
       len(keys), time.time() - start_time))
@@ -2095,6 +2098,7 @@ class BuildUnionDBBatch:
           for cooc_token in cooc_tokens:
             if cooc_token and cooc_word not in tokens:
               cooc_words[cooc_token] += float(cooc_prob) * word_weight
+    cooc_words.pop(norm_word, None)
     def_token_labels = collections.defaultdict(set)
     for item in word_entry["item"]:
       label = item["label"]
@@ -2638,7 +2642,11 @@ class BuildUnionDBBatch:
     norm_word = " ".join(self.tokenizer.Tokenize("en", word, True, True))
     if word != norm_word:
       return
-    cooccurrences = entry.get("cooccurrence") or []
+    colloc_words = set()
+    for cooc in entry.get("cooccurrence") or []:
+      if (len(cooc) > 1 and cooc != word and
+          cooc not in particles and cooc not in misc_stop_words):
+        colloc_words.add(cooc)
     phrases = []
     for particle in particles:
       phrase = word + " " + particle
@@ -2660,14 +2668,14 @@ class BuildUnionDBBatch:
             if pron_phrase_prob > 0.0:
               phrase_prob += pron_phrase_prob
       ratio = phrase_prob / word_mod_prob
-      phrases.append((phrase, True, True, ratio, ratio, phrase_prob))
+      phrases.append((phrase, True, True, ratio, ratio, phrase_prob, particle))
       if ratio >= 0.005:
         for sub_particle in particles:
           sub_phrase = phrase + " " + sub_particle
           sub_phrase_prob = float(phrase_prob_dbm.GetStr(sub_phrase) or 0.0)
           sub_ratio = max(sub_phrase_prob / phrase_prob, 0.01)
           phrases.append((sub_phrase, True, True, max(sub_ratio, ratio),
-                          ratio * (sub_ratio ** 0.005), sub_phrase_prob))
+                          ratio * (sub_ratio ** 0.005), sub_phrase_prob, particle))
     verb_prob = 0.0
     if is_verb:
       for auxverb in ("not", "will", "shall", "can", "may", "must"):
@@ -2680,13 +2688,14 @@ class BuildUnionDBBatch:
       if particle == "to":
         phrase_prob -= verb_prob
       ratio = phrase_prob / word_mod_prob
-      phrases.append((phrase, True, False, ratio, ratio, phrase_prob))
+      phrases.append((phrase, True, False, ratio, ratio, phrase_prob, particle))
       if is_noun:
         for art in ("the", "a", "an"):
           sub_phrase = particle + " " + art + " " + word
           sub_phrase_prob = float(phrase_prob_dbm.GetStr(sub_phrase) or 0.0)
           sub_ratio = sub_phrase_prob / word_mod_prob
-          phrases.append((sub_phrase, True, False, sub_ratio, sub_ratio, sub_phrase_prob))
+          phrases.append((sub_phrase, True, False, sub_ratio, sub_ratio,
+                          sub_phrase_prob, particle))
     it = live_words.MakeIterator()
     it.Jump(word + " ")
     while True:
@@ -2694,17 +2703,21 @@ class BuildUnionDBBatch:
       if not rec: break
       phrase, phrase_prob = rec
       if not phrase.startswith(word + " "): break
+      suffix = phrase[len(word)+1:]
       phrase_prob = float(phrase_prob)
       ratio = phrase_prob / word_prob
       min_phrase_ratio = 0.01 if phrase in keywords else 0.05
       is_colloc = False
       for token in phrase.split(" "):
-        if token != word and token in cooccurrences:
+        if token in colloc_words:
           is_colloc = True
+
+          print("HIT1", word, "|", phrase, "|", token)
+          
       if is_colloc:
         min_phrase_ratio *= 0.5
       if ratio >= min_phrase_ratio:
-        phrases.append((phrase, True, True, ratio, ratio, phrase_prob))
+        phrases.append((phrase, True, True, ratio, ratio, phrase_prob, suffix))
       it.Next()
     it = rev_live_words.MakeIterator()
     it.Jump(word + " ")
@@ -2714,17 +2727,21 @@ class BuildUnionDBBatch:
       phrase, phrase_prob = rec
       if not phrase.startswith(word + " "): break
       phrase = " ".join(reversed(phrase.split(" ")))
+      prefix = phrase[:-(len(word)+1)]
       phrase_prob = float(phrase_prob)
       ratio = phrase_prob / word_prob
       min_phrase_ratio = 0.01 if phrase in keywords else 0.05
       is_colloc = False
       for token in phrase.split(" "):
-        if token != word and token in cooccurrences:
+        if token in colloc_words:
           is_colloc = True
+
+          print("HIT2", word, "|", phrase, "|", token)
+          
       if is_colloc:
         min_phrase_ratio *= 0.5
       if ratio >= min_phrase_ratio and not regex.search("^[A-Z][a-zA-Z]+ [a-z]", phrase):
-        phrases.append((phrase, True, True, ratio, ratio, phrase_prob))
+        phrases.append((phrase, True, True, ratio, ratio, phrase_prob, prefix))
       it.Next()
     uniq_pivots = set()
     for pivot in [word, entry.get("verb_present_participle"), entry.get("verb_past_participle")]:
@@ -2756,9 +2773,24 @@ class BuildUnionDBBatch:
             phrase_prob -= verb_prob
           ratio = phrase_prob / pivot_prob
           min_phrase_ratio = 0.01 if phrase in keywords else 0.05
+          is_colloc = False
+          for token in phrase.split(" "):
+            if token in colloc_words:
+
+              # hoge
+              print("HIT3", word, "|", phrase, "|", token)
+
+              is_colloc = True
+          if is_colloc:
+            min_phrase_ratio *= 0.5
           if ratio >= min_phrase_ratio:
             score = ratio * pivot_weight * corpus_weight
-            phrases.append((phrase, False, False, ratio, score, phrase_prob))
+            affix = ""
+            if phrase.startswith(pivot + " "):
+              affix = phrase[len(pivot)+1:]
+            elif phrase.endswith(" " + pivot):
+              affix = phrase[:-len(pivot)-1:]
+            phrases.append((phrase, False, False, ratio, score, phrase_prob, affix))
     if not phrases:
       return
     orig_trans = {}
@@ -2785,7 +2817,7 @@ class BuildUnionDBBatch:
         base_score *= 0.9
     final_phrases = []
     uniq_phrases = set()
-    for phrase, is_live, is_suffix, mod_prob, phrase_score, raw_prob in phrases:
+    for phrase, is_live, is_suffix, mod_prob, phrase_score, raw_prob, affix in phrases:
       if regex.search(r"^([b-z]|am|are|is|was|were|has|gets|becomes) ", phrase): continue
       if phrase in uniq_phrases: continue
       uniq_phrases.add(phrase)
@@ -2874,26 +2906,53 @@ class BuildUnionDBBatch:
                 base_score *= 0.9
       if not phrase_trans:
         continue
-      has_uniq_trans = False
-      if ent_orig_trans:
-        for phrase_tran, score in phrase_trans.items():
-          if regex.search("\p{Han}", phrase_tran):
-            has_uniq_trans = True
-          else:
-            katakana = regex.sub("[^\p{Katakana}ー]", "", phrase_tran)
-            if len(katakana) >= 2:
-              is_dup_tran = False
+      if raw_prob < 0.05:
+        has_uniq_trans = False
+        if ent_orig_trans:
+          affix_trans = (affix and aux_trans.get(affix)) or []
+          for phrase_tran, score in phrase_trans.items():
+            affix_full_match = False
+            affix_part_match = False
+            for affix_tran in affix_trans:
+              if affix_tran == phrase_tran:
+                affix_full_match = True
+                break
+              if len(affix_tran) >= 2 and phrase_tran.find(affix_tran) >= 0:
+                affix_part_match = True
+                break
+            if affix_full_match:
+              print("DUP AFFIX FULL", word, phrase, "|", affix, "|", phrase_tran, "|", affix_trans)
+              continue
+            if affix_part_match:
+              print("DUP AFFIX PART", word, phrase, "|", affix, "|", phrase_tran, "|", affix_trans)
+              orig_part_match = False
               for orig_tran in ent_orig_trans:
-                if orig_tran.find(katakana) >= 0:
-                  is_dup_tran = True
-              if is_dup_tran:
+                if len(orig_tran) >= 2 and phrase_tran.find(orig_tran) >= 0:
+                  orig_part_match = True
+                  break
+              if orig_part_match:
+                print("DUP ORIG PART", word, phrase, "|", affix, "|", phrase_tran, ent_orig_trans)
                 continue
-            if phrase_tran not in ent_orig_trans:
+            if regex.search("\p{Han}", phrase_tran):
               has_uniq_trans = True
-      else:
-        has_uniq_trans = True
-      if not has_uniq_trans:
-        continue
+            else:
+              katakana = regex.sub("[^\p{Katakana}ー]", "", phrase_tran)
+              if len(katakana) >= 2:
+                is_dup_tran = False
+                for orig_tran in ent_orig_trans:
+                  if orig_tran.find(katakana) >= 0:
+
+                    print("DUP KANA", word, phrase, phrase_tran, katakana)
+
+                    is_dup_tran = True
+                if is_dup_tran:
+                  continue
+              if phrase_tran not in ent_orig_trans:
+                has_uniq_trans = True
+        else:
+          has_uniq_trans = True
+        if not has_uniq_trans:
+          continue
       is_base = word in phrase.split(" ")
       max_tran_prob = 0
       for _, tran_prob in phrase_trans.items():
@@ -2909,8 +2968,7 @@ class BuildUnionDBBatch:
             suffix = cmp_tran[len(tran):]
             if suffix in ("する", "される", "をする", "に", "な", "の"):
               phrase_trans[cmp_tran] = cmp_score + float(phrase_trans.get(tran) or 0)
-              if tran in phrase_trans:
-                del phrase_trans[tran]
+              phrase_trans.pop(tran, None)
       mod_trans = {}
       for tran, score in phrase_trans.items():
         prefix_check = tran + ":"
