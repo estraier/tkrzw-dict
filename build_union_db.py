@@ -508,9 +508,6 @@ class BuildUnionDBBatch:
     for label, word_dict in word_dicts:
       for key in word_dict.keys():
         if key.find("\t") >= 0: continue
-
-        if not key.startswith("z"): continue
-        
         keys.add(key)
     logger.info("Extracting keys done: num_keys={}, elapsed_time={:.2f}s".format(
       len(keys), time.time() - start_time))
@@ -2711,9 +2708,6 @@ class BuildUnionDBBatch:
       for token in phrase.split(" "):
         if token in colloc_words:
           is_colloc = True
-
-          print("HIT1", word, "|", phrase, "|", token)
-          
       if is_colloc:
         min_phrase_ratio *= 0.5
       if ratio >= min_phrase_ratio:
@@ -2735,9 +2729,6 @@ class BuildUnionDBBatch:
       for token in phrase.split(" "):
         if token in colloc_words:
           is_colloc = True
-
-          print("HIT2", word, "|", phrase, "|", token)
-          
       if is_colloc:
         min_phrase_ratio *= 0.5
       if ratio >= min_phrase_ratio and not regex.search("^[A-Z][a-zA-Z]+ [a-z]", phrase):
@@ -2776,10 +2767,6 @@ class BuildUnionDBBatch:
           is_colloc = False
           for token in phrase.split(" "):
             if token in colloc_words:
-
-              # hoge
-              print("HIT3", word, "|", phrase, "|", token)
-
               is_colloc = True
           if is_colloc:
             min_phrase_ratio *= 0.5
@@ -2921,17 +2908,14 @@ class BuildUnionDBBatch:
                 affix_part_match = True
                 break
             if affix_full_match:
-              print("DUP AFFIX FULL", word, phrase, "|", affix, "|", phrase_tran, "|", affix_trans)
               continue
             if affix_part_match:
-              print("DUP AFFIX PART", word, phrase, "|", affix, "|", phrase_tran, "|", affix_trans)
               orig_part_match = False
               for orig_tran in ent_orig_trans:
                 if len(orig_tran) >= 2 and phrase_tran.find(orig_tran) >= 0:
                   orig_part_match = True
                   break
               if orig_part_match:
-                print("DUP ORIG PART", word, phrase, "|", affix, "|", phrase_tran, ent_orig_trans)
                 continue
             if regex.search("\p{Han}", phrase_tran):
               has_uniq_trans = True
@@ -2941,9 +2925,6 @@ class BuildUnionDBBatch:
                 is_dup_tran = False
                 for orig_tran in ent_orig_trans:
                   if orig_tran.find(katakana) >= 0:
-
-                    print("DUP KANA", word, phrase, phrase_tran, katakana)
-
                     is_dup_tran = True
                 if is_dup_tran:
                   continue
