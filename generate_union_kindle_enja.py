@@ -185,9 +185,9 @@ OVERVIEW_TEXT = """<?xml version="1.0" encoding="utf-8"?>
 <body>
 <article>
 <h2>Overview</h2>
-<p>This dictionary is made from data sources published as open-source data.  They include <a href="https://wordnet.princeton.edu/">WordNet</a>, <a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">Japanese WordNet</a>, <a href="https://ja.wiktionary.org/">Japanese Wiktionary</a>, <a href="https://en.wiktionary.org/">English Wiktionary</a>, and <a href="http://www.edrdg.org/jmdict/edict.html">EDict2</a>.  See <a href="https://dbmx.net/dict/">the homepage</a> for details to organize the data.  Using and/or redistributing this data should be done according to the license of each data source.</p>
+<p>This dictionary is made from multiple data sources published as open-source data.  They include <a href="https://wordnet.princeton.edu/">WordNet</a>, <a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">Japanese WordNet</a>, <a href="https://ja.wiktionary.org/">Japanese Wiktionary</a>, <a href="https://en.wiktionary.org/">English Wiktionary</a>, and <a href="http://www.edrdg.org/jmdict/edict.html">EDict2</a>.  See <a href="https://dbmx.net/dict/">the homepage</a> for details to organize the data.  Using and/or redistributing this data should be done according to the license of each data source.</p>
 <p>In each word entry, the title word is shown in bold.  Some words have a pronounciation expression in the IPA format, bracketed as "/.../".  A list of translations can come next.  Then, definitions of the word come in English or Japanese.  Each definition is led by a part of speech label.  Additional information such as inflections and varints can come next.</p>
-<p>The number of words is {}.  The number of words with translations is {}.  The number of definition items is {}.  The number of inflections is {}.  The number of redirections is {}.</p>
+<p>The number of words is {}.  The number of words with translations is {}.  The number of definition items is {}.  The number of inflections is {}.  The number of redirections is {}.  The number of collocations is {}.</p>
 <h2>Copyright</h2>
 <div>WordNet Copyright 2021 The Trustees of Princeton University.</div>
 <div>Japanese Wordnet Copyright 2009-2011 NICT, 2012-2015 Francis Bond and 2016-2017 Francis Bond, Takayuki Kuribayashi.</div>
@@ -310,6 +310,7 @@ class GenerateUnionEPUBBatch:
     self.num_aux_items = 0
     self.num_inflections = 0
     self.num_redirections = 0
+    self.num_collocations = 0
     self.label_counters = collections.defaultdict(int)
     self.tokenizer = tkrzw_tokenizer.Tokenizer()
 
@@ -770,6 +771,7 @@ class GenerateUnionEPUBBatch:
     P('<span class="attr">[句]</span>')
     P('{} : {}', phrase["w"], ", ".join(phrase["x"]))
     P('</div>')
+    self.num_collocations += 1
 
   def MakeMainEntryParentItem(self, P, parent, input_dbm):
     parent_entry = input_dbm.Get(parent)
@@ -810,7 +812,8 @@ class GenerateUnionEPUBBatch:
     logger.info("Creating: {}".format(out_path))
     with open(out_path, "w") as out_file:
       print(OVERVIEW_TEXT.format(esc(self.title), self.num_words, self.num_trans, self.num_items,
-                                 self.num_inflections, self.num_redirections),
+                                 self.num_inflections, self.num_redirections,
+                                 self.num_collocations),
             file=out_file, end="")
 
   def MakeStyle(self):
