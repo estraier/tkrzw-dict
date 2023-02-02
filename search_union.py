@@ -2126,8 +2126,10 @@ def main_cgi():
 </section>""")
   else:
     print("""<section class="help">
-<a href="?x=help" class="navi_link">&#xFF1F;</a>
-<a href="?x=stars" class="navi_link">&#x2606;</a>
+<nav title="補助機能">
+<a href="?x=help" class="navi_link" title="ヘルプ">&#xFF1F;</a>
+<a href="?x=stars" class="navi_link" title="星印の一覧">&#x2606;</a>
+</nav>
 </section>""")
   PrintCGIFooter()
 
