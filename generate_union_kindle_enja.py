@@ -117,7 +117,7 @@ BASE_VETTED_VERBS = {
 CURRENT_UUID = str(uuid.uuid1())
 CURRENT_DATETIME = regex.sub(r"\..*", "Z", datetime.datetime.now(
   datetime.timezone.utc).isoformat())
-PACKAGE_HEADER_TEXT = """<?xml version="1.0" encoding="utf-8"?>
+PACKAGE_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <package unique-identifier="pub-id" version="3.0" xmlns="http://www.idpf.org/2007/opf" xml:lang="ja">
 <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
 <dc:identifier id="pub-id">urn:uuid:{}</dc:identifier>
