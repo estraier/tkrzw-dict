@@ -252,8 +252,7 @@ class GenerateUnionEPUBBatch:
     word = entry["word"]
     norm_word = tkrzw_dict.NormalizeWord(word)
     word_prob = float(entry.get("probability") or 0)
-    trans = entry.get("translation")
-    if not trans: return
+    trans = entry.get("translation") or []
     word_aux_trans = aux_trans.get(word)
     if word_aux_trans:
       word_aux_trans = set(word_aux_trans)
@@ -282,7 +281,7 @@ class GenerateUnionEPUBBatch:
     uniq_trans = set()
     norm_trans = []
     for tran in trans:
-      tran = regex.sub("[・]", "", tran)
+      tran = regex.sub("[・]", "", tran).strip()
       if tran and tran not in uniq_trans:
         norm_trans.append(tran)
         uniq_trans.add(tran)
@@ -297,6 +296,14 @@ class GenerateUnionEPUBBatch:
             (new_prob >= 0.01 and new_prob >= tran_prob)):
           tran = new_tran
           tran_prob = max(tran_prob, new_prob)
+      match = regex.search(
+        r"^(.{2,})(する|した|して|している|される|された|されて|されている)$", tran)
+      if match:
+        new_tran = match.group(1)
+        new_prob = tran_probs.get(new_tran) or 0
+        if new_prob > tran_prob:
+          tran_prob = new_prob
+      hit_aux_tran = word_aux_trans and tran in word_aux_trans
       if i == 0:
         pass
       elif i <= 1 and tran_prob >= 0.01:
@@ -307,13 +314,13 @@ class GenerateUnionEPUBBatch:
         pass
       elif tran_prob >= 0.1:
         pass
-      elif tran in dict_trans:
+      elif tran in dict_trans and (i <= 1 or hit_aux_tran):
         pass
       else:
         continue
       tran_prob_score = tran_prob ** 0.75
       dict_score = 0.1 if tran in dict_trans else 0.0
-      if word_aux_trans and tran in word_aux_trans: dict_score += 0.1
+      if hit_aux_tran: dict_score += 0.1
       synsets = []
       for item in entry["item"]:
         if item["label"] != "wn": continue
@@ -346,16 +353,73 @@ class GenerateUnionEPUBBatch:
       score = word_prob_score + rank_score + tran_prob_score + dict_score
       word_dict[tran].append((word, score, tran_prob, synsets))
       rank_score *= 0.8
-    phrases = entry.get("phrase")
-    if phrases:
-      for phrase in phrases:
-        phrase_word = phrase.get("w")
-        if not phrase_word or phrase.get("p") or phrase.get("i"): continue
-        score = word_prob_score + rank_score
-        for phrase_tran in phrase.get("x"):
-          phrase_tran = regex.sub(r"\(.*?\)", "", phrase_tran).strip()
-          if phrase_tran:
-            word_dict[phrase_tran].append((phrase_word, score, 0.05, []))
+    phrases = entry.get("phrase") or []
+    for phrase in phrases:
+      phrase_word = phrase.get("w")
+      phrase_prob = float(phrase.get("p") or 0)
+      if not phrase_word: continue
+      if phrase_prob < 0.005 and not phrase.get("i"): continue
+      score = word_prob_score + rank_score
+      norm_phrase_word = tkrzw_dict.NormalizeWord(phrase_word)
+      phrase_trans = phrase.get("x") or []
+      phrase_aux_trans = aux_trans.get(phrase_word)
+      if phrase_aux_trans:
+        phrase_aux_trans = set(word_aux_trans)
+        phrase_trans.extend(word_aux_trans)
+      phrase_tran_probs = {}
+      if tran_prob_dbm:
+        tsv = tran_prob_dbm.GetStr(norm_phrase_word)
+        if tsv:
+          fields = tsv.split("\t")
+          for i in range(0, len(fields), 3):
+            src, trg, prob = fields[i], fields[i + 1], float(fields[i + 2])
+            if src != norm_phrase_word: continue
+            phrase_tran_probs[trg] = prob
+      norm_phrase_trans = []
+      for phrase_tran in phrase.get("x"):
+        phrase_tran = regex.sub(r"\(.*?\)", "", phrase_tran).strip()
+        phrase_tran = regex.sub("[・]", "", phrase_tran).strip()
+        if phrase_tran and phrase_tran not in uniq_trans:
+          norm_phrase_trans.append(phrase_tran)
+          uniq_trans.add(phrase_tran)
+      for i, tran in enumerate(norm_phrase_trans):
+        if tkrzw_dict.NormalizeWord(tran) == norm_word: continue
+        tran_prob = phrase_tran_probs.get(tran) or 0
+        tran_stem, tran_prefix, tran_suffix = self.tokenizer.StripJaParticles(tran)
+        if tran_prefix:
+          new_tran = tran_stem + tran_suffix
+          new_prob = tran_probs.get(new_tran) or 0
+          if (tran_prefix == "を" or regex.search(r"^[\p{Han}\p{Katakana}]", tran_stem) or
+              (new_prob >= 0.01 and new_prob >= tran_prob)):
+            tran = new_tran
+            tran_prob = max(tran_prob, new_prob)
+        match = regex.search(
+          r"^(.{2,})(する|した|して|している|される|された|されて|されている)$", tran)
+        if match:
+          new_tran = match.group(1)
+          new_prob = phrase_tran_probs.get(new_tran) or 0
+          if new_prob > tran_prob:
+            tran = new_tran
+            tran_prob = new_prob
+        hit_aux_tran = phrase_aux_trans and tran in phrase_aux_trans
+        if i <= 1 and tran_prob >= 0.01:
+          pass
+        elif i <= 2 and tran_prob >= 0.02:
+          pass
+        elif i <= 3 and tran_prob >= 0.04:
+          pass
+        elif tran_prob >= 0.1:
+          pass
+        elif tran_prob >= 0.01 and hit_aux_tran:
+          pass
+        else:
+          continue
+        tran_prob_score = tran_prob ** 0.75
+        dict_score = 0.1 if tran in dict_trans else 0.0
+        if hit_aux_tran: dict_score += 0.1
+        score = word_prob_score * 0.1 + rank_score + tran_prob_score + dict_score
+        word_dict[tran].append((phrase_word, score, tran_prob, []))
+        rank_score *= 0.95
 
   def AddAuxTrans(self, word_dict, tran_prob_dbm, aux_trans):
     if not tran_prob_dbm: return
@@ -442,9 +506,7 @@ class GenerateUnionEPUBBatch:
     return sorted_yomi_dict
 
   def ReadYomiMap(self, path, yomi_map):
-    print("READ", path)
     if path:
-      print(path)
       with open(path) as input_file:
         for line in input_file:
           fields = line.strip().split("\t")
@@ -467,7 +529,6 @@ class GenerateUnionEPUBBatch:
       counts[yomi] = values
       i += 1
     counts = sorted(counts.items(), key=lambda x: (x[1][0], -x[1][-1]), reverse=True)
-
     return counts[0][0]
 
   def GetPhraseProb(self, prob_dbm, language, word):
