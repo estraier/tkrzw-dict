@@ -364,8 +364,8 @@ class GenerateUnionEPUBBatch:
       phrase_trans = phrase.get("x") or []
       phrase_aux_trans = aux_trans.get(phrase_word)
       if phrase_aux_trans:
-        phrase_aux_trans = set(word_aux_trans)
-        phrase_trans.extend(word_aux_trans)
+        phrase_aux_trans = set(phrase_aux_trans)
+        phrase_trans.extend(phrase_aux_trans)
       phrase_tran_probs = {}
       if tran_prob_dbm:
         tsv = tran_prob_dbm.GetStr(norm_phrase_word)
