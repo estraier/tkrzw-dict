@@ -2638,7 +2638,16 @@ class BuildUnionDBBatch:
     word_mod_prob = min(word_prob, 0.001)
     norm_word = " ".join(self.tokenizer.Tokenize("en", word, True, True))
     if word != norm_word:
-      return
+      stem_infl_hit = False
+      for stem_entry in merged_dict.get(norm_word) or []:
+        for infl_name in inflection_names:
+          infl_value = stem_entry.get(infl_name)
+          if infl_value:
+            for infl in infl_value:
+              if infl == word:
+                stem_infl_hit = True
+      if stem_infl_hit:
+        return
     colloc_words = set()
     for cooc in entry.get("cooccurrence") or []:
       if (len(cooc) > 1 and cooc != word and
