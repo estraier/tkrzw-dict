@@ -698,7 +698,7 @@ def P(*args, end="\n", file=sys.stdout):
 
 
 def PrintResultCGI(script_name, entries, query, searcher, details):
-  for entry in entries:
+  for ent_id, entry in enumerate(entries, 1):
     P('<article class="entry_view">')
     word = entry["word"]
     pron = entry.get("pronunciation")
@@ -717,7 +717,18 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
           text = text[:70] + "..."
         hint = text
         break
+    label_counts = {}
+    for item in entry["item"]:
+      label_counts[item["label"]] = 0
     P('<div class="entry_navi">')
+    if details:
+      for label, _ in label_counts.items():
+        label_url = "#{}{}1".format(ent_id, label)
+        P('<a class="entry_icon label_icon" href="{}" title="{}語義を参照">{}</a>',
+          label_url, label.upper(), label.upper())
+    if details and "phrase" in entry:
+      label_url = "#{}p1".format(ent_id)
+      P('<a class="entry_icon gophrase_icon" href="{}" title="句を参照">&#x2637;</a>', label_url)
     related_url = "{}?q={}&s=related".format(script_name, urllib.parse.quote(word))
     P('<a class="entry_icon relsearch_icon" href="{}" title="類似検索">&#x223D;</a>',
       related_url)
@@ -786,7 +797,9 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
         attr_label = WORDNET_ATTRS.get(attr_match.group(1))
         if attr_label:
           section = section[len(attr_match.group(0)):].strip()
-      P('<div class="item item_{}">', label)
+      label_id = label_counts[label] + 1
+      label_counts[label] = label_id
+      P('<div class="item item_{}" id="{}{}{}">', label, ent_id, label, label_id)
       P('<div class="item_text item_text1">')
       P('<span class="label focal1 focal2" tabindex="-1" role="tooltip" lang="en">{}</span>',
         label.upper())
@@ -882,9 +895,9 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
     if details:
       phrases = entry.get("phrase")
       if phrases:
-        for phrase in phrases:
+        for label_id, phrase in enumerate(phrases, 1):
           pword = phrase["w"]
-          P('<div class="attr attr_phrase">')
+          P('<div class="attr attr_phrase" id="{}p{}">', ent_id, label_id)
           P('<span class="attr_label focal2" tabindex="-1" role="tooltip">句</span>')
           P('<span class="text">')
           if "i" in phrase:
@@ -1256,11 +1269,12 @@ a.navi_link:hover {{ background: #dddddd; opacity: 1; }}
 .tran {{ color: #000000; }}
 .attr_value {{ margin-left: 0.3ex; color: #111111; }}
 .text {{ margin-left: 0.3ex; color: #111111; }}
-.entry_navi {{ position: absolute; top: 0.7ex; right: 0.5ex; font-size: 95%; }}
-.entry_icon {{ display: inline-block; width: 3ex; text-align: center;
+.entry_navi {{ position: absolute; top: 0.7ex; right: 0.8ex; font-size: 95%; }}
+.entry_icon {{ display: inline-block; width: 2.3ex; text-align: center;
   color: #cccccc; opacity: 0.8; }}
+.label_icon {{ font-family: monospace; }}
 .entry_icon:hover {{ opacity: 1; cursor: pointer; text-decoration: none; }}
-.relsearch_icon:hover {{ color: #88aa88; }}
+.label_icon:hover,.gophrase_icon:hover,.relsearch_icon:hover {{ color: #55aa88; }}
 #star_list div {{ white-space: nowrap; overflow: hidden; }}
 .star_hint {{ display: none; }}
 #star_list div:hover .star_hint {{ display: unset; }}
@@ -1805,7 +1819,7 @@ def main_cgi():
   if index_mode == "annot":
     if not is_http_query:
       P('<nav class="search_form" title="注釈操作">')
-      P('<form method="post" name="search_form" action="{}">', script_name)
+      P('<form method="post" action="{}" name="search_form">', script_name)
       P('<div id="query_line">')
       P('<textarea name="q" id="query_input_annot" cols="80" rows="10" autocomplete="off">' +
         '{}</textarea>', query)
@@ -1819,7 +1833,8 @@ def main_cgi():
       P('</nav>')
   elif extra_mode != "popup":
     P('<nav class="search_form" title="検索操作">')
-    P('<form method="get" name="search_form" onsubmit="check_search_form()">')
+    P('<form method="get" action="{}" name="search_form" onsubmit="check_search_form()">',
+      script_name)
     P('<div id="query_line">')
     P('<input type="text" name="q" value="{}" id="query_input" autocomplete="off"/>', query)
     P('<input type="submit" value="検索" id="submit_button"/>')
@@ -2107,7 +2122,8 @@ def main_cgi():
 <li>曖昧一致 : 見出し語の綴りが検索語の綴りと似ているものが該当する。</li>
 <li>類語展開 : 見出し語が検索語と完全一致するものとその類語が該当する。</li>
 </ul>
-<p>デフォルトでは、表示形式は自動的に設定されます。ヒット件数が1件の場合にはその語の語義が詳細に表示され、ヒット件数が5以下の場合には主要語義のみが表示され、ヒット件数がそれ以上の場合には翻訳語のみがリスト表示されます。結果の見出し語を選択すると詳細表示が見られます。右上にある「&#x223D;」をクリックすると、その見出し語の類義語を検索します。右上にある「&#x2605;」をクリックすると、その見出し語に星印がつけられます。</p>
+<p>デフォルトでは、表示形式は自動的に設定されます。ヒット件数が1件の場合にはその語の語義が詳細に表示され、ヒット件数が5以下の場合には主要語義のみが表示され、ヒット件数がそれ以上の場合には翻訳語のみがリスト表示されます。結果の見出し語を選択すると詳細表示が見られます。</p>
+<p>各見出し語の欄の右上にはページ内のリンクや特殊操作のアイコンが置かれます。「&#x2637;」を選択すると、その見出し語を含むフレーズに飛びます。「&#x223D;」を選択すると、その見出し語の類義語を検索します。右上にある「&#x2605;」を選択すると、その見出し語に星印がつけられます。</p>
 <p>トップ画面で「<a href="?x=help">&#xFF1F;</a>」をクリックすると、このヘルプ画面が表示されます。トップ画面で「<a href="?x=stars">&#x2606;</a>」をクリックすると、星印をつけた見出し語の一覧が表示されます。この一覧は語彙学習の成果確認と復習に便利です。</p>
 <p>アクセシビリティのためのショートカット機能があります。Shift+Backspaceを押すと、フォーカスが検索窓に移動して、検索窓の語句が消去されます。これは素早く再検索するのに便利です。スクリーンリーダ等で検索結果の主要な内容を読み取るには、Shiftを押しながら矢印の左右を押すのが便利です。Shift+右を押すと、見出し語にフォーカスが進み、さらにShift+右を押すと、訳語のリストにフォーカスが移ります。さらにShift+右を押していくと、各々の語義説明のラベルにフォーカスが移っていきます。Shift+左で戻ります。同様にして、Shift+上とShift+下でも読み取りを行いますが、発音や派生語も飛ばさずに遷移します。</p>
 <p>このサイトはオープンな英和辞書検索のデモです。辞書データは<a href="https://wordnet.princeton.edu/">WordNet</a>と<a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">日本語WordNet</a>と<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>と<a href="https://en.wiktionary.org/">Wiktionary英語版</a>と<a href="http://www.edrdg.org/jmdict/edict.html">EDict2</a>を統合したものです。検索システムは高性能データベースライブラリ<a href="https://dbmx.net/tkrzw/">Tkrzw</a>を用いて実装されています。<a href="https://github.com/estraier/tkrzw-dict">コードベース</a>はGitHubにて公開されています。</p>
