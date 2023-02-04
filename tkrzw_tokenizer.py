@@ -414,6 +414,8 @@ class Tokenizer:
         hit = True
         if parsed[-2][0].endswith("ん") and parsed[-1][0] == "で":
           hit = False
+      if parsed[-1][1] == "助動詞" and parsed[-1][3] in ("だ", "なり", "たり"):
+        hit = True
       if parsed[-1][1] == "接続詞" and parsed[-1][0] in ("と", "で"):
         hit = True
       if not hit:

@@ -137,6 +137,46 @@ MAIN_FOOTER_TEXT = """</mbp:frameset>
 </body>
 </html>
 """
+KANA_CONVERSION_MAP = {
+  "が": ("か", 6), "ぎ": ("き", 6), "ぐ": ("く", 6), "げ": ("け", 6), "ご": ("こ", 6),
+  "ざ": ("さ", 6), "じ": ("し", 6), "ず": ("す", 6), "ぜ": ("せ", 6), "ぞ": ("そ", 6),
+  "だ": ("た", 6), "ぢ": ("ち", 6), "づ": ("つ", 6), "で": ("て", 6), "ど": ("と", 6),
+  "ば": ("は", 6), "び": ("ひ", 6), "ぶ": ("ふ", 6), "べ": ("へ", 6), "ぼ": ("ほ", 6),
+  "ぱ": ("は", 7), "ぴ": ("ひ", 7), "ぷ": ("ふ", 7), "ぺ": ("へ", 7), "ぽ": ("ほ", 7),
+  "っ": ("つ", 4),
+  "ぁ": ("あ", 4), "ぃ": ("い", 4), "ぅ": ("う", 4), "ぇ": ("え", 4), "ぉ": ("お", 4),
+  "ゃ": ("や", 4), "ゅ": ("ゆ", 4), "ょ": ("よ", 4), "ゕ": ("か", 4), "ゖ": ("け", 4),
+  "ゔ": ("う", 6),
+}
+
+
+def MakeYomiKey(yomi):
+  norm_chars = []
+  priorities = []
+  last_norm_char = ""
+  for char in yomi:
+    priority = 5
+    if char == "ー":
+      if last_norm_char in "あかさたなはまやらわ":
+        norm_char, priority = ("あ", 4)
+      elif last_norm_char in "いきしちにひみりゐ":
+        norm_char, priority = ("い", 4)
+      elif last_norm_char in "うくすつぬふむゆる":
+        norm_char, priority = ("う", 4)
+      elif last_norm_char in "えけせてねへめれゑ":
+        norm_char, priority = ("え", 4)
+      elif last_norm_char in "おこそとのほもよろを":
+        norm_char, priority = ("お", 4)
+      elif last_norm_char in "ん":
+        norm_char, priority = ("ん", 4)
+      else:
+        norm_char, priority = (char, 4)
+    else:
+      norm_char, priority = KANA_CONVERSION_MAP.get(char) or (char, 5)
+    norm_chars.append(norm_char)
+    priorities.append(str(priority))
+    last_norm_char = norm_char[0]
+  return "".join(norm_chars) + "\0" + "".join(priorities)
 
 
 def esc(expr):
@@ -188,10 +228,15 @@ class GenerateUnionEPUBBatch:
     conj_adjs = self.ReadConjWords(self.conj_adj_path)
     word_dict = self.ReadEntries(input_dbm, tran_prob_dbm, aux_trans)
     self.AddAuxTrans(word_dict, tran_prob_dbm, aux_trans)
+    yomi_map = collections.defaultdict(list)
+    keywords = set()
+    for yomi_path in self.yomi_paths:
+      if not yomi_path: continue
+      self.ReadYomiMap(yomi_path, yomi_map, keywords)
     if phrase_prob_dbm and rev_prob_dbm:
-      word_dict = self.FilterEntries(word_dict, phrase_prob_dbm, rev_prob_dbm)
+      word_dict = self.FilterEntries(word_dict, phrase_prob_dbm, rev_prob_dbm, keywords)
     input_dbm.Close().OrDie()
-    yomi_dict = self.MakeYomiDict(word_dict)
+    yomi_dict = self.MakeYomiDict(word_dict, yomi_map)
     self.MakeMain(yomi_dict, conj_verbs, conj_adjs, rev_prob_dbm)
     self.MakeNavigation(yomi_dict)
     self.MakeOverview()
@@ -417,7 +462,7 @@ class GenerateUnionEPUBBatch:
         tran_prob_score = tran_prob ** 0.75
         dict_score = 0.1 if tran in dict_trans else 0.0
         if hit_aux_tran: dict_score += 0.1
-        score = word_prob_score * 0.1 + rank_score + tran_prob_score + dict_score
+        score = word_prob_score + rank_score + tran_prob_score + dict_score
         word_dict[tran].append((phrase_word, score, tran_prob, []))
         rank_score *= 0.95
 
@@ -449,14 +494,20 @@ class GenerateUnionEPUBBatch:
         score = tran_prob ** 0.5
         word_dict[tran].append((word, score, tran_prob, []))
 
-  def FilterEntries(self, word_dict, phrase_prob_dbm, rev_prob_dbm):
+  def FilterEntries(self, word_dict, phrase_prob_dbm, rev_prob_dbm, keywords):
     logger.info("Filtering entries: before={}".format(len(word_dict)))
-    new_word_dict = collections.defaultdict(list)
+    new_word_dict1 = collections.defaultdict(list)
     num_entries = 0
+    count_ok_keyword = 0
+    count_ok_tran_only = 0
+    count_ok_word_only = 0
+    count_ok_word_tran = 0
+    count_ok_phrase_tran = 0
+    count_ng = 0
     for word, items in word_dict.items():
       num_entries += 1
       if num_entries % 10000 == 0:
-        logger.info("Filtering entries: num_enties={}".format(num_entries))
+        logger.info("Filtering entries R1: num_enties={}".format(num_entries))
       word_prob = self.GetPhraseProb(rev_prob_dbm, "ja", word)
       max_tran_prob = 0
       max_phrase_prob = 0
@@ -467,17 +518,58 @@ class GenerateUnionEPUBBatch:
         max_phrase_prob = max(max_phrase_prob, phrase_prob)
         score += min(0.2, phrase_prob ** 0.33)
         new_items.append((tran, score, tran_prob, synsets))
-      if word_prob < 0.000001 and max_phrase_prob < 0.000001 and max_tran_prob < 0.1:
+      if word in keywords:
+        count_ok_keyword += 1
+      elif max_tran_prob >= 0.1:
+        count_ok_tran_only += 1
+      elif word_prob >= 0.00001:
+        count_ok_word_only += 1
+      elif word_prob >= 0.000001 and max_tran_prob >= 0.02:
+        count_ok_word_tran += 1
+      elif max_phrase_prob >= 0.00001 and max_tran_prob >= 0.02:
+        count_ok_phrase_tran += 1
+      else:
+        count_ng += 1
         continue
-      new_word_dict[word].extend(new_items)
-    logger.info("Filtering entries done: after={}".format(len(new_word_dict)))
-    return new_word_dict
+      new_word_dict1[word].extend(new_items)
+    logger.info("Filtering entries R1 done: "
+                "after={}, k={}, t={}, w={}, wt={}, pt={}, ng={}".format(
+                  len(new_word_dict1), count_ok_keyword, count_ok_tran_only, count_ok_word_only,
+                  count_ok_word_tran, count_ok_phrase_tran, count_ng))
+    new_word_dict2 = collections.defaultdict(list)
+    count_dup_affix = 0
+    for word, items in new_word_dict1.items():
+      num_entries += 1
+      if num_entries % 10000 == 0:
+        logger.info("Filtering entries R2: num_enties={}".format(num_entries))
+      stems = set()
+      stem, prefix, suffix = self.tokenizer.StripJaParticles(word)
+      if stem != word:
+        stems.add(stem)
+      match = regex.search(
+        r"^(.{2,})(する|した|して|している|される|された|されて|されている)$", word)
+      if match:
+        stems.add(match.group(1))
+      stem_trans = set()
+      for stem in stems:
+        stem_items = new_word_dict1.get(stem)
+        if stem_items:
+          for stem_tran, _, _, _ in stem_items:
+            stem_trans.add(stem_tran.lower())
+      if stem_trans:
+        has_unique = False
+        for tran, _, _, _ in items:
+          if tran.lower() not in stem_trans:
+            has_unique = True
+        if not has_unique:
+          count_dup_affix += 1
+          continue
+      new_word_dict2[word].extend(items)
+    logger.info("Filtering entries R2 done: after={}, da={}".format(
+      len(new_word_dict2), count_dup_affix))
+    return new_word_dict2
 
-  def MakeYomiDict(self, word_dict):
-    yomi_map = collections.defaultdict(list)
-    for yomi_path in self.yomi_paths:
-      if not yomi_path: continue
-      self.ReadYomiMap(yomi_path, yomi_map)
+  def MakeYomiDict(self, word_dict, yomi_map):
     yomi_dict = collections.defaultdict(list)
     for word, items in word_dict.items():
       word_yomi = ""
@@ -494,26 +586,32 @@ class GenerateUnionEPUBBatch:
             trg_word = self.ChooseBestYomi(word, part_yomis, True)
         word_yomi = self.tokenizer.GetJaYomi(trg_word)
       if not word_yomi: continue
-      first = word_yomi[0]
+      word_yomi_key = MakeYomiKey(word_yomi)
+      first = word_yomi_key[0]
       if regex.search(r"^[\p{Hiragana}]", first):
-        yomi_dict[first].append((word_yomi, word, items))
+        yomi_dict[first].append((word_yomi_key, word_yomi, word, items))
       else:
-        yomi_dict["他"].append((word_yomi, word, items))
+        yomi_dict["他"].append((word_yomi_key, word_yomi, word, items))
     sorted_yomi_dict = []
     for first, items in sorted(yomi_dict.items()):
       items = sorted(items)
+      items = [x[1:] for x in items]
       sorted_yomi_dict.append((first, items))
     return sorted_yomi_dict
 
-  def ReadYomiMap(self, path, yomi_map):
-    if path:
-      with open(path) as input_file:
-        for line in input_file:
-          fields = line.strip().split("\t")
-          if len(fields) < 2: continue
-          kanji, yomis = fields[0], fields[1:]
-          yomi_map[kanji].extend(yomis)
-    return yomi_map
+  def ReadYomiMap(self, path, yomi_map, keywords):
+    has_keyword = False
+    if path.startswith("+"):
+      path = path[1:]
+      has_keyword = True
+    with open(path) as input_file:
+      for line in input_file:
+        fields = line.strip().split("\t")
+        if len(fields) < 2: continue
+        kanji, yomis = fields[0], fields[1:]
+        yomi_map[kanji].extend(yomis)
+        if has_keyword:
+          keywords.add(kanji)
 
   def ChooseBestYomi(self, word, yomis, sort_by_length):
     if len(yomis) == 1:
@@ -643,7 +741,7 @@ class GenerateUnionEPUBBatch:
     P('</div>')
     uniq_trans = set()
     uniq_synsets = set()
-    num_lines = 0
+    misc_trans = []
     for tran, score, tran_prob, synsets in trans:
       norm_tran = tkrzw_dict.NormalizeWord(tran)
       if norm_tran in uniq_trans: continue
@@ -657,13 +755,13 @@ class GenerateUnionEPUBBatch:
         P('<div>{}', ", ".join([tran] + syn_words), end="")
         P(' <span class="gross">- {}</span>', syn_gross, end="")
         P('</div>')
-        num_lines += 1
         for synonym in syn_words:
           norm_syn = tkrzw_dict.NormalizeWord(synonym)
           uniq_trans.add(norm_syn)
-      if not hit_syn and num_lines < 6:
-        P('<div>{}</div>', tran)
-        num_lines += 1
+      if not hit_syn:
+        misc_trans.append(tran)
+    if misc_trans:
+      P('<div>{}</div>', ', '.join(misc_trans[:16]))
     P('</idx:entry>')
     P('<br/>')
 
