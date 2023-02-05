@@ -753,13 +753,18 @@ class BuildUnionDBBatch:
         logger.info("Finishing entries R1: num_records={}".format(num_entries))
     num_entries = 0
     for key, merged_entry in merged_entries:
-      for word_entry in merged_entry:
+      rival_key_trans = set()
+      for word_id, word_entry in enumerate(merged_entry):
+        self.RemoveDuplicatedtranslations(word_entry, rival_key_trans)
         self.SetPhraseTranslations(word_entry, merged_dict, aux_trans, aux_last_trans,
                                    tran_prob_dbm, phrase_prob_dbm, noun_words, verb_words,
                                    live_words, rev_live_words, pivot_live_words, pivot_dead_words,
-                                   keywords)
+                                   keywords, rival_key_trans)
         self.FilterParents(word_entry, merged_dict)
         self.AbsorbInflections(word_entry, merged_dict)
+        if word_id < len(merged_entry) - 1:
+          for tran in word_entry.get("translation") or []:
+            rival_key_trans.add(tran)
       num_entries += 1
       if num_entries % 1000 == 0:
         logger.info("Finishing entries R2: num_records={}".format(num_entries))
@@ -2621,7 +2626,7 @@ class BuildUnionDBBatch:
   def SetPhraseTranslations(self, entry, merged_dict, aux_trans, aux_last_trans,
                             tran_prob_dbm, phrase_prob_dbm, noun_words, verb_words,
                             live_words, rev_live_words, pivot_live_words, pivot_dead_words,
-                            keywords):
+                            keywords, rival_key_trans):
     if not tran_prob_dbm or not phrase_prob_dbm:
       return
     word = entry["word"]
@@ -2656,11 +2661,13 @@ class BuildUnionDBBatch:
     phrases = []
     for particle in particles:
       phrase = word + " " + particle
+      is_live = False
       phrase_prob = None
       phrase_entries = merged_dict.get(phrase)
       if phrase_entries:
         for phrase_entry in phrase_entries:
           if phrase_entry["word"] == phrase:
+            is_live = True
             phrase_prob_expr = phrase_entry["probability"]
             if phrase_prob_expr:
               phrase_prob = float(phrase_prob_expr)
@@ -2674,13 +2681,25 @@ class BuildUnionDBBatch:
             if pron_phrase_prob > 0.0:
               phrase_prob += pron_phrase_prob
       ratio = phrase_prob / word_mod_prob
-      phrases.append((phrase, True, True, ratio, ratio, phrase_prob, particle))
+      phrases.append((phrase, is_live, True, ratio, ratio, phrase_prob, particle))
       if ratio >= 0.005:
         for sub_particle in particles:
           sub_phrase = phrase + " " + sub_particle
-          sub_phrase_prob = float(phrase_prob_dbm.GetStr(sub_phrase) or 0.0)
+          sub_is_live = False
+          sub_phrase_prob = None
+          sub_phrase_entries = merged_dict.get(sub_phrase)
+          if sub_phrase_entries:
+            for sub_phrase_entry in sub_phrase_entries:
+              if sub_phrase_entry["word"] == sub_phrase:
+                sub_is_live = True
+                sub_phrase_prob_expr = sub_phrase_entry["probability"]
+                if sub_phrase_prob_expr:
+                  sub_phrase_prob = float(sub_phrase_prob_expr)
+                  break
+          if not sub_phrase_prob:
+            sub_phrase_prob = float(phrase_prob_dbm.GetStr(sub_phrase) or 0.0)
           sub_ratio = max(sub_phrase_prob / phrase_prob, 0.01)
-          phrases.append((sub_phrase, True, True, max(sub_ratio, ratio),
+          phrases.append((sub_phrase, sub_is_live, True, max(sub_ratio, ratio),
                           ratio * (sub_ratio ** 0.005), sub_phrase_prob, particle))
     verb_prob = 0.0
     if is_verb:
@@ -2690,17 +2709,42 @@ class BuildUnionDBBatch:
       verb_prob *= 20
     for particle in particles:
       phrase = particle + " " + word
-      phrase_prob = float(phrase_prob_dbm.GetStr(phrase) or 0.0)
+
+      is_live = False
+      phrase_prob = None
+      phrase_entries = merged_dict.get(phrase)
+      if phrase_entries:
+        for phrase_entry in phrase_entries:
+          if phrase_entry["word"] == phrase:
+            is_live = True
+            phrase_prob_expr = phrase_entry["probability"]
+            if phrase_prob_expr:
+              phrase_prob = float(phrase_prob_expr)
+              break
+      if not phrase_prob:
+        phrase_prob = float(phrase_prob_dbm.GetStr(phrase) or 0.0)
       if particle == "to":
         phrase_prob -= verb_prob
       ratio = phrase_prob / word_mod_prob
-      phrases.append((phrase, True, False, ratio, ratio, phrase_prob, particle))
+      phrases.append((phrase, is_live, False, ratio, ratio, phrase_prob, particle))
       if is_noun:
         for art in ("the", "a", "an"):
           sub_phrase = particle + " " + art + " " + word
-          sub_phrase_prob = float(phrase_prob_dbm.GetStr(sub_phrase) or 0.0)
+          sub_is_live = False
+          sub_phrase_prob = None
+          sub_phrase_entries = merged_dict.get(sub_phrase)
+          if sub_phrase_entries:
+            for sub_phrase_entry in sub_phrase_entries:
+              if sub_phrase_entry["word"] == sub_phrase:
+                sub_is_live = True
+                sub_phrase_prob_expr = sub_phrase_entry["probability"]
+                if sub_phrase_prob_expr:
+                  sub_phrase_prob = float(sub_phrase_prob_expr)
+                  break
+          if not sub_phrase_prob:
+            sub_phrase_prob = float(phrase_prob_dbm.GetStr(sub_phrase) or 0.0)
           sub_ratio = sub_phrase_prob / word_mod_prob
-          phrases.append((sub_phrase, True, False, sub_ratio, sub_ratio,
+          phrases.append((sub_phrase, sub_is_live, False, sub_ratio, sub_ratio,
                           sub_phrase_prob, particle))
     it = live_words.MakeIterator()
     it.Jump(word + " ")
@@ -2761,8 +2805,8 @@ class BuildUnionDBBatch:
       if not pivot_prob or pivot_prob > word_mod_prob:
         pivot_prob = word_mod_prob
       pivot_weight = 0.9 if pivot == word else 0.8
-      for corpus_weight, pivot_exprs in [(1.0, pivot_live_words.get(pivot)),
-                                         (0.9, pivot_dead_words.get(pivot))]:
+      for corpus_weight, is_live, pivot_exprs in [(1.0, True, pivot_live_words.get(pivot)),
+                                                  (0.9, False, pivot_dead_words.get(pivot))]:
         if not pivot_exprs: continue
         for pivot_expr in pivot_exprs:
           pivot_fields = pivot_expr.split("|")
@@ -2786,7 +2830,7 @@ class BuildUnionDBBatch:
               affix = phrase[len(pivot)+1:]
             elif phrase.endswith(" " + pivot):
               affix = phrase[:-len(pivot)-1:]
-            phrases.append((phrase, False, False, ratio, score, phrase_prob, affix))
+            phrases.append((phrase, is_live, False, ratio, score, phrase_prob, affix))
     if not phrases:
       return
     orig_trans = {}
@@ -2805,12 +2849,15 @@ class BuildUnionDBBatch:
         trg = regex.sub(r"[～〜]", "", trg)
         trg, trg_prefix, trg_suffix = self.tokenizer.StripJaParticles(trg)
         orig_trans[trg] = float(orig_trans.get(trg) or 0) + 0.1
+    dedup_trans = []
     ent_orig_trans = entry.get("translation")
     if ent_orig_trans:
       base_score = 0.1
       for ent_orig_tran in ent_orig_trans:
         orig_trans[ent_orig_tran] = float(orig_trans.get(ent_orig_tran) or 0) + base_score
         base_score *= 0.9
+      dedup_trans.extend(ent_orig_trans)
+    dedup_trans.extend(rival_key_trans)
     final_phrases = []
     uniq_phrases = set()
     for phrase, is_live, is_suffix, mod_prob, phrase_score, raw_prob, affix in phrases:
@@ -2904,7 +2951,7 @@ class BuildUnionDBBatch:
         continue
       if raw_prob < 0.05:
         has_uniq_trans = False
-        if ent_orig_trans:
+        if dedup_trans:
           affix_trans = (affix and aux_trans.get(affix)) or []
           for phrase_tran, score in phrase_trans.items():
             affix_full_match = False
@@ -2920,7 +2967,7 @@ class BuildUnionDBBatch:
               continue
             if affix_part_match:
               orig_part_match = False
-              for orig_tran in ent_orig_trans:
+              for orig_tran in dedup_trans:
                 if len(orig_tran) >= 2 and phrase_tran.find(orig_tran) >= 0:
                   orig_part_match = True
                   break
@@ -2932,12 +2979,12 @@ class BuildUnionDBBatch:
               katakana = regex.sub("[^\p{Katakana}ー]", "", phrase_tran)
               if len(katakana) >= 2:
                 is_dup_tran = False
-                for orig_tran in ent_orig_trans:
+                for orig_tran in dedup_trans:
                   if orig_tran.find(katakana) >= 0:
                     is_dup_tran = True
                 if is_dup_tran:
                   continue
-              if phrase_tran not in ent_orig_trans:
+              if phrase_tran not in dedup_trans:
                 has_uniq_trans = True
         else:
           has_uniq_trans = True
@@ -3001,7 +3048,14 @@ class BuildUnionDBBatch:
       for phrase, score, raw_prob, trans in final_phrases:
         prob_expr = "{:.6f}".format(raw_prob / word_prob).replace("0.", ".")
         map_phrase = {"w": phrase, "p": prob_expr, "x": trans}
-        if phrase in merged_dict:
+        is_live = False
+        phrase_entries = merged_dict.get(tkrzw_dict.NormalizeWord(phrase))
+        if phrase_entries:
+          for phrase_entry in phrase_entries:
+            if phrase_entry["word"] == phrase:
+              is_live = True
+              break
+        if is_live:
           map_phrase["i"] = "1"
         map_phrases.append(map_phrase)
       entry["phrase"] = map_phrases
@@ -3149,6 +3203,40 @@ class BuildUnionDBBatch:
             unique_phrases.add(infl_text)
     if new_phrases:
       word_entry["phrase"] = new_phrases
+
+  def RemoveDuplicatedtranslations(self, word_entry, main_trans):
+    if not main_trans: return
+    word = word_entry["word"]
+    trans = word_entry.get("translation")
+    if not trans: return
+    dict_trans = set()
+    for item in word_entry["item"]:
+      text = item["text"]
+      for part in text.split("[-]"):
+        part = part.strip()
+        match = regex.search(r"^\[translation\]: (.*)", part)
+        if match:
+          expr = regex.sub(r"\[-.*", "", match.group(1))
+          expr = regex.sub(r"\(.*?\)", "", expr).strip()
+          for tran in expr.split(","):
+            tran = tran.strip()
+            if len(tran) >= 2:
+              dict_trans.add(tran)
+    new_trans = []
+    for tran in trans:
+      if tran not in dict_trans:
+        is_dup = False
+        for main_tran in main_trans:
+          if tran == main_tran:
+            is_dup = True
+          elif len(main_tran) >= 2 and tran.find(main_tran) >= 0:
+            is_dup = True
+        if is_dup: continue
+      new_trans.append(tran)
+    if new_trans:
+      word_entry["translation"] = new_trans
+    else:
+      del word_entry["translation"]
 
 
 def main():
