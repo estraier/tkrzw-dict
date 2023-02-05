@@ -48,7 +48,7 @@ poses = ("noun", "verb", "adjective", "adverb",
          "pronoun", "auxverb", "preposition", "determiner", "article",
          "interjection", "conjunction", "prefix", "suffix",
          "abbreviation", "phrase", "misc")
-inflection_names = ("noun_plural","verb_singular", "verb_present_participle",
+inflection_names = ("noun_plural", "verb_singular", "verb_present_participle",
                    "verb_past", "verb_past_participle",
                    "adjective_comparative", "adjective_superlative",
                    "adverb_comparative", "adverb_superlative")
