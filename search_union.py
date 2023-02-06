@@ -908,8 +908,8 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
       examples = entry.get("example")
       if examples:
         for label_id, example in enumerate(examples, 1):
-          P('<div class="attr attr_example" id="{}x{}">', ent_id, label_id)
-          P('<span class="attr_label focal2" tabindex="-1" role="tooltip">例</span>')
+          P('<div class="item item_text1 item_x" id="{}x{}">', ent_id, label_id)
+          P('<span class="label focal2" tabindex="-1" role="tooltip">例</span>')
           P('<span class="text">{}</span>', example["e"])
           P('<span class="text extran">({})</span>', example["j"])
           P('</div>')
@@ -917,8 +917,8 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
       if phrases:
         for label_id, phrase in enumerate(phrases, 1):
           pword = phrase["w"]
-          P('<div class="attr attr_phrase" id="{}p{}">', ent_id, label_id)
-          P('<span class="attr_label focal2" tabindex="-1" role="tooltip">句</span>')
+          P('<div class="item item_text1 item_p" id="{}p{}">', ent_id, label_id)
+          P('<span class="label focal2" tabindex="-1" role="tooltip">句</span>')
           P('<span class="text">')
           if "i" in phrase:
             P('<a href="{}?q={}" lang="en">{}</a>', script_name, urllib.parse.quote(pword), pword)
@@ -1278,14 +1278,16 @@ a.navi_link:hover {{ background: #dddddd; opacity: 1; }}
 .attr_label,.label,.pos,.subattr_label {{
   display: inline-block; border: solid 1px #999999; border-radius: 0.5ex;
   font-size: 65%; min-width: 3.5ex; text-align: center; margin-right: -0.5ex;
-  color: #111111; background: #eeeeee; opacity: 0.85; }}
-.item_xa .label {{ background: #eeeeee; opacity: 0.7; }}
-.item_xz .label {{ background: #eeeeee; opacity: 0.7; }}
-.item_wn .label {{ background: #eeffdd; opacity: 0.7; }}
-.item_ox .label {{ background: #ffeedd; opacity: 0.7; }}
-.item_we .label {{ background: #ffddee; opacity: 0.7; }}
-.item_wj .label {{ background: #ddeeff; opacity: 0.7; }}
-.item_xs .label {{ background: #ffffdd; opacity: 0.7; }}
+  color: #111111; background: #eeeeee; opacity: 0.8; }}
+.item_xa .label {{ background: #eeeeee; }}
+.item_xz .label {{ background: #eeeeee; }}
+.item_wn .label {{ background: #eeffdd; }}
+.item_ox .label {{ background: #ffeedd; }}
+.item_we .label {{ background: #ffddee; }}
+.item_wj .label {{ background: #ddeeff; }}
+.item_xs .label {{ background: #ffffdd; }}
+.item_x .label {{ background: #ffeeff; }}
+.item_p .label {{ background: #eeffff; }}
 .tran {{ color: #000000; }}
 .attr_value {{ margin-left: 0.3ex; color: #111111; }}
 .text {{ margin-left: 0.3ex; color: #111111; }}
@@ -1293,7 +1295,7 @@ a.navi_link:hover {{ background: #dddddd; opacity: 1; }}
 .entry_navi {{ position: absolute; top: 0.7ex; right: 0.8ex; font-size: 95%; }}
 .entry_icon {{ display: inline-block; width: 2.3ex; text-align: center;
   color: #aaaaaa; opacity: 0.8; }}
-.label_icon {{ font-family: monospace; transform: scaleX(0.8); }}
+.label_icon {{ font-family: monospace; font-size: 90%; transform: scaleX(0.8); }}
 .entry_icon:hover {{ opacity: 1; cursor: pointer; text-decoration: none; }}
 .label_icon:hover,.goexample_icon:hover,.gophrase_icon:hover,.relsearch_icon:hover {{
   color: #44aa88; }}
@@ -2148,7 +2150,7 @@ def main_cgi():
 <p>各見出し語の欄の右上にはページ内のリンクや特殊操作のアイコンが置かれます。「&#x22F9;」を選択すると、その見出し語を含む対訳例文に飛びます。「&#x2637;」を選択すると、その見出し語を含むフレーズの語義に飛びます。「&#x223D;」を選択すると、その見出し語の類義語を検索します。右上にある「&#x2605;」を選択すると、その見出し語に星印がつけられます。</p>
 <p>トップ画面で「<a href="?x=help">&#xFF1F;</a>」をクリックすると、このヘルプ画面が表示されます。トップ画面で「<a href="?x=stars">&#x2606;</a>」をクリックすると、星印をつけた見出し語の一覧が表示されます。この一覧は語彙学習の成果確認と復習に便利です。</p>
 <p>アクセシビリティのためのショートカット機能があります。Shift+Backspaceを押すと、フォーカスが検索窓に移動して、検索窓の語句が消去されます。これは素早く再検索するのに便利です。スクリーンリーダ等で検索結果の主要な内容を読み取るには、Shiftを押しながら矢印の左右を押すのが便利です。Shift+右を押すと、見出し語にフォーカスが進み、さらにShift+右を押すと、訳語のリストにフォーカスが移ります。さらにShift+右を押していくと、各々の語義説明のラベルにフォーカスが移っていきます。Shift+左で戻ります。同様にして、Shift+上とShift+下でも読み取りを行いますが、発音や派生語も飛ばさずに遷移します。</p>
-<p>このサイトはオープンな英和辞書検索のデモです。辞書データは<a href="https://wordnet.princeton.edu/">WordNet</a>と<a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">日本語WordNet</a>と<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>と<a href="https://en.wiktionary.org/">Wiktionary英語版</a>と<a href="http://www.edrdg.org/jmdict/edict.html">EDict2</a>を統合したものです。検索システムは高性能データベースライブラリ<a href="https://dbmx.net/tkrzw/">Tkrzw</a>を用いて実装されています。<a href="https://github.com/estraier/tkrzw-dict">コードベース</a>はGitHubにて公開されています。</p>
+<p>このサイトはオープンな英和辞書検索のデモです。辞書データは<a href="https://wordnet.princeton.edu/">WordNet</a>と<a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">日本語WordNet</a>と<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>と<a href="https://en.wiktionary.org/">Wiktionary英語版</a>と<a href="http://www.edrdg.org/jmdict/edict.html">EDict2</a>と<a href="http://edrdg.org/wiki/index.php/Tanaka_Corpus">田中コーパス</a>を統合したものです。検索システムは高性能データベースライブラリ<a href="https://dbmx.net/tkrzw/">Tkrzw</a>を用いて実装されています。<a href="https://github.com/estraier/tkrzw-dict">コードベース</a>はGitHubにて公開されています。</p>
 </div>""")
   elif extra_mode == "stars":
     print("""<section id="star_info" class="message_view">
