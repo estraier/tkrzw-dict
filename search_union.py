@@ -910,8 +910,8 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
         for label_id, example in enumerate(examples, 1):
           P('<div class="item item_text1 item_x" id="{}x{}">', ent_id, label_id)
           P('<span class="label focal2" tabindex="-1" role="tooltip">例</span>')
-          P('<span class="text">{}</span>', example["e"])
-          P('<span class="text extran">({})</span>', example["j"])
+          P('<span class="text" lang="en">{}</span>', example["e"])
+          P('<span class="text extran" lang="ja">({})</span>', example["j"])
           P('</div>')
       phrases = entry.get("phrase")
       if phrases:
@@ -919,12 +919,12 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
           pword = phrase["w"]
           P('<div class="item item_text1 item_p" id="{}p{}">', ent_id, label_id)
           P('<span class="label focal2" tabindex="-1" role="tooltip">句</span>')
-          P('<span class="text">')
           if "i" in phrase:
-            P('<a href="{}?q={}" lang="en">{}</a>', script_name, urllib.parse.quote(pword), pword)
+            P('<a href="{}?q={}" class="text" lang="en">{}</a>', script_name, urllib.parse.quote(pword), pword)
           else:
-            P('<span lang="en">{}</span>', pword)
+            P('<span class="text" lang="en">{}</span>', pword)
           P(' : ')
+          P('<span class="text" lang="ja">')
           tran_exprs = []
           phrase_trans = FilterWordsWithinWidth(phrase["x"], 50, 3)
           for phrase_tran in phrase_trans:
