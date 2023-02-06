@@ -1292,11 +1292,11 @@ a.navi_link:hover {{ background: #dddddd; opacity: 1; }}
 .extran {{ padding-left: 0.5ex; font-size: 80%; color: #555555; }}
 .entry_navi {{ position: absolute; top: 0.7ex; right: 0.8ex; font-size: 95%; }}
 .entry_icon {{ display: inline-block; width: 2.3ex; text-align: center;
-  color: #cccccc; opacity: 0.8; }}
-.label_icon {{ font-family: monospace; }}
+  color: #aaaaaa; opacity: 0.8; }}
+.label_icon {{ font-family: monospace; transform: scaleX(0.8); }}
 .entry_icon:hover {{ opacity: 1; cursor: pointer; text-decoration: none; }}
 .label_icon:hover,.goexample_icon:hover,.gophrase_icon:hover,.relsearch_icon:hover {{
-  color: #55aa88; }}
+  color: #44aa88; }}
 #star_list div {{ white-space: nowrap; overflow: hidden; }}
 .star_hint {{ display: none; }}
 #star_list div:hover .star_hint {{ display: unset; }}
