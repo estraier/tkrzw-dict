@@ -731,20 +731,20 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
     if details:
       for label, _ in label_counts.items():
         label_url = "#{}{}1".format(ent_id, label)
-        P('<a class="entry_icon label_icon" href="{}" title="{}語義を参照">{}</a>',
+        P('<a class="entry_icon entry_label_icon" href="{}" title="{}語義を参照">{}</a>',
           label_url, label.upper(), label.upper())
     if details and "example" in entry:
       label_url = "#{}x1".format(ent_id)
-      P('<a class="entry_icon goexample_icon" href="{}" title="例文を参照">&#x22F9;</a>',
+      P('<a class="entry_icon entry_extra_icon" href="{}" title="例文を参照">例</a>',
         label_url)
     if details and "phrase" in entry:
       label_url = "#{}p1".format(ent_id)
-      P('<a class="entry_icon gophrase_icon" href="{}" title="句を参照">&#x2637;</a>',
+      P('<a class="entry_icon entry_extra_icon" href="{}" title="句を参照">句</a>',
         label_url)
     related_url = "{}?q={}&s=related".format(script_name, urllib.parse.quote(word))
-    P('<a class="entry_icon relsearch_icon" href="{}" title="類似検索">&#x223D;</a>',
+    P('<a class="entry_icon entry_extra_icon" href="{}" title="類似検索">類</a>',
       related_url)
-    P('<span class="entry_icon star_icon" data-word="{}" data-hint="{}"' +
+    P('<span class="entry_icon entry_star_icon star_icon" data-word="{}" data-hint="{}"' +
       ' onclick="toggle_star(this, -1)" title="星印の変更">&#x2605;</span>', word, hint)
     P('</div>')
     word_url = "{}?q={}".format(script_name, urllib.parse.quote(word))
@@ -1286,23 +1286,23 @@ a.navi_link:hover {{ background: #dddddd; opacity: 1; }}
 .item_we .label {{ background: #ffddee; }}
 .item_wj .label {{ background: #ddeeff; }}
 .item_xs .label {{ background: #ffffdd; }}
-.item_x .label {{ background: #ffeeff; }}
-.item_p .label {{ background: #eeffff; }}
+.item_x .label {{ background: #e8eef3; }}
+.item_p .label {{ background: #e8f3ee; }}
 .tran {{ color: #000000; }}
 .attr_value {{ margin-left: 0.3ex; color: #111111; }}
 .text {{ margin-left: 0.3ex; color: #111111; }}
 .extran {{ padding-left: 0.5ex; font-size: 80%; color: #555555; }}
-.entry_navi {{ position: absolute; top: 0.7ex; right: 0.8ex; font-size: 95%; }}
-.entry_icon {{ display: inline-block; width: 2.3ex; text-align: center;
-  color: #aaaaaa; opacity: 0.8; }}
-.label_icon {{ font-family: monospace; font-size: 90%; transform: scaleX(0.8); }}
+.entry_navi {{ position: absolute; top: 1ex; right: 1ex; font-size: 95%; }}
+.entry_icon {{ display: inline-block; text-align: center; color: #bbbbbb; opacity: 0.8; }}
+.entry_label_icon {{ font-family: monospace; width: 2.1ex; transform: scaleX(0.7); }}
+.entry_extra_icon {{ font-family: monospace; width: 1.8ex; }}
+.entry_star_icon {{ width: 2.1ex; }}
 .entry_icon:hover {{ opacity: 1; cursor: pointer; text-decoration: none; }}
-.label_icon:hover,.goexample_icon:hover,.gophrase_icon:hover,.relsearch_icon:hover {{
-  color: #44aa88; }}
+.entry_label_icon:hover,.entry_extra_icon:hover {{ color: #44aa88; }}
 #star_list div {{ white-space: nowrap; overflow: hidden; }}
 .star_hint {{ display: none; }}
 #star_list div:hover .star_hint {{ display: unset; }}
-.star_icon_on {{ color: #ff8800; }}
+.star_icon_on {{ color: #ff9911; text-shadow: 0 0 3px #ee8800; }}
 a.star_word {{ display: inline-block; min-width: 10ex; padding: 0ex 0.5ex;
   color: #000000; font-weight: bold; }}
 .star_hint:before {{ content: " -- "; font-size: 90%; color: #888888; }}
