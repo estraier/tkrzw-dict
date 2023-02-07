@@ -706,7 +706,7 @@ def P(*args, end="\n", file=sys.stdout):
 
 def PrintResultCGI(script_name, entries, query, searcher, details):
   for ent_id, entry in enumerate(entries, 1):
-    P('<article class="entry_view">')
+    P('<article class="entry_view" id="e{}">', ent_id)
     word = entry["word"]
     pron = entry.get("pronunciation")
     translations = entry.get("translation")
@@ -730,17 +730,15 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
     P('<div class="entry_navi">')
     if details:
       for label, _ in label_counts.items():
-        label_url = "#{}{}1".format(ent_id, label)
-        P('<a class="entry_icon entry_label_icon" href="{}" title="{}語義を参照">{}</a>',
-          label_url, label.upper(), label.upper())
+        P('<span class="entry_icon entry_label_icon" data-entid="{}" data-label="{}"' +
+          ' onclick="toggle_labels(this)" title="{}語義に注目">{}</span>',
+          ent_id, label, label.upper(), label.upper())
     if details and "example" in entry:
-      label_url = "#{}x1".format(ent_id)
-      P('<a class="entry_icon entry_extra_icon" href="{}" title="例文を参照">例</a>',
-        label_url)
+      P('<span class="entry_icon entry_extra_icon" data-entid="{}" data-label="x"' +
+        ' onclick="toggle_labels(this)" title="例文に注目">例</span>', ent_id)
     if details and "phrase" in entry:
-      label_url = "#{}p1".format(ent_id)
-      P('<a class="entry_icon entry_extra_icon" href="{}" title="句を参照">句</a>',
-        label_url)
+      P('<span class="entry_icon entry_extra_icon" data-entid="{}" data-label="p"' +
+        ' onclick="toggle_labels(this)" title="句に注目">句</span>', ent_id)
     related_url = "{}?q={}&s=related".format(script_name, urllib.parse.quote(word))
     P('<a class="entry_icon entry_extra_icon" href="{}" title="類似検索">類</a>',
       related_url)
@@ -811,7 +809,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
           section = section[len(attr_match.group(0)):].strip()
       label_id = label_counts[label] + 1
       label_counts[label] = label_id
-      P('<div class="item item_{}" id="{}{}{}">', label, ent_id, label, label_id)
+      P('<div class="item item_{}" id="i{}{}{}">', label, ent_id, label, label_id)
       P('<div class="item_text item_text1">')
       P('<span class="label focal1 focal2" tabindex="-1" role="tooltip" lang="en">{}</span>',
         label.upper())
@@ -908,7 +906,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
       examples = entry.get("example")
       if examples:
         for label_id, example in enumerate(examples, 1):
-          P('<div class="item item_text1 item_x" id="{}x{}">', ent_id, label_id)
+          P('<div class="item item_text1 item_x" id="i{}x{}">', ent_id, label_id)
           P('<span class="label focal2" tabindex="-1" role="tooltip">例</span>')
           P('<span class="text" lang="en">{}</span>', example["e"])
           P('<span class="text extran" lang="ja">({})</span>', example["j"])
@@ -917,7 +915,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
       if phrases:
         for label_id, phrase in enumerate(phrases, 1):
           pword = phrase["w"]
-          P('<div class="item item_text1 item_p" id="{}p{}">', ent_id, label_id)
+          P('<div class="item item_text1 item_p" id="i{}p{}">', ent_id, label_id)
           P('<span class="label focal2" tabindex="-1" role="tooltip">句</span>')
           if "i" in phrase:
             P('<a href="{}?q={}" class="text" lang="en">{}</a>', script_name, urllib.parse.quote(pword), pword)
@@ -1558,6 +1556,21 @@ function modify_urls() {{
     }}
   }}
 }}
+let ent_labels = {{}};
+function toggle_labels(elem) {{
+  let ent_id = elem.dataset.entid;
+  let label = elem.dataset.label;
+  let old_label = ent_labels[ent_id];
+  let ent_elem = document.getElementById("e" + ent_id);
+  for (let item of ent_elem.getElementsByClassName("attr")) {{
+    item.style.display = old_label == label ? null : "none";
+  }}
+  let item_label = "item_" + label;
+  for (let item of ent_elem.getElementsByClassName("item")) {{
+    item.style.display = old_label == label || item.classList.contains(item_label) ? null : "none";
+  }}
+  ent_labels[ent_id] = old_label == label ? null : label;
+}}
 let storage_key_stars = "union_dict_stars";
 function mark_stars() {{
   let stars = load_stars();
@@ -2147,7 +2160,7 @@ def main_cgi():
 <li>類語展開 : 見出し語が検索語と完全一致するものとその類語が該当する。</li>
 </ul>
 <p>デフォルトでは、表示形式は自動的に設定されます。ヒット件数が1件の場合にはその語の語義が詳細に表示され、ヒット件数が5以下の場合には主要語義のみが表示され、ヒット件数がそれ以上の場合には翻訳語のみがリスト表示されます。結果の見出し語を選択すると詳細表示が見られます。</p>
-<p>各見出し語の欄の右上にはページ内のリンクや特殊操作のアイコンが置かれます。「例」を選択すると、その見出し語を含む対訳例文に飛びます。「句」を選択すると、その見出し語を含むフレーズの語義に飛びます。「類」を選択すると、その見出し語の類義語を検索します。右上にある「&#x2605;」を選択すると、その見出し語に星印がつけられます。</p>
+<p>各見出し語の欄の右上にはページ内のリンクや特殊操作のアイコンが置かれます。「WN」「WE」等を選択すると、そのラベルの語義のみを表示します。もう一度選択すると解除されます。「例」を選択すると、その見出し語を含む対訳例文のみを表示します。「句」を選択すると、その見出し語を含むフレーズの情報のみを表示します。「類」を選択すると、その見出し語の類義語を検索します。右上にある「&#x2605;」を選択すると、その見出し語に星印がつけられます。</p>
 <p>トップ画面で「<a href="?x=help">&#xFF1F;</a>」をクリックすると、このヘルプ画面が表示されます。トップ画面で「<a href="?x=stars">&#x2606;</a>」をクリックすると、星印をつけた見出し語の一覧が表示されます。この一覧は語彙学習の成果確認と復習に便利です。</p>
 <p>アクセシビリティのためのショートカット機能があります。Shift+Backspaceを押すと、フォーカスが検索窓に移動して、検索窓の語句が消去されます。これは素早く再検索するのに便利です。スクリーンリーダ等で検索結果の主要な内容を読み取るには、Shiftを押しながら矢印の左右を押すのが便利です。Shift+右を押すと、見出し語にフォーカスが進み、さらにShift+右を押すと、訳語のリストにフォーカスが移ります。さらにShift+右を押していくと、各々の語義説明のラベルにフォーカスが移っていきます。Shift+左で戻ります。同様にして、Shift+上とShift+下でも読み取りを行いますが、発音や派生語も飛ばさずに遷移します。</p>
 <p>このサイトはオープンな英和辞書検索のデモです。辞書データは<a href="https://wordnet.princeton.edu/">WordNet</a>と<a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">日本語WordNet</a>と<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>と<a href="https://en.wiktionary.org/">Wiktionary英語版</a>と<a href="http://www.edrdg.org/jmdict/edict.html">EDict2</a>と<a href="http://edrdg.org/wiki/index.php/Tanaka_Corpus">田中コーパス</a>を統合したものです。検索システムは高性能データベースライブラリ<a href="https://dbmx.net/tkrzw/">Tkrzw</a>を用いて実装されています。<a href="https://github.com/estraier/tkrzw-dict">コードベース</a>はGitHubにて公開されています。</p>
