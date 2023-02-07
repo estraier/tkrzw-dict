@@ -135,6 +135,7 @@ class MakeIndexBatch:
     logger.info("Processing records:")
     num_lines = 0
     num_words = 0
+    sentence_hashes = set()
     for line in sys.stdin:
       line = line.strip()
       if not line: continue
@@ -143,6 +144,9 @@ class MakeIndexBatch:
       mod_sentence = sentence.lower()
       mod_sentence = regex.sub(r'[\u2018\u2019\u201C\u201D]', r'"', mod_sentence)
       mod_sentence = regex.sub(r'([-\p{Latin}0-9])"([-\p{Latin}0-9])', r'\1" \2', mod_sentence)
+      sentence_hash = tkrzw.Utility.PrimaryHash(mod_sentence)
+      if sentence_hash in sentence_hashes: continue
+      sentence_hashes.add(sentence_hash)
       words = mod_sentence.split(" ")
       start_index = 0
       phrases = []
