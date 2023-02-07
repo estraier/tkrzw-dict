@@ -47,11 +47,12 @@ def MakeSentenceKey(text):
 
 
 class AttachExamplesBatch:
-  def __init__(self, input_path, output_path, index_path, max_examples):
+  def __init__(self, input_path, output_path, index_paths, max_examples, min_examples):
     self.input_path = input_path
     self.output_path = output_path
-    self.index_path = index_path
+    self.index_paths = index_paths
     self.max_examples = max_examples
+    self.min_examples = min_examples
     self.count_all_entries = 0
     self.count_hit_entries = 0
     self.count_examples = 0
@@ -60,7 +61,7 @@ class AttachExamplesBatch:
   def Run(self):
     start_time = time.time()
     logger.info("Process started: input_path={}, output_path={}, index_path={}".format(
-      self.input_path, self.output_path, self.index_path))
+      self.input_path, self.output_path, ":".join(self.index_paths)))
     word_dict = self.AttachExamples()
     self.SaveEntries(word_dict)
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
@@ -68,12 +69,19 @@ class AttachExamplesBatch:
   def AttachExamples(self):
     start_time = time.time()
     logger.info("Attaching started: input_path={}, index_path={}".format(
-      self.input_path, self.index_path))
+      self.input_path, ":".join(self.index_paths)))
     word_dict = {}
     input_dbm = tkrzw.DBM()
     input_dbm.Open(self.input_path, False).OrDie()
-    index_dbm = tkrzw.DBM()
-    index_dbm.Open(self.index_path, False).OrDie()
+    indices = []
+    for index_path in self.index_paths:
+      is_aux = False
+      if index_path.startswith("+"):
+        is_aux = True
+        index_path = index_path[1:]
+      index_dbm = tkrzw.DBM()
+      index_dbm.Open(index_path, False).OrDie()
+      indices.append((index_dbm, is_aux))
     it = input_dbm.MakeIterator()
     it.First().OrDie()
     word_dict = {}
@@ -89,7 +97,7 @@ class AttachExamplesBatch:
           logger.info("Attaching: entries={}, hit_entries={}, examples={}".format(
             self.count_all_entries, self.count_hit_entries, self.count_examples))
         strict = not first_entry
-        self.AttachExamplesEntry(entry, index_dbm, strict)
+        self.AttachExamplesEntry(entry, indices, strict)
         first_entry = False
       serialized = json.dumps(entries, separators=(",", ":"), ensure_ascii=False)
       word_dict[key] = serialized
@@ -102,7 +110,8 @@ class AttachExamplesBatch:
                   self.count_all_entries, self.count_hit_entries, self.count_examples))
     return word_dict
 
-  def AttachExamplesEntry(self, entry, index_dbm, strict):
+  def AttachExamplesEntry(self, entry, indices, strict):
+    entry.pop("example", None)
     word = entry["word"]
     core_words = collections.defaultdict(float)
     core_words[word] = 1.0
@@ -124,16 +133,42 @@ class AttachExamplesBatch:
       if infls:
         infl = infls[0]
         core_words[infl] = max(core_words[infl], weight)
-    doc_ids = collections.defaultdict(float)
+    docs = []
     for core_word, weight in core_words.items():
-      expr = index_dbm.GetStr(core_word.lower())
-      if not expr: continue
-      for doc_id in expr.split(","):
-        doc_ids[doc_id] = max(doc_ids[doc_id], weight)
+      for i, index in enumerate(indices):
+        index_dbm, is_aux = index
+        index_weight = 0.95 ** i
+        if is_aux:
+          index_weight *= 0.5
+        expr = index_dbm.GetStr(core_word.lower())
+        if not expr: continue
+        for doc_id in expr.split(","):
+          docs.append((i, doc_id, weight * index_weight))
+    docs = sorted(docs, key=lambda x: (-x[2], x[0], x[1]))
+    uniq_docs = []
+    uniq_keys = set()
+    for index_id, doc_id, weight in docs:
+      key = "{}:{}".format(index_id, doc_id)
+      if key in uniq_keys: continue
+      uniq_keys.add(key)
+      uniq_docs.append((index_id, doc_id, weight))
+    if not uniq_docs:
+      return
+    tran_cands = entry.get("translation") or []
+    for item in entry.get("item") or []:
+      text = item["text"]
+      match = regex.search(r"\[translation\]: ([^\[]+)", text)
+      if match:
+        tran = match.group(1)
+        tran = regex.sub(r"\([^)]+\)", "", tran)
+        for tran in tran.split(","):
+          tran = tran.strip()
+          if regex.search("\p{Han}", tran) and len(tran) >= 2:
+            tran_cands.append(tran)
     trans = {}
     uniq_trans = {}
     tran_weight_base = 1.0
-    for tran in entry.get("translation") or []:
+    for tran in tran_cands:
       norm_tran = tran.lower()
       if norm_tran in uniq_trans: continue
       tran_score = 1.0
@@ -147,11 +182,13 @@ class AttachExamplesBatch:
         tran_score *= 0.8
       elif len(tran) == 3:
         tran_score *= 0.95
-      trans[tran] = tran_weight_base * tran_score
+      old_score = trans.get(tran) or 0
+      trans[tran] = max(old_score, tran_weight_base * tran_score)
       tran_weight_base *= 0.97
     scored_records = []
     tran_hit_counts = {}    
-    for doc_id, weight in doc_ids.items():
+    for index_id, doc_id, weight in uniq_docs:
+      index_dbm, is_aux = indices[index_id]
       doc_key = "[" + doc_id + "]"
       value = index_dbm.GetStr(doc_key)
       if not value: continue
@@ -159,7 +196,7 @@ class AttachExamplesBatch:
       if len(fields) < 2: continue
       source, target = fields[:2]
       if len(source) < best_source_length / 2 or len(target) < best_target_length / 2: continue
-      if len(source) > best_source_length * 2 or len(target) > best_target_length * 2: continue
+      if len(source) > best_source_length * 3 or len(target) > best_target_length * 3: continue
       if len(word) == 1 or regex.search(r"[A-Z]", word):
         if source.find(word) < 0: continue
       else:
@@ -177,12 +214,13 @@ class AttachExamplesBatch:
           if tran_weight > tran_score:
             tran_score = tran_weight
             tran_hit_counts[tran] = tran_hit_count + 1
-      if strict and tran_score == 0: continue
+      if (strict or is_aux) and tran_score == 0: continue
       tran_score += 0.1
       final_score = (tran_score * tran_score * length_score * weight) ** (1 / 4)
       scored_records.append((final_score, source, target))
-    scored_records =sorted(scored_records, reverse=True)
+    scored_records = sorted(scored_records, reverse=True)
     examples = []
+    reserve_examples = []
     uniq_keys = []
     for score, source, target in scored_records:
       if len(examples) >= self.max_examples: break
@@ -198,10 +236,15 @@ class AttachExamplesBatch:
         continue
       uniq_keys.append(uniq_key)
       example = {"e": source, "j": target}
+      if len(source) > best_source_length * 2 or len(target) > best_target_length * 2:
+        reserve_examples.append(example)
+      else:
+        examples.append(example)
+    for example in reserve_examples:
+      if len(examples) >= self.min_examples: break
       examples.append(example)
-      self.count_examples += 1
-    entry.pop("example", None)
     if examples:
+      self.count_examples += len(examples)
       entry["example"] = examples
       self.count_hit_entries += 1
 
@@ -245,15 +288,16 @@ def main():
   args = sys.argv[1:]
   input_path = tkrzw_dict.GetCommandFlag(args, "--input", 1) or "union-body.tkh"
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-body-final.tkh"
-  index_path = tkrzw_dict.GetCommandFlag(args, "--index", 1) or "tanaka-index.tkh"
+  index_paths = (tkrzw_dict.GetCommandFlag(args, "--index", 1) or "tanaka-index.tkh").split(",")
   max_examples = int(tkrzw_dict.GetCommandFlag(args, "--max_examples", 1) or 5)
+  min_examples = int(tkrzw_dict.GetCommandFlag(args, "--min_examples", 1) or 1)
   if not input_path:
-    raise RuntimeError("the input path isn required")
+    raise RuntimeError("the input path is required")
   if not output_path:
-    raise RuntimeError("the output path isn required")
-  if not index_path:
-    raise RuntimeError("the index path isn required")
-  AttachExamplesBatch(input_path, output_path, index_path, max_examples).Run()
+    raise RuntimeError("the output path is required")
+  if not index_paths:
+    raise RuntimeError("the index path is required")
+  AttachExamplesBatch(input_path, output_path, index_paths, max_examples, min_examples).Run()
 
 
 if __name__=="__main__":
