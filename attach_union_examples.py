@@ -197,11 +197,20 @@ class AttachExamplesBatch:
       source, target = fields[:2]
       if len(source) < best_source_length / 2 or len(target) < best_target_length / 2: continue
       if len(source) > best_source_length * 3 or len(target) > best_target_length * 3: continue
-      if len(word) == 1 or regex.search(r"[A-Z]", word):
-        if source.find(word) < 0: continue
-      else:
-        cap_word = word[0].upper() + word[1:]
-        if source.find(word) < 0 and source.find(cap_word) != 0: continue
+      source_hit = False
+      for core_word, weight in core_words.items():
+        if regex.search(r"[A-Z]", core_word):
+          loc = source.find(core_word)
+          if (not strict and loc == 0) or loc > 0:
+            source_hit = True
+        else:
+          if source.find(core_word) > 0:
+            source_hit = True
+          elif not strict:
+            cap_word = core_word[0].upper() + core_word[1:]
+            if source.startswith(cap_word):
+              source_hit = True
+      if not source_hit: continue
       source_len_score = 1 / math.exp(abs(math.log(len(source) / best_source_length)))
       target_len_score = 1 / math.exp(abs(math.log(len(target) / best_target_length)))
       length_score = (source_len_score * target_len_score) ** 0.2
@@ -249,7 +258,11 @@ class AttachExamplesBatch:
       self.count_hit_entries += 1
 
   def CheckTranMatch(self, target, tokens, query):
-    if target.find(query) >= 0: return True
+    if len(query) >= 2 and target.find(query) >= 0: return True
+    match = regex.search(r"(.*[\p{Han}]{2,})(する|される|される|させる|をする|している)", query)
+    if match:
+      stem_query = match.group(1)
+      if target.find(stem_query) >= 0: return True
     start_index = 0
     while start_index < len(tokens):
       i = start_index
