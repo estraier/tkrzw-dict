@@ -728,17 +728,32 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
     for item in entry["item"]:
       label_counts[item["label"]] = 0
     P('<div class="entry_navi">')
-    if details:
-      for label, _ in label_counts.items():
-        P('<span class="entry_icon entry_label_icon" data-entid="{}" data-label="{}"' +
-          ' onclick="toggle_labels(this)" title="{}語義に注目">{}</span>',
+    for label, _ in label_counts.items():
+      if details:
+        P('<span class="entry_icon entry_label_icon"' +
+          ' onclick="toggle_label(\'{}\',\'{}\')" title="{}語義に注目">{}</span>',
           ent_id, label, label.upper(), label.upper())
-    if details and "example" in entry:
-      P('<span class="entry_icon entry_extra_icon" data-entid="{}" data-label="x"' +
-        ' onclick="toggle_labels(this)" title="例文に注目">例</span>', ent_id)
-    if details and "phrase" in entry:
-      P('<span class="entry_icon entry_extra_icon" data-entid="{}" data-label="p"' +
-        ' onclick="toggle_labels(this)" title="句に注目">句</span>', ent_id)
+      else:
+        jump_url = "{}?q={}&j={}{}".format(
+          script_name, urllib.parse.quote(word), ent_id, label)
+        P('<a class="entry_icon entry_label_icon" href="{}" title="{}語義に注目">{}</a>',
+          jump_url, label.upper(), label.upper())
+    if "example" in entry:
+      if details:
+        P('<span class="entry_icon entry_extra_icon"' +
+          ' onclick="toggle_label(\'{}\', \'x\')" title="例文に注目">例</span>', ent_id)
+      else:
+        jump_url = "{}?q={}&j={}x".format(script_name, urllib.parse.quote(word), ent_id)
+        P('<a class="entry_icon entry_extra_icon" href="{}" title="例文に注目">例</a>',
+          jump_url)
+    if "phrase" in entry:
+      if details:
+        P('<span class="entry_icon entry_extra_icon"' +
+          ' onclick="toggle_label(\'{}\', \'p\')" title="句に注目">句</span>', ent_id)
+      else:
+        jump_url = "{}?q={}&j={}p".format(script_name, urllib.parse.quote(word), ent_id)
+        P('<a class="entry_icon entry_extra_icon" href="{}" title="句に注目">句</a>',
+          jump_url)
     related_url = "{}?q={}&s=related".format(script_name, urllib.parse.quote(word))
     P('<a class="entry_icon entry_extra_icon" href="{}" title="類似検索">類</a>',
       related_url)
@@ -836,7 +851,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
           if annots:
             for annot in annots:
               P('<span class="annot" lang="{}">{}</span>', GetLang(annot), annot)
-            P(' ')
+            P(' ', end="")
           print(", ".join(fields))
           P('</span>')
       else:
@@ -918,7 +933,8 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
           P('<div class="item item_text1 item_p" id="i{}p{}">', ent_id, label_id)
           P('<span class="label focal2" tabindex="-1" role="tooltip">句</span>')
           if "i" in phrase:
-            P('<a href="{}?q={}" class="text" lang="en">{}</a>', script_name, urllib.parse.quote(pword), pword)
+            P('<a href="{}?q={}" class="text" lang="en">{}</a>',
+              script_name, urllib.parse.quote(pword), pword)
           else:
             P('<span class="text" lang="en">{}</span>', pword)
           P(' : ')
@@ -1451,6 +1467,7 @@ function startup() {{
   modify_urls();
   mark_stars();
   list_stars(false);
+  jump_label();
 }}
 function check_search_form() {{
   let search_form = document.forms["search_form"];
@@ -1552,16 +1569,29 @@ function modify_urls() {{
       if (link.className == "word_link" || link.className == "omit_link") {{
         new_link_url += "&v=full";
       }}
+      let link_hash = link_url.hash;
+      if (link_hash) {{
+        new_link_url += link_hash;
+      }}
       link.href = new_link_url;
     }}
   }}
 }}
+function jump_label() {{
+  let base_url = new URL(document.location.href);
+  let jump_expr = base_url.searchParams.get("j");
+  if (!jump_expr) return;
+  let match = jump_expr.match(/^([0-9]+)([a-z]+)$/);
+  if (!match) return;
+  let ent_id = match[1];
+  let label = match[2];
+  toggle_label(ent_id, label);
+}}
 let ent_labels = {{}};
-function toggle_labels(elem) {{
-  let ent_id = elem.dataset.entid;
-  let label = elem.dataset.label;
+function toggle_label(ent_id, label) {{
   let old_label = ent_labels[ent_id];
   let ent_elem = document.getElementById("e" + ent_id);
+  if (!ent_elem) return;
   for (let item of ent_elem.getElementsByClassName("attr")) {{
     item.style.display = old_label == label ? null : "none";
   }}
@@ -1570,6 +1600,9 @@ function toggle_labels(elem) {{
     item.style.display = old_label == label || item.classList.contains(item_label) ? null : "none";
   }}
   ent_labels[ent_id] = old_label == label ? null : label;
+  var new_url = new URL(document.location.href);
+  new_url.hash = "#" + ent_id + label;
+  document.location.href = new_url;
 }}
 let storage_key_stars = "union_dict_stars";
 function mark_stars() {{
@@ -1842,6 +1875,7 @@ def main_cgi():
   view_mode = params.get("v") or "auto"
   if index_mode == "grade":
     query = str(max(Atoi(query), 1))
+  jump_expr = (params.get("j") or "").strip()
   page_title = "統合英和辞書検索"
   if query:
     page_title += ": " + regex.sub(r"\s+", " ", query).strip()[:24]
@@ -2015,7 +2049,7 @@ def main_cgi():
     if result:
       if view_mode == "auto":
         keys = searcher.GetResultKeys(result)
-        if len(keys) < 2 and extra_mode != "popup":
+        if len(keys) < 2 and extra_mode != "popup" or jump_expr:
           PrintResultCGI(script_name, result, query, searcher, True)
         elif len(keys) < 6:
           PrintResultCGI(script_name, result, query, searcher, False)
@@ -2163,7 +2197,8 @@ def main_cgi():
 <p>各見出し語の欄の右上にはページ内のリンクや特殊操作のアイコンが置かれます。「WN」「WE」等を選択すると、そのラベルの語義のみを表示します。もう一度選択すると解除されます。「例」を選択すると、その見出し語を含む対訳例文のみを表示します。「句」を選択すると、その見出し語を含むフレーズの情報のみを表示します。「類」を選択すると、その見出し語の類義語を検索します。右上にある「&#x2605;」を選択すると、その見出し語に星印がつけられます。</p>
 <p>トップ画面で「<a href="?x=help">&#xFF1F;</a>」をクリックすると、このヘルプ画面が表示されます。トップ画面で「<a href="?x=stars">&#x2606;</a>」をクリックすると、星印をつけた見出し語の一覧が表示されます。この一覧は語彙学習の成果確認と復習に便利です。</p>
 <p>アクセシビリティのためのショートカット機能があります。Shift+Backspaceを押すと、フォーカスが検索窓に移動して、検索窓の語句が消去されます。これは素早く再検索するのに便利です。スクリーンリーダ等で検索結果の主要な内容を読み取るには、Shiftを押しながら矢印の左右を押すのが便利です。Shift+右を押すと、見出し語にフォーカスが進み、さらにShift+右を押すと、訳語のリストにフォーカスが移ります。さらにShift+右を押していくと、各々の語義説明のラベルにフォーカスが移っていきます。Shift+左で戻ります。同様にして、Shift+上とShift+下でも読み取りを行いますが、発音や派生語も飛ばさずに遷移します。</p>
-<p>このサイトはオープンな英和辞書検索のデモです。辞書データは<a href="https://wordnet.princeton.edu/">WordNet</a>と<a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">日本語WordNet</a>と<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>と<a href="https://en.wiktionary.org/">Wiktionary英語版</a>と<a href="http://www.edrdg.org/jmdict/edict.html">EDict2</a>と<a href="http://edrdg.org/wiki/index.php/Tanaka_Corpus">田中コーパス</a>を統合したものです。検索システムは高性能データベースライブラリ<a href="https://dbmx.net/tkrzw/">Tkrzw</a>を用いて実装されています。<a href="https://github.com/estraier/tkrzw-dict">コードベース</a>はGitHubにて公開されています。</p>
+<p>このサイトはオープンな英和辞書検索のデモです。辞書データは、次のデータソースから抽出したデータを統合したものです。<a href="https://wordnet.princeton.edu/">WordNet</a>、<a href="https://bond-lab.github.io/wnja/">日本語WordNet</a>、<a href="https://en.wiktionary.org/">Wiktionary英語版</a>、<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>、<a href="https://en.wikipedia.org/wiki/Main_Page">Wikipedia英語版</a>、<a href="https://ja.wikipedia.org/wiki/Main_Page">Wikipedia日本語版</a>、<a href="http://www.edrdg.org/jmdict/edict.html">EDict2</a>、<a href="http://edrdg.org/wiki/index.php/Tanaka_Corpus">田中コーパス</a>、<a href="https://nlp.stanford.edu/projects/jesc/index_ja.html">Japanese-English Subtitle Corpus</a>。</p>
+<p>検索システムはPythonと高性能データベースライブラリ<a href="https://dbmx.net/tkrzw/">Tkrzw</a>を用いて実装されています。<a href="https://github.com/estraier/tkrzw-dict">コードベース</a>はGitHubにて公開されています。</p>
 </div>""")
   elif extra_mode == "stars":
     print("""<section id="star_info" class="message_view">
