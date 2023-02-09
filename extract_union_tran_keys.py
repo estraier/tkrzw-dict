@@ -59,6 +59,9 @@ class ExtractKeysBatch:
       record = it.GetStr()
       if not record: break
       key, expr = record
+      if key.startswith(" "):
+        it.Next()
+        continue
       num_items = len(expr.split("\t"))
       rev_prob = 1.0
       if rev_prob_dbm:

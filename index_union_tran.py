@@ -34,12 +34,26 @@ import tkrzw_tokenizer
 logger = tkrzw_dict.GetLogger()
 
 
+def JoinWords(words):
+  text = ""
+  for word in words:
+    if (text and (
+        not regex.search("[\p{Han}\p{Katakana}\p{Hiragana}ー]", text[-1]) and
+        not regex.search("[\p{Han}\p{Katakana}\p{Hiragana}ー]", word[0]))):
+      text += " "
+    text += word[0]
+  return text
+
+
 class IndexTranslationsBatch:
-  def __init__(self, input_path, output_path, supplement_labels, tran_prob_path):
+  def __init__(self, input_path, output_path, supplement_labels, tran_prob_path,
+               conj_verb_path, conj_adj_path):
     self.input_path = input_path
     self.output_path = output_path
     self.supplement_labels = supplement_labels
     self.tran_prob_path = tran_prob_path
+    self.conj_verb_path = conj_verb_path
+    self.conj_adj_path = conj_adj_path    
     self.tokenizer = tkrzw_tokenizer.Tokenizer()
 
   def Run(self):
@@ -50,6 +64,8 @@ class IndexTranslationsBatch:
     mem_index.Open("", True, dbm="BabyDBM").OrDie()
     input_dbm = tkrzw.DBM()
     input_dbm.Open(self.input_path, False, dbm="HashDBM").OrDie()
+    conj_verbs = self.ReadConjWords(self.conj_verb_path)
+    conj_adjs = self.ReadConjWords(self.conj_adj_path)
     it = input_dbm.MakeIterator()
     it.First()
     num_entries = 0
@@ -65,6 +81,10 @@ class IndexTranslationsBatch:
         prob = max(float(word_entry.get("probability") or "0"), 0.0000001)
         aoa = min(float(word_entry.get("aoa") or "20"), 20.0)
         score = prob * ((30 - aoa) / 10)
+        poses = set()
+        for item in word_entry["item"]:
+          if item["label"] in self.supplement_labels: continue
+          poses.add(item["pos"])
         word_trans = word_entry.get("translation") or []
         phrase_trans = []
         phrases = word_entry.get("phrase")
@@ -108,6 +128,33 @@ class IndexTranslationsBatch:
           pair = "{}\t{:.8f}".format(word, score * weight)
           score *= 0.98
           mem_index.Append(norm_tran, pair, "\t").OrDie()
+        num_uniq_trans = len(uniq_trans)
+        conj_trans = {}
+        if "verb" in poses or "adjective" in poses:
+          weight = 1.0
+          for tran in word_trans:
+            tokens = self.tokenizer.GetJaPosList(tran)
+            if not tokens: continue
+            if ("verb" in poses and tokens[-1][1] == "動詞" and
+                tokens[-1][0] == tokens[-1][3]):
+              for conj in conj_verbs.get(tokens[-1][0]) or []:
+                tokens[-1][0] = conj
+                conj_word = JoinWords(tokens)
+                if conj_word not in conj_trans:
+                  conj_trans[conj_word] = weight
+            if ("adjective" in poses and tokens[-1][1] == "形容詞 " and
+                tokens[-1][0] == tokens[-1][3]):
+              for conj in conj_adjs.get(tokens[-1][0]) or []:
+                tokens[-1][0] = conj
+                conj_word = JoinWords(tokens)
+                if conj_word not in conj_trans:
+                  conj_trans[conj_word] = weight
+            weight *= 0.95
+        for tran, weight in conj_trans.items():
+          norm_tran = tkrzw_dict.NormalizeWord(tran)
+          if norm_tran in uniq_trans: continue
+          pair = "{}\t{:.8f}".format(word, score * weight)
+          mem_index.Append(" " + norm_tran, pair, "\t").OrDie()
         for item in word_entry["item"]:
           if item["label"] in self.supplement_labels:
             for tran in item["text"].split(","):
@@ -170,6 +217,17 @@ class IndexTranslationsBatch:
     mem_index.Close().OrDie()
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
+  def ReadConjWords(self, path):
+    conjs = {}
+    if path:
+      with open(path) as input_file:
+        for line in input_file:
+          fields = line.strip().split("\t")
+          if len(fields) <= 2: continue
+          word, trans = fields[0], fields[1:]
+          conjs[word] = trans
+    return conjs
+
   def GetTranProb(self, tran_prob_dbm, src_text, trg_text):
     src_text = tkrzw_dict.NormalizeWord(src_text)
     tsv = tran_prob_dbm.GetStr(src_text)
@@ -195,11 +253,14 @@ def main():
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-tran-index.tkh"
   supplement_labels = set((tkrzw_dict.GetCommandFlag(args, "--supplement", 1) or "xs").split(","))
   tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
+  conj_verb_path = tkrzw_dict.GetCommandFlag(args, "--conj_verb", 1)
+  conj_adj_path = tkrzw_dict.GetCommandFlag(args, "--conj_adj", 1)
   if tkrzw_dict.GetCommandFlag(args, "--quiet", 0):
     logger.setLevel(logging.ERROR)
   if args:
     raise RuntimeError("unknown arguments: {}".format(str(args)))
-  IndexTranslationsBatch(input_path, output_path, supplement_labels, tran_prob_path).Run()
+  IndexTranslationsBatch(input_path, output_path, supplement_labels, tran_prob_path,
+                         conj_verb_path, conj_adj_path).Run()
 
 
 if __name__=="__main__":
