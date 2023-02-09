@@ -1981,13 +1981,12 @@ def main_cgi():
         result = searcher.SearchExactReverse(query, CGI_CAPACITY)
       else:
         result = searcher.SearchExact(query, CGI_CAPACITY)
-
       if not result and extra_mode == "popup":
         infl_result = None
         if is_reverse:
-          lemmas = searcher.SearchInflections(query)
-        else:
           lemmas = searcher.SearchInflectionsReverse(query)
+        else:
+          lemmas = searcher.SearchInflections(query)
         if lemmas:
           infl_query = ",".join(lemmas)
           infl_result = searcher.SearchExact(infl_query, CGI_CAPACITY)
