@@ -68,7 +68,18 @@ class UnionSearcher:
 
   def SearchInflections(self, text):
     result = []
+    result.append(tkrzw_dict.NormalizeWord(text))
     tsv = self.infl_index_dbm.GetStr(text)
+    if tsv:
+      for value in tsv.split("\t"):
+        if value not in result:
+          result.append(value)
+    return result
+
+  def SearchInflectionsReverse(self, text):
+    result = self.SearchTranIndex(text)
+    key = " " + tkrzw_dict.NormalizeWord(text)
+    tsv = self.tran_index_dbm.GetStr(key)
     if tsv:
       result.extend(tsv.split("\t"))
     return result

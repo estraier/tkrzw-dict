@@ -12,7 +12,7 @@
 #   View mode: auto (default), full, simple, list, annot
 #
 # Example:
-#   ./search_union.py --data_prefix union --search full --view full  united states
+#   ./search_union.py --data_prefix union --search exact --view full  united states
 #
 # Copyright 2020 Google LLC
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
@@ -463,7 +463,10 @@ def main():
   elif index_mode == "reverse":
     is_reverse = True
   elif index_mode == "inflection":
-    lemmas = searcher.SearchInflections(query)
+    if tkrzw_dict.PredictLanguage(query) == "en":
+      lemmas = searcher.SearchInflections(query)
+    else:
+      lemmas = searcher.SearchInflectionsReverse(query)
     if lemmas:
       if search_mode in ("auto", "exact"):
         lemmas.append(query)
@@ -1913,7 +1916,7 @@ def main_cgi():
     P('<div id="query_line">')
     P('<select name="i" id="index_mode_box">')
     for value, label in (("auto", "索引"), ("normal", "英和"),
-                         ("reverse", "和英"), ("inflection", "英和屈折"),
+                         ("reverse", "和英"), ("inflection", "屈折"),
                          ("grade", "等級"), ("annot", "注釈")):
       P('<option value="{}"', esc(value), end="")
       if value == index_mode:
@@ -1957,7 +1960,10 @@ def main_cgi():
     elif index_mode == "reverse":
       is_reverse = True
     elif index_mode == "inflection":
-      lemmas = searcher.SearchInflections(query)
+      if tkrzw_dict.PredictLanguage(query) == "en":
+        lemmas = searcher.SearchInflections(query)
+      else:
+        lemmas = searcher.SearchInflectionsReverse(query)
       if lemmas:
         if search_mode in ("auto", "exact"):
           lemmas.append(query)
@@ -1975,9 +1981,13 @@ def main_cgi():
         result = searcher.SearchExactReverse(query, CGI_CAPACITY)
       else:
         result = searcher.SearchExact(query, CGI_CAPACITY)
+
       if not result and extra_mode == "popup":
         infl_result = None
-        lemmas = searcher.SearchInflections(query)
+        if is_reverse:
+          lemmas = searcher.SearchInflections(query)
+        else:
+          lemmas = searcher.SearchInflectionsReverse(query)
         if lemmas:
           infl_query = ",".join(lemmas)
           infl_result = searcher.SearchExact(infl_query, CGI_CAPACITY)
@@ -2151,7 +2161,10 @@ def main_cgi():
       edit_result = None
       if search_mode == "auto" and extra_mode != "popup":
         if index_mode in ("auto", "normal"):
-          lemmas = searcher.SearchInflections(query)
+          if is_reverse:
+            lemmas = searcher.SearchInflectionsReverse(query)
+          else:
+            lemmas = searcher.SearchInflections(query)
           if lemmas:
             infl_query = ",".join(lemmas)
             infl_result = searcher.SearchExact(infl_query, CGI_CAPACITY)
@@ -2182,7 +2195,7 @@ def main_cgi():
 </div>""".format(int(CGI_MAX_QUERY_LENGTH / 1024)))
   elif extra_mode == "help":
     print("""<div class="help">
-<p>検索窓に検索語を入れて、「検索」ボタンを押してください。デフォルトでは、英語の検索語が入力されると英和の索引が検索され、日本語の検索語が入力されると和英の索引が検索されます。オプションで索引を明示的に指定できます。英和屈折は、単語の過去形などの屈折形を吸収した検索を行います。等級は、検索語を無視して全ての見出し語を重要度順に表示します。注釈は、英文を和訳の注釈付きの形式に整形します。</p>
+<p>検索窓に検索語を入れて、「検索」ボタンを押してください。デフォルトでは、英語の検索語が入力されると英和の索引が検索され、日本語の検索語が入力されると和英の索引が検索されます。オプションで索引を明示的に指定できます。屈折は、単語の過去形などの屈折形を吸収した検索を行います。等級は、検索語を無視して全ての見出し語を重要度順に表示します。注釈は、英文を和訳の注釈付きの形式に整形します。</p>
 <p>検索条件のデフォルトは、完全一致です。つまり、入力語そのものを見出しに含む語が表示されます。ただし、該当がない場合には自動的に曖昧検索が行われて、綴りが似た語が表示されます。オプションで検索条件を以下のものから明示的に選択できます。</p>
 <ul>
 <li>完全一致 : 見出し語が検索語と完全一致するものが該当する。</li>
@@ -2197,8 +2210,7 @@ def main_cgi():
 <p>各見出し語の欄の右上にはページ内のリンクや特殊操作のアイコンが置かれます。「WN」「WE」等を選択すると、そのラベルの語義のみを表示します。もう一度選択すると解除されます。「例」を選択すると、その見出し語を含む対訳例文のみを表示します。「句」を選択すると、その見出し語を含むフレーズの情報のみを表示します。「類」を選択すると、その見出し語の類義語を検索します。右上にある「&#x2605;」を選択すると、その見出し語に星印がつけられます。</p>
 <p>トップ画面で「<a href="?x=help">&#xFF1F;</a>」をクリックすると、このヘルプ画面が表示されます。トップ画面で「<a href="?x=stars">&#x2606;</a>」をクリックすると、星印をつけた見出し語の一覧が表示されます。この一覧は語彙学習の成果確認と復習に便利です。</p>
 <p>アクセシビリティのためのショートカット機能があります。Shift+Backspaceを押すと、フォーカスが検索窓に移動して、検索窓の語句が消去されます。これは素早く再検索するのに便利です。スクリーンリーダ等で検索結果の主要な内容を読み取るには、Shiftを押しながら矢印の左右を押すのが便利です。Shift+右を押すと、見出し語にフォーカスが進み、さらにShift+右を押すと、訳語のリストにフォーカスが移ります。さらにShift+右を押していくと、各々の語義説明のラベルにフォーカスが移っていきます。Shift+左で戻ります。同様にして、Shift+上とShift+下でも読み取りを行いますが、発音や派生語も飛ばさずに遷移します。</p>
-<p>このサイトはオープンな英和辞書検索のデモです。辞書データは、次のデータソースから抽出したデータを統合したものです。<a href="https://wordnet.princeton.edu/">WordNet</a>、<a href="https://bond-lab.github.io/wnja/">日本語WordNet</a>、<a href="https://en.wiktionary.org/">Wiktionary英語版</a>、<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>、<a href="https://en.wikipedia.org/wiki/Main_Page">Wikipedia英語版</a>、<a href="https://ja.wikipedia.org/wiki/Main_Page">Wikipedia日本語版</a>、<a href="http://www.edrdg.org/jmdict/edict.html">EDict2</a>、<a href="http://edrdg.org/wiki/index.php/Tanaka_Corpus">田中コーパス</a>、<a href="https://nlp.stanford.edu/projects/jesc/index_ja.html">Japanese-English Subtitle Corpus</a>。</p>
-<p>検索システムはPythonと高性能データベースライブラリ<a href="https://dbmx.net/tkrzw/">Tkrzw</a>を用いて実装されています。<a href="https://github.com/estraier/tkrzw-dict">コードベース</a>はGitHubにて公開されています。</p>
+<p>このサイトはオープンな英和辞書検索のデモです。辞書データは、次のデータソースから抽出したデータを統合したものです。<a href="https://wordnet.princeton.edu/">WordNet</a>、<a href="https://bond-lab.github.io/wnja/">日本語WordNet</a>、<a href="https://en.wiktionary.org/">Wiktionary英語版</a>、<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>、<a href="https://en.wikipedia.org/wiki/Main_Page">Wikipedia英語版</a>、<a href="https://ja.wikipedia.org/wiki/Main_Page">Wikipedia日本語版</a>、<a href="http://www.edrdg.org/jmdict/edict.html">EDict2</a>、<a href="http://edrdg.org/wiki/index.php/Tanaka_Corpus">田中コーパス</a>、<a href="https://nlp.stanford.edu/projects/jesc/index_ja.html">Japanese-English Subtitle Corpus</a>。<a href="https://dbmx.net/dict/">統合英和辞書のホームページ</a>もご覧ください。検索システムはPythonと高性能データベースライブラリ<a href="https://dbmx.net/tkrzw/">Tkrzw</a>を用いて実装されています。<a href="https://github.com/estraier/tkrzw-dict">コードベース</a>はGitHubにて公開されています。</p>
 </div>""")
   elif extra_mode == "stars":
     print("""<section id="star_info" class="message_view">

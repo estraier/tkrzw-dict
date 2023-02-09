@@ -154,7 +154,7 @@ class AttachExamplesBatch:
       uniq_docs.append((index_id, doc_id, weight))
     if not uniq_docs:
       return
-    tran_cands = entry.get("translation") or []
+    tran_cands = (entry.get("translation") or []).copy()
     for item in entry.get("item") or []:
       text = item["text"]
       match = regex.search(r"\[translation\]: ([^\[]+)", text)
@@ -216,22 +216,27 @@ class AttachExamplesBatch:
       length_score = (source_len_score * target_len_score) ** 0.2
       target_tokens = self.tokenizer.GetJaPosList(target)
       tran_score = 0
+      best_tran = None
       for tran, tran_weight in trans.items():
         tran_hit_count = tran_hit_counts.get(tran) or 0
         tran_weight *= 0.9 ** tran_hit_count
         if self.CheckTranMatch(target, target_tokens, tran):
           if tran_weight > tran_score:
             tran_score = tran_weight
-            tran_hit_counts[tran] = tran_hit_count + 1
-      if (strict or is_aux) and tran_score == 0: continue
+            best_tran = tran
+      if best_tran:
+        tran_hit_count = tran_hit_counts.get(best_tran) or 0
+        tran_hit_counts[best_tran] = tran_hit_count + 1
+      if (strict or is_aux) and not best_tran: continue
       tran_score += 0.1
       final_score = (tran_score * tran_score * length_score * weight) ** (1 / 4)
-      scored_records.append((final_score, source, target))
+      scored_records.append((final_score, source, target, best_tran))
     scored_records = sorted(scored_records, reverse=True)
     examples = []
     reserve_examples = []
     uniq_keys = []
-    for score, source, target in scored_records:
+    adopt_tran_counts = {}
+    for score, source, target, best_tran in scored_records:
       if len(examples) >= self.max_examples: break
       uniq_key = MakeSentenceKey(source)
       is_dup = False
@@ -244,6 +249,11 @@ class AttachExamplesBatch:
       if is_dup:
         continue
       uniq_keys.append(uniq_key)
+      if best_tran:
+        adopt_tran_count = adopt_tran_counts.get(best_tran) or 0
+        if adopt_tran_count >= 3:
+          continue
+        adopt_tran_counts[best_tran] = adopt_tran_count + 1
       example = {"e": source, "j": target}
       if len(source) > best_source_length * 2 or len(target) > best_target_length * 2:
         reserve_examples.append(example)
