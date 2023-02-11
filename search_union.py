@@ -1125,7 +1125,7 @@ def PrintResultCGIAnnot(script_name, spans, head_level, file=sys.stdout):
           ruby_text += ".."
           break
         ruby_text += c
-    P('<span class="tip" onmouseleave="hide_tip(this)">')
+    P('<span class="tip" onmouseleave="hide_tip(this)"><div class="tip_content">')
     max_items = 8 if len(ruby_annots) < 2 else 4
     for entry in ruby_annots:
       P('<div class="annot_entry">')
@@ -1171,7 +1171,7 @@ def PrintResultCGIAnnot(script_name, spans, head_level, file=sys.stdout):
       if len(items) > max_items:
         P('<a href="{}" class="annot_item_more">... ...</a>', word_url)
       P('</div>')
-    P('</span>', end="")
+    P('</div></span>', end="")
     P('</span>', end="")
     P('<rt data-aoa="{}" data-word="{}">{}</rt>', ruby_aoa, ruby_word, ruby_text, end="")
     P('</ruby>', end="")
@@ -1352,22 +1352,26 @@ a.star_word {{ display: inline-block; min-width: 10ex; padding: 0ex 0.5ex;
 .word .tip {{
   visibility: hidden;
   position: absolute;
-  top: 2.8ex;
+  top: 1.8ex;
   left: -1.2ex;
   right: auto;
+  z-index: 1;
+  background: transparent;
+}}
+.word .tip_content {{
+  margin: 1.0ex 0 0 0;
   width: 50ex;
   height: 40ex;
   overflow-x: hidden;
   overflow-y: auto;
   line-height: initial;
-  background: #ffffcc;
   opacity: 0.95;
   border-radius: 0.5ex;
   padding: 0.5ex 1ex;
-  z-index: 1;
   font-size: 0.9rem;
   font-weight: normal;
   box-shadow: 2px 2px 4px #aaaaaa;
+  background: #ffffcc;
 }}
 .word .fixedtip {{
   visibility: visible;
