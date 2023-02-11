@@ -1247,7 +1247,8 @@ def PrintCGIHeader(page_title, extra_mode="", file=sys.stdout):
 <meta name="robots" content="noindex,nofollow,noarchive"/>
 <style>/*<![CDATA[*/
 html {{ margin: 0ex; padding: 0ex; background: #eeeeee; font-size: 12pt; }}
-body {{ margin: 0ex; padding: 0ex; text-align: center; -webkit-text-size-adjust: 100%; }}
+body {{ margin: 0ex; padding: 0ex; text-align: center; -webkit-text-size-adjust: 100%;
+  overflow-x: hidden; overflow-y: auto; }}
 div.mainpage {{ display: inline-block; width: 100ex; text-align: left; padding-bottom: 3ex; }}
 a,a:visited {{ text-decoration: none; }}
 a:hover {{ color: #0011ee; text-decoration: underline; }}
