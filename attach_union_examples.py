@@ -75,13 +75,14 @@ class AttachExamplesBatch:
     input_dbm.Open(self.input_path, False).OrDie()
     indices = []
     for index_path in self.index_paths:
-      is_aux = False
-      if index_path.startswith("+"):
-        is_aux = True
-        index_path = index_path[1:]
+      rank = 0
+      match = regex.search(r"^(\++)(.*)", index_path)
+      if match:
+        rank = len(match.group(1))
+        index_path = match.group(2)
       index_dbm = tkrzw.DBM()
       index_dbm.Open(index_path, False).OrDie()
-      indices.append((index_dbm, is_aux))
+      indices.append((index_dbm, rank))
     it = input_dbm.MakeIterator()
     it.First().OrDie()
     word_dict = {}
@@ -136,10 +137,9 @@ class AttachExamplesBatch:
     docs = []
     for core_word, weight in core_words.items():
       for i, index in enumerate(indices):
-        index_dbm, is_aux = index
+        index_dbm, rank = index
         index_weight = 0.95 ** i
-        if is_aux:
-          index_weight *= 0.5
+        index_weight *= 0.5 ** rank
         expr = index_dbm.GetStr(core_word.lower())
         if not expr: continue
         for doc_id in expr.split(","):
@@ -182,13 +182,25 @@ class AttachExamplesBatch:
         tran_score *= 0.8
       elif len(tran) == 3:
         tran_score *= 0.95
+      new_score = tran_weight_base * tran_score
       old_score = trans.get(tran) or 0
-      trans[tran] = max(old_score, tran_weight_base * tran_score)
+      trans[tran] = max(old_score, new_score)
+      alternatives = []
+      match = regex.search(
+        r"(.*[\p{Han}]{2,})(する|される|される|させる|をする|している|な)", tran)
+      if match:
+        alternatives.append(match.group(1))
+      core, prefix, suffix = self.tokenizer.StripJaParticles(tran)
+      if core and len(core) >= 2 and regex.search(r"[\p{Han}\p{Katakana}]", core):
+        alternatives.append(core)
+      for alternative in alternatives:
+        old_score = trans.get(alternative) or 0
+        trans[alternative] = max(old_score, new_score * 0.8)
       tran_weight_base *= 0.97
     scored_records = []
     tran_hit_counts = {}    
-    for index_id, doc_id, weight in uniq_docs:
-      index_dbm, is_aux = indices[index_id]
+    for index_id, doc_id, doc_weight in uniq_docs:
+      index_dbm, rank = indices[index_id]
       doc_key = "[" + doc_id + "]"
       value = index_dbm.GetStr(doc_key)
       if not value: continue
@@ -197,8 +209,13 @@ class AttachExamplesBatch:
       source, target = fields[:2]
       if len(source) < best_source_length / 2 or len(target) < best_target_length / 2: continue
       if len(source) > best_source_length * 3 or len(target) > best_target_length * 3: continue
+      if regex.search(r"あなた.*あなた", target): continue
+      if regex.search(r"彼女.*彼女", target): continue
+      if target.count("、") >= 4: continue
+      if target.count("。") >= 3: continue
+      if target.count(" ") >= 4: continue
       source_hit = False
-      for core_word, weight in core_words.items():
+      for core_word, core_weight in core_words.items():
         if regex.search(r"[A-Z]", core_word):
           loc = source.find(core_word)
           if (not strict and loc == 0) or loc > 0:
@@ -227,9 +244,9 @@ class AttachExamplesBatch:
       if best_tran:
         tran_hit_count = tran_hit_counts.get(best_tran) or 0
         tran_hit_counts[best_tran] = tran_hit_count + 1
-      if (strict or is_aux) and not best_tran: continue
-      tran_score += 0.1
-      final_score = (tran_score * tran_score * length_score * weight) ** (1 / 4)
+      if (strict or rank != 0) and not best_tran: continue
+      tran_score += 0.2
+      final_score = (tran_score * tran_score * length_score * doc_weight) ** (1 / 4)
       scored_records.append((final_score, source, target, best_tran))
     scored_records = sorted(scored_records, reverse=True)
     examples = []
@@ -269,10 +286,6 @@ class AttachExamplesBatch:
 
   def CheckTranMatch(self, target, tokens, query):
     if len(query) >= 2 and target.find(query) >= 0: return True
-    match = regex.search(r"(.*[\p{Han}]{2,})(する|される|される|させる|をする|している)", query)
-    if match:
-      stem_query = match.group(1)
-      if target.find(stem_query) >= 0: return True
     start_index = 0
     while start_index < len(tokens):
       i = start_index
