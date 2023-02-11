@@ -400,8 +400,8 @@ def PrintResultAnnot(spans, head_level):
     ruby_trans.clear()
   if head_level:
     print("< ", end="")
-  for i in range(0, len(spans)):
-    text, is_word, annots = spans[i]
+  for i, span in enumerate(spans):
+    text, is_word, annots = span
     if regex.search(r"[^\s]", text) or ruby_life == 1:
       ruby_life -= 1
     if ruby_trans and ruby_life == 0:
@@ -1177,8 +1177,8 @@ def PrintResultCGIAnnot(script_name, spans, head_level, file=sys.stdout):
     P('</ruby>', end="")
     ruby_trans.clear()
   P('<p class="text">', end="")
-  for i in range(0, len(spans)):
-    text, is_word, annots = spans[i]
+  for i,span in enumerate(spans):
+    text, is_word, annots = span
     if regex.search(r"[^\s]", text) or ruby_life == 1:
       ruby_life -= 1
     if ruby_trans and ruby_life == 0:
