@@ -422,6 +422,7 @@ class UnionSearcher:
           variants = []
           variants.append((phrase, 1.0))
           for infl_base in self.SearchInflections(phrase.lower()):
+            if infl_base.count(" ") + 1 != len(tokens): continue
             variants.append((infl_base, 0.7))
           if index == start_index:
             match = self.re_aux_contraction.search(token)

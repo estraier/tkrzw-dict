@@ -414,7 +414,7 @@ def PrintResultAnnot(spans, head_level):
           if not trans: continue
           ruby_trans = trans
           ruby_word = word
-          ruby_life = text.count(" ") + 1
+          ruby_life = word.count(" ") + 1
           break
         if ruby_trans:
           ruby_annots = annots
@@ -1105,9 +1105,7 @@ def PrintResultCGIAnnot(script_name, spans, head_level, file=sys.stdout):
   ruby_aoa = 0
   ruby_life = 0
   def StartRuby():
-    word_url = "{}?q={}".format(script_name, urllib.parse.quote(ruby_word))
-    P('<ruby><span class="word" onmouseover="show_tip(this)" onclick="fix_tip(this)">',
-      word_url, end="")
+    P('<ruby><span class="word" onmouseover="show_tip(this)" onclick="fix_tip(this)">', end="")
   def EndRuby(ruby_trans):
     word_width = 0
     for c in ruby_word:
@@ -1192,7 +1190,7 @@ def PrintResultCGIAnnot(script_name, spans, head_level, file=sys.stdout):
           ruby_trans = trans
           ruby_word = word
           ruby_aoa = entry.get("aoa_syn") or 100
-          ruby_life = text.count(" ") + 1
+          ruby_life = word.count(" ") + 1
           break
         if ruby_trans:
           ruby_annots = annots
@@ -1348,7 +1346,7 @@ a.star_word {{ display: inline-block; min-width: 10ex; padding: 0ex 0.5ex;
 .annot_view a {{ color: #000000; }}
 .annot_view .text {{ line-height: 190%; margin: 1ex 1ex; color: #000000; }}
 .word {{ position: relative; display: inline-block; line-height: 110%; }}
-.annot_view rt {{ color: #333333; }}
+.annot_view rt {{ color: #1133aa; text-align: center; padding: 1ex; }}
 .word .tip {{
   visibility: hidden;
   position: absolute;
@@ -1895,7 +1893,7 @@ def main_cgi():
     P('<h1><a href="{}" id="page_link">統合英和辞書検索</a></h1>', script_name)
     P('</header>')
   if index_mode == "annot":
-    if not is_http_query:
+    if not is_http_query and extra_mode != "popup":
       P('<nav class="search_form" title="注釈操作">')
       P('<form method="post" action="{}" name="search_form">', script_name)
       P('<div id="query_line">')
