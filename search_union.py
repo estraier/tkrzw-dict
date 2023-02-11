@@ -414,7 +414,7 @@ def PrintResultAnnot(spans, head_level):
           if not trans: continue
           ruby_trans = trans
           ruby_word = word
-          ruby_life = word.count(" ") + 1
+          ruby_life = text.count(" ") + 1
           break
         if ruby_trans:
           ruby_annots = annots
@@ -632,7 +632,7 @@ def OutputAnnotHTML(searcher, output_prefix, doc_title, meta_lines, pages):
       P('<select name="min_aoa" onchange="toggle_rubies()">')
       for min_aoa in range(3, 21):
         P('<option value="{}"', min_aoa, end="")
-        if min_aoa == 12:
+        if min_aoa == 10:
           P(' selected="selected"')
         P('>{}歳</option>', min_aoa)
       P('</select>')
@@ -1192,7 +1192,7 @@ def PrintResultCGIAnnot(script_name, spans, head_level, file=sys.stdout):
           ruby_trans = trans
           ruby_word = word
           ruby_aoa = entry.get("aoa_syn") or 100
-          ruby_life = word.count(" ") + 1
+          ruby_life = text.count(" ") + 1
           break
         if ruby_trans:
           ruby_annots = annots
@@ -2098,7 +2098,7 @@ def main_cgi():
         P('<select name="min_aoa" onchange="toggle_rubies()">')
         for min_aoa in range(3, 21):
           P('<option value="{}"', min_aoa, end="")
-          if min_aoa == 12:
+          if min_aoa == 10:
             P(' selected="selected"')
           P('>{}歳</option>', min_aoa)
         P('</select>')
