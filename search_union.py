@@ -402,7 +402,8 @@ def PrintResultAnnot(spans, head_level):
     print("< ", end="")
   for i, span in enumerate(spans):
     text, is_word, annots = span
-    if regex.search(r"[^\s]", text) or ruby_life == 1:
+    is_word = bool(regex.search(r"[^\s]", text))
+    if is_word or ruby_life == 1:
       ruby_life -= 1
     if ruby_trans and ruby_life == 0:
       EndRuby(ruby_trans)
@@ -421,7 +422,10 @@ def PrintResultAnnot(spans, head_level):
           StartRuby()
       else:
         ruby_annots.extend(annots)
-    print(text, end="")
+    if is_word and ruby_life < 1 and regex.search(r"\p{Latin}", text):
+      print("{" + text + "}", end="")
+    else:
+      print(text, end="")
   if ruby_trans:
     EndRuby(ruby_trans)
   if head_level:
@@ -1177,7 +1181,8 @@ def PrintResultCGIAnnot(script_name, spans, head_level, file=sys.stdout):
   P('<p class="text">', end="")
   for i,span in enumerate(spans):
     text, is_word, annots = span
-    if regex.search(r"[^\s]", text) or ruby_life == 1:
+    is_word = bool(regex.search(r"[^\s]", text))
+    if is_word or ruby_life == 1:
       ruby_life -= 1
     if ruby_trans and ruby_life == 0:
       EndRuby(ruby_trans)
@@ -1197,7 +1202,10 @@ def PrintResultCGIAnnot(script_name, spans, head_level, file=sys.stdout):
           StartRuby()
       else:
         ruby_annots.extend(annots)
-    P('{}', text, end="")
+    if is_word and ruby_life < 1 and regex.search(r"\p{Latin}", text):
+      P('<i>{}</i>', text, end="")
+    else:
+      P('{}', text, end="")
   if ruby_trans:
     EndRuby(ruby_trans)
   P('</p>')
@@ -1348,6 +1356,7 @@ a.star_word {{ display: inline-block; min-width: 10ex; padding: 0ex 0.5ex;
 .annot_view .text {{ line-height: 190%; margin: 1ex 1ex; color: #000000; }}
 .word {{ position: relative; display: inline-block; line-height: 110%; }}
 .annot_view rt {{ color: #1133aa; text-align: center; padding: 1ex; }}
+.annot_view i {{ color: #006622; }}
 .word .tip {{
   visibility: hidden;
   position: absolute;
