@@ -658,7 +658,7 @@ def OutputAnnotHTML(searcher, output_prefix, doc_title, meta_lines, pages):
         if head_level == 1 and page_id not in page_titles:
           page_titles[page_id] = line
         result = searcher.AnnotateText(line)
-        PrintResultCGIAnnot(script_name, result, head_level, file=page_file)
+        PrintResultCGIAnnot(script_name, result, head_level, line, file=page_file)
         num_sections += 1
         for span, is_word, annots in result:
           if is_word and not regex.search(r"\d", span):
@@ -764,6 +764,8 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
     related_url = "{}?q={}&s=related".format(script_name, urllib.parse.quote(word))
     P('<a class="entry_icon entry_extra_icon" href="{}" title="類似検索">類</a>',
       related_url)
+    P('<span class="entry_icon entry_extra_icon" data-word="{}"' +
+      ' onclick="utter_elem(this)" title="読み上げ">読</span>', word)
     P('<span class="entry_icon entry_star_icon star_icon" data-word="{}" data-hint="{}"' +
       ' onclick="toggle_star(this, -1)" title="星印の変更">&#x2605;</span>', word, hint)
     P('</div>')
@@ -1095,7 +1097,7 @@ def PrintResultCGIList(script_name, entries, query):
   P('</section>')
 
 
-def PrintResultCGIAnnot(script_name, spans, head_level, file=sys.stdout):
+def PrintResultCGIAnnot(script_name, spans, head_level, line, file=sys.stdout):
   def P(*args, end="\n"):
     global P
     P(*args, end, file=file)
@@ -1103,6 +1105,10 @@ def PrintResultCGIAnnot(script_name, spans, head_level, file=sys.stdout):
   if head_level > 0:
     class_tags.append("annot_head_{}".format(head_level))
   P('<div class="{}">', " ".join(class_tags))
+  P('<div class="annot_line_navi">')
+  P('<div class="annot_line_icon" data-word="{}"' +
+    ' onclick="utter_elem(this)" title="読み上げ">読</div>', line)
+  P('</div>')
   ruby_trans = None
   ruby_word = None
   ruby_annots = None
@@ -1355,6 +1361,11 @@ a.star_word {{ display: inline-block; min-width: 10ex; padding: 0ex 0.5ex;
 .annot_view a {{ color: #000000; }}
 .annot_view .text {{ line-height: 190%; margin: 1ex 1ex; color: #000000; }}
 .word {{ position: relative; display: inline-block; line-height: 110%; }}
+.annot_line_navi {{ position: absolute; top: 0.3ex; right: 0.3ex; }}
+.annot_line_icon {{ width: 3ex; text-align: center; font-size: 80%;
+  color: #111111; background: #eeeeee; opacity: 0.3;
+  border: 1px solid #dddddd; border-radius: 0.8ex; }}
+.annot_line_icon:hover {{ opacity: 0.8; background: #eeffff; }}
 .annot_view rt {{ color: #1133aa; text-align: center; padding: 1ex; }}
 .annot_view i {{ color: #006622; }}
 .word .tip {{
@@ -1618,6 +1629,16 @@ function toggle_label(ent_id, label) {{
   var new_url = new URL(document.location.href);
   new_url.hash = "#" + ent_id + label;
   document.location.href = new_url;
+}}
+function utter_elem(elem) {{
+  let word = elem.dataset.word;
+  if (!SpeechSynthesisUtterance) {{
+    alert("This browser doesn't support SpeechSynthesis.");
+    return;
+  }}
+  let utter = new SpeechSynthesisUtterance(word);
+  utter.lang = "en-US";
+  window.speechSynthesis.speak(utter);
 }}
 let storage_key_stars = "union_dict_stars";
 function mark_stars() {{
@@ -2152,7 +2173,7 @@ def main_cgi():
               line = line[match.end():].strip()
             if not line: continue
             result = searcher.AnnotateText(line)
-            PrintResultCGIAnnot(script_name, result, head_level)
+            PrintResultCGIAnnot(script_name, result, head_level, line)
             num_sections += 1
             for span, is_word, annots in result:
               if is_word and not regex.search(r"\d", span):
