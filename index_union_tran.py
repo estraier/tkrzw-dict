@@ -142,7 +142,7 @@ class IndexTranslationsBatch:
                 conj_word = JoinWords(tokens)
                 if conj_word not in conj_trans:
                   conj_trans[conj_word] = weight
-            if ("adjective" in poses and tokens[-1][1] == "形容詞 " and
+            if ("adjective" in poses and tokens[-1][1] == "形容詞" and
                 tokens[-1][0] == tokens[-1][3]):
               for conj in conj_adjs.get(tokens[-1][0]) or []:
                 tokens[-1][0] = conj

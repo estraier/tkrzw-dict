@@ -158,19 +158,19 @@ def MakeYomiKey(yomi):
     priority = 5
     if char == "ー":
       if last_norm_char in "あかさたなはまやらわ":
-        norm_char, priority = ("あ", 4)
+        norm_char, priority = ("あ", 3)
       elif last_norm_char in "いきしちにひみりゐ":
-        norm_char, priority = ("い", 4)
+        norm_char, priority = ("い", 3)
       elif last_norm_char in "うくすつぬふむゆる":
-        norm_char, priority = ("う", 4)
+        norm_char, priority = ("う", 3)
       elif last_norm_char in "えけせてねへめれゑ":
-        norm_char, priority = ("え", 4)
+        norm_char, priority = ("え", 3)
       elif last_norm_char in "おこそとのほもよろを":
-        norm_char, priority = ("お", 4)
+        norm_char, priority = ("お", 3)
       elif last_norm_char in "ん":
-        norm_char, priority = ("ん", 4)
+        norm_char, priority = ("ん", 3)
       else:
-        norm_char, priority = (char, 4)
+        norm_char, priority = (char, 3)
     else:
       norm_char, priority = KANA_CONVERSION_MAP.get(char) or (char, 5)
     norm_chars.append(norm_char)
