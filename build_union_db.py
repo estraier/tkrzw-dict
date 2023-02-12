@@ -1390,6 +1390,41 @@ class BuildUnionDBBatch:
       if word_synonyms:
         word_entry["_synonym"] = list(word_synonyms)
       merged_entry.append(word_entry)
+    if len(merged_entry) > 1:
+      merged_entry = sorted(merged_entry, key=lambda x: float(x.get("share") or 0), reverse=True)
+      top_entry = merged_entry[0]
+      other_entries = []
+      other_items = collections.defaultdict(list)
+      for word_entry in merged_entry[1:]:
+        labels = set()
+        for item in word_entry["item"]:
+          labels.add(item["label"])
+        share = float(entry.get("share") or 0)
+        if len(labels) < 2 and share < 0.3:
+          for item in word_entry["item"]:
+            label = item["label"]
+            if label in self.supplement_labels: continue
+            text = item["text"]
+            if label.startswith("["): continue
+            text = regex.sub(r"^\(.*?\)", "", text).strip()
+            if text:
+              item["text"] = "(" + word_entry["word"] + ") " + text
+              other_items[label].append(item)
+        else:
+          other_entries.append(word_entry)
+      if other_items:
+        top_items = []
+        uniq_labels = set()
+        for label, _ in self.input_confs:
+          if label in uniq_labels: continue
+          uniq_labels.add(label)
+          for item in top_entry["item"]:
+            if item["label"] != label: continue
+            top_items.append(item)
+          for item in other_items.get(label) or []:
+            top_items.append(item)
+        top_entry["item"] = top_items
+      merged_entry = [top_entry] + other_entries
     return merged_entry
 
   def GetPhraseProb(self, prob_dbm, language, word):
