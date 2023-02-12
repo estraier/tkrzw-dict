@@ -151,8 +151,8 @@ def GetEntryPoses(entry):
     first_label = label
     text = item["text"]
     if regex.search(
-        r"の(直接法|直説法|仮定法)?(現在|過去)?(第?[一二三]人称)?[ ・、]?" +
-        r"(単数|複数|現在|過去|比較|最上|進行|完了|動名詞|単純)+[ ・、]?" +
+        r"の(直接法|直説法|仮定法)?(現在|過去)?(第?[一二三]人称)?[ ・、]?"
+        r"(単数|複数|現在|過去|比較|最上|進行|完了|動名詞|単純)+[ ・、]?"
         r"(形|型|分詞|級|動名詞|名詞|動詞|形容詞|副詞)+", text):
       continue
     if regex.search(r"の(直接法|直説法|仮定法)(現在|過去)", text):
@@ -737,7 +737,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
     P('<div class="entry_navi">')
     for label, _ in label_counts.items():
       if details:
-        P('<span class="entry_icon entry_label_icon"' +
+        P('<span class="entry_icon entry_label_icon"'
           ' onclick="toggle_label(\'{}\',\'{}\')" title="{}語義に注目">{}</span>',
           ent_id, label, label.upper(), label.upper())
       else:
@@ -747,7 +747,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
           jump_url, label.upper(), label.upper())
     if "example" in entry:
       if details:
-        P('<span class="entry_icon entry_extra_icon"' +
+        P('<span class="entry_icon entry_extra_icon"'
           ' onclick="toggle_label(\'{}\', \'x\')" title="例文に注目">例</span>', ent_id)
       else:
         jump_url = "{}?q={}&j={}x".format(script_name, urllib.parse.quote(word), ent_id)
@@ -755,7 +755,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
           jump_url)
     if "phrase" in entry:
       if details:
-        P('<span class="entry_icon entry_extra_icon"' +
+        P('<span class="entry_icon entry_extra_icon"'
           ' onclick="toggle_label(\'{}\', \'p\')" title="句に注目">句</span>', ent_id)
       else:
         jump_url = "{}?q={}&j={}p".format(script_name, urllib.parse.quote(word), ent_id)
@@ -764,9 +764,9 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
     related_url = "{}?q={}&s=related".format(script_name, urllib.parse.quote(word))
     P('<a class="entry_icon entry_extra_icon" href="{}" title="類似検索">類</a>',
       related_url)
-    P('<span class="entry_icon entry_extra_icon" data-word="{}"' +
+    P('<span class="entry_icon entry_extra_icon" data-word="{}"'
       ' onclick="utter_elem(this)" title="読み上げ">読</span>', word)
-    P('<span class="entry_icon entry_star_icon star_icon" data-word="{}" data-hint="{}"' +
+    P('<span class="entry_icon entry_star_icon star_icon" data-word="{}" data-hint="{}"'
       ' onclick="toggle_star(this, -1)" title="星印の変更">&#x2605;</span>', word, hint)
     P('</div>')
     word_url = "{}?q={}".format(script_name, urllib.parse.quote(word))
@@ -790,8 +790,8 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
         P('</div>')
     if details:
       if pron:
-        P('<div class="attr attr_pron">' +
-          '<span class="attr_label focal2" tabindex="-1" role="tooltip">発音</span>' +
+        P('<div class="attr attr_pron">'
+          '<span class="attr_label focal2" tabindex="-1" role="tooltip">発音</span>'
           ' <span class="attr_value">{}</span></div>', pron)
       for attr_list in INFLECTIONS:
         fields = []
@@ -882,6 +882,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
         for section in sections[1:]:
           subattr_label = None
           subattr_link = False
+          text_classes = ["text"]
           attr_match = regex.search(r"^\[([a-z]+)\]: ", section)
           eg_match = regex.search(r"^e\.g\.: ", section)
           if attr_match:
@@ -891,11 +892,14 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
               section = section[len(attr_match.group(0)):].strip()
               subattr_link = True
           elif eg_match:
-            subattr_label = "例"
             section = section[len(eg_match.group(0)):].strip()
+            text_classes.append("readable")
           subsections = section.split(" [--] ")
           P('<div class="item_text item_text2 item_text_n">')
-          if subattr_label:
+          if eg_match:
+            P('<span class="subattr_label subattr_func_label focal2"'
+              ' tabindex="-1" role="tooltip" onclick="utter_sibling(this)">例</span>')
+          elif subattr_label:
             P('<span class="subattr_label focal2" tabindex="-1" role="tooltip">{}</span>',
               subattr_label)
           if subattr_link:
@@ -908,11 +912,11 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
                 fields.append('<a href="{}" class="subword" lang="{}">{}</a>'.format(
                   esc(subword_url), GetLang(subword), esc(subword)))
             if fields:
-              P('<span class="text">', end="")
+              P('<span class="{}">', " ".join(text_classes), end="")
               print(", ".join(fields), end="")
               P('</span>')
           else:
-            P('<span class="text">')
+            P('<span class="{}">', " ".join(text_classes))
             PrintItemTextCGI(subsections[0])
             P('</span>')
           P('</div>')
@@ -931,8 +935,9 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
       if examples:
         for label_id, example in enumerate(examples, 1):
           P('<div class="item item_text1 item_x" id="i{}x{}">', ent_id, label_id)
-          P('<span class="label focal2" tabindex="-1" role="tooltip">例</span>')
-          P('<span class="text" lang="en">{}</span>', example["e"])
+          P('<span class="label focal2" tabindex="-1" role="tooltip"'
+            ' onclick="utter_sibling(this)">例</span>')
+          P('<span class="text readable" lang="en">{}</span>', example["e"])
           P('<span class="text extran" lang="ja">({})</span>', example["j"])
           P('</div>')
       phrases = entry.get("phrase")
@@ -1034,11 +1039,11 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
           if prob > 0:
             fmt = "{{:.{}f}}".format(min(max(int(math.log10(prob) * -1 + 1), 3), 6))
             prob_expr = regex.sub(r"\.(\d{3})(\d*?)0+$", r".\1\2", fmt.format(prob * 100))
-            P('<span class="attr_label focal2" tabindex="-1" role="tooltip">頻度</span>' +
+            P('<span class="attr_label focal2" tabindex="-1" role="tooltip">頻度</span>'
               ' <span class="attr_value">{}%</span>', prob_expr)
         if aoa:
           aoa = float(aoa)
-          P('<span class="attr_label focal2" tabindex="-1" role="tooltip">年齢</span>' +
+          P('<span class="attr_label focal2" tabindex="-1" role="tooltip">年齢</span>'
             ' <span class="attr_value">{:.2f}</span>', aoa)
         P('</div>')
     if omitted:
@@ -1106,7 +1111,7 @@ def PrintResultCGIAnnot(script_name, spans, head_level, line, file=sys.stdout):
     class_tags.append("annot_head_{}".format(head_level))
   P('<div class="{}">', " ".join(class_tags))
   P('<div class="annot_line_navi">')
-  P('<div class="annot_line_icon" data-word="{}"' +
+  P('<div class="annot_line_icon" data-word="{}"'
     ' onclick="utter_elem(this)" title="読み上げ">読</div>', line)
   P('</div>')
   ruby_trans = None
@@ -1316,8 +1321,9 @@ a.navi_link:hover {{ background: #dddddd; opacity: 1; }}
 .item_we .label {{ background: #ffddee; }}
 .item_wj .label {{ background: #ddeeff; }}
 .item_xs .label {{ background: #ffffdd; }}
-.item_x .label {{ background: #e8eef3; }}
+.item_x .label {{ background: #e8eef3; cursor: pointer; }}
 .item_p .label {{ background: #e8f3ee; }}
+.subattr_func_label {{ cursor: pointer; }}
 .tran {{ color: #000000; }}
 .attr_value {{ margin-left: 0.3ex; color: #111111; }}
 .text {{ margin-left: 0.3ex; color: #111111; }}
@@ -1632,12 +1638,28 @@ function toggle_label(ent_id, label) {{
 }}
 function utter_elem(elem) {{
   let word = elem.dataset.word;
+  utter_text(word);
+}}
+function utter_sibling(elem) {{
+  for (let child of elem.parentNode.childNodes) {{
+    if (!child.classList || !child.classList.contains("readable")) continue;
+    utter_text(child.textContent);
+    break;
+  }}
+}}
+function utter_text(text) {{
   if (!SpeechSynthesisUtterance) {{
     alert("This browser doesn't support SpeechSynthesis.");
     return;
   }}
-  let utter = new SpeechSynthesisUtterance(word);
+  window.speechSynthesis.cancel();
+  if (text.length < 1) return;
+  let utter = new SpeechSynthesisUtterance(text);
   utter.lang = "en-US";
+  let base_length = 24;
+  let base_rate = 0.8;
+  utter.rate = Math.max(base_rate, Math.min(1.0,
+    base_rate * Math.log(text.length) / Math.log(base_length)));
   window.speechSynthesis.speak(utter);
 }}
 let storage_key_stars = "union_dict_stars";
@@ -1928,7 +1950,7 @@ def main_cgi():
       P('<nav class="search_form" title="注釈操作">')
       P('<form method="post" action="{}" name="search_form">', script_name)
       P('<div id="query_line">')
-      P('<textarea name="q" id="query_input_annot" cols="80" rows="10" autocomplete="off">' +
+      P('<textarea name="q" id="query_input_annot" cols="80" rows="10" autocomplete="off">'
         '{}</textarea>', query)
       P('</div>')
       P('<div id="query_line">')
