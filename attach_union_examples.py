@@ -211,6 +211,7 @@ class AttachExamplesBatch:
       if len(source) > best_source_length * 3 or len(target) > best_target_length * 3: continue
       if regex.search(r"あなた.*あなた", target): continue
       if regex.search(r"彼女.*彼女", target): continue
+      if regex.search(r"^[」』】］）)\]?!？！を]", target): continue
       if target.count("、") >= 4: continue
       if target.count("。") >= 3: continue
       if target.count(" ") >= 4: continue
