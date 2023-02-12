@@ -39,12 +39,17 @@ logger = tkrzw_dict.GetLogger()
 
 def MakeSentenceKey(text):
   text = regex.sub(r"[^ \p{Latin}]", "", text)
-  tokens = [x for x in text.split(" ") if x]
+  tokens = [x for x in text.lower().split(" ") if x]
   chars = []
   for token in tokens:
     chars.append(chr(hash(token) % 0xD800))
   return "".join(chars)
 
+def NormalizeSentence(text):
+  text = text.strip()
+  text = regex.sub(r"^(・|-|\*)+ *", "", text)
+  text = regex.sub(r"\s+", " ", text).strip()
+  return text
 
 class AttachExamplesBatch:
   def __init__(self, input_path, output_path, index_paths, max_examples, min_examples):
@@ -138,7 +143,7 @@ class AttachExamplesBatch:
     for core_word, weight in core_words.items():
       for i, index in enumerate(indices):
         index_dbm, rank = index
-        index_weight = 0.95 ** i
+        index_weight = 0.98 ** i
         index_weight *= 0.5 ** rank
         expr = index_dbm.GetStr(core_word.lower())
         if not expr: continue
@@ -207,7 +212,9 @@ class AttachExamplesBatch:
       fields = value.split("\t")
       if len(fields) < 2: continue
       source, target = fields[:2]
-      if len(source) < best_source_length / 2 or len(target) < best_target_length / 2: continue
+      source = NormalizeSentence(source)
+      target = NormalizeSentence(target)
+      if len(source) < best_source_length / 3 or len(target) < best_target_length / 3: continue
       if len(source) > best_source_length * 3 or len(target) > best_target_length * 3: continue
       if regex.search(r"あなた.*あなた", target): continue
       if regex.search(r"彼女.*彼女", target): continue
@@ -215,20 +222,29 @@ class AttachExamplesBatch:
       if target.count("、") >= 4: continue
       if target.count("。") >= 3: continue
       if target.count(" ") >= 4: continue
-      source_hit = False
+      source_loc = -1
+      source_hit_weight = 0
       for core_word, core_weight in core_words.items():
+        loc = source.find(core_word)
         if regex.search(r"[A-Z]", core_word):
-          loc = source.find(core_word)
-          if (not strict and loc == 0) or loc > 0:
-            source_hit = True
+          if loc > 0:
+            source_loc = loc
+            source_hit_weight = 1.0
+          elif not strict and loc == 0:
+            source_loc = loc
+            source_hit_weight = 0.5
         else:
-          if source.find(core_word) > 0:
-            source_hit = True
+          if loc >= 0:
+            source_loc = loc
+            source_hit_weight = 1.0
           elif not strict:
             cap_word = core_word[0].upper() + core_word[1:]
             if source.startswith(cap_word):
-              source_hit = True
-      if not source_hit: continue
+              source_loc = 0
+              source_hit_weight = 0.5
+      if source_loc < 0: continue
+      source_hit_score = ((len(source) - source_loc) / len(source) / 2 + 0.5) ** 0.5
+      source_hit_score *= source_hit_weight
       source_len_score = 1 / math.exp(abs(math.log(len(source) / best_source_length)))
       target_len_score = 1 / math.exp(abs(math.log(len(target) / best_target_length)))
       length_score = (source_len_score * target_len_score) ** 0.2
@@ -237,7 +253,7 @@ class AttachExamplesBatch:
       best_tran = None
       for tran, tran_weight in trans.items():
         tran_hit_count = tran_hit_counts.get(tran) or 0
-        tran_weight *= 0.9 ** tran_hit_count
+        tran_weight *= 0.7 ** tran_hit_count
         if self.CheckTranMatch(target, target_tokens, tran):
           if tran_weight > tran_score:
             tran_score = tran_weight
@@ -247,7 +263,8 @@ class AttachExamplesBatch:
         tran_hit_counts[best_tran] = tran_hit_count + 1
       if (strict or rank != 0) and not best_tran: continue
       tran_score += 0.2
-      final_score = (tran_score * tran_score * length_score * doc_weight) ** (1 / 4)
+      final_score = (tran_score * tran_score *
+                     source_hit_score * length_score * doc_weight) ** (1 / 5)
       scored_records.append((final_score, source, target, best_tran))
     scored_records = sorted(scored_records, reverse=True)
     examples = []
