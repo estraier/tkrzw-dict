@@ -1370,7 +1370,7 @@ a.star_word {{ display: inline-block; min-width: 10ex; padding: 0ex 0.5ex;
 .annot_line_navi {{ position: absolute; top: 0.3ex; right: 0.3ex; }}
 .annot_line_icon {{ width: 3ex; text-align: center; font-size: 80%;
   color: #111111; background: #eeeeee; opacity: 0.3;
-  border: 1px solid #dddddd; border-radius: 0.8ex; }}
+  border: 1px solid #dddddd; border-radius: 0.8ex; cursor: pointer; }}
 .annot_line_icon:hover {{ opacity: 0.8; background: #eeffff; }}
 .annot_view rt {{ color: #1133aa; text-align: center; padding: 1ex; }}
 .annot_view i {{ color: #006622; }}
