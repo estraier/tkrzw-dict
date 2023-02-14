@@ -203,6 +203,18 @@ def ProcessWord(word, trans, tokenizer, phrase_prob_dbm, rev_prob_dbm, tran_prob
         tran_prob += min(rev_prob ** 0.5, 0.2)
       else:
         tran_prob *= 0.8
+    if pos == "verb" and regex.search("[\p{Han}\p{Katakana}ー](する|させる)", norm_phrase):
+      tran_prob += 0.2
+    elif len(tokens) == 1 and regex.search("[\p{Han}\p{Hiragana}]", norm_phrase):
+      token = tokens[0]
+      pos_tokens = tokenizer.GetJaPosList(token)
+      if len(pos_tokens) == 1:
+        if pos == "noun" and pos_tokens[0][1] == "名詞":
+          tran_prob += 0.05
+        elif pos == "verb" and pos_tokens[0][1]== "動詞":
+          tran_prob += 0.15
+        elif pos in ("adjective", "adverb") and pos_tokens[0][1] == "形容詞":
+          tran_prob += 0.05
     if tran_prob > 0.04 and (rev_prob > 0.0 or has_yomi):
       pass
     elif tran_prob > 0.01 and is_known_word:
@@ -236,7 +248,7 @@ def PrintEntry(word, scored_trans):
   fields = []
   fields.append("word=" + word)
   for pos, score in final_scores:
-    items = score_poses[pos][:5]
+    items = score_poses[pos][:6]
     text = ", ".join([x[0] for x in items])
     fields.append(pos + "=" + text)
   print("\t".join(fields))
