@@ -765,7 +765,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
     P('<a class="entry_icon entry_extra_icon" href="{}" title="類似検索">類</a>',
       related_url)
     P('<span class="entry_icon entry_extra_icon" data-word="{}"'
-      ' onclick="utter_elem(this)" title="読み上げ">読</span>', word)
+      ' onclick="utter_elem(this, 0.8)" title="読み上げ">読</span>', word)
     P('<span class="entry_icon entry_star_icon star_icon" data-word="{}" data-hint="{}"'
       ' onclick="toggle_star(this, -1)" title="星印の変更">&#x2605;</span>', word, hint)
     P('</div>')
@@ -898,7 +898,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
           P('<div class="item_text item_text2 item_text_n">')
           if eg_match:
             P('<span class="subattr_label subattr_func_label focal2"'
-              ' tabindex="-1" role="tooltip" onclick="utter_sibling(this)">例</span>')
+              ' tabindex="-1" role="tooltip" onclick="utter_sibling(this, 0.9)">例</span>')
           elif subattr_label:
             P('<span class="subattr_label focal2" tabindex="-1" role="tooltip">{}</span>',
               subattr_label)
@@ -936,7 +936,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
         for label_id, example in enumerate(examples, 1):
           P('<div class="item item_text1 item_x" id="i{}x{}">', ent_id, label_id)
           P('<span class="label focal2" tabindex="-1" role="tooltip"'
-            ' onclick="utter_sibling(this)">例</span>')
+            ' onclick="utter_sibling(this, 0.9)">例</span>')
           P('<span class="text readable" lang="en">{}</span>', example["e"])
           P('<span class="text extran" lang="ja">({})</span>', example["j"])
           P('</div>')
@@ -1112,7 +1112,7 @@ def PrintResultCGIAnnot(script_name, spans, head_level, line, file=sys.stdout):
   P('<div class="{}">', " ".join(class_tags))
   P('<div class="annot_line_navi">')
   P('<div class="annot_line_icon" data-word="{}"'
-    ' onclick="utter_elem(this)" title="読み上げ">読</div>', line)
+    ' onclick="utter_elem(this, 1.0)" title="読み上げ">読</div>', line)
   P('</div>')
   ruby_trans = None
   ruby_word = None
@@ -1636,18 +1636,18 @@ function toggle_label(ent_id, label) {{
   new_url.hash = "#" + ent_id + label;
   document.location.href = new_url;
 }}
-function utter_elem(elem) {{
+function utter_elem(elem, rate) {{
   let word = elem.dataset.word;
-  utter_text(word);
+  utter_text(word, rate);
 }}
-function utter_sibling(elem) {{
+function utter_sibling(elem, rate) {{
   for (let child of elem.parentNode.childNodes) {{
     if (!child.classList || !child.classList.contains("readable")) continue;
-    utter_text(child.textContent);
+    utter_text(child.textContent, rate);
     break;
   }}
 }}
-function utter_text(text) {{
+function utter_text(text, rate) {{
   if (!SpeechSynthesisUtterance) {{
     alert("This browser doesn't support SpeechSynthesis.");
     return;
@@ -1656,10 +1656,7 @@ function utter_text(text) {{
   if (text.length < 1) return;
   let utter = new SpeechSynthesisUtterance(text);
   utter.lang = "en-US";
-  let base_length = 24;
-  let base_rate = 0.8;
-  utter.rate = Math.max(base_rate, Math.min(1.0,
-    base_rate * Math.log(text.length) / Math.log(base_length)));
+  utter.rate = rate;
   window.speechSynthesis.speak(utter);
 }}
 let storage_key_stars = "union_dict_stars";
@@ -2264,7 +2261,7 @@ def main_cgi():
 <p>各見出し語の欄の右上にはページ内のリンクや特殊操作のアイコンが置かれます。「WN」「WE」等を選択すると、そのラベルの語義のみを表示します。もう一度選択すると解除されます。「例」を選択すると、その見出し語を含む対訳例文のみを表示します。「句」を選択すると、その見出し語を含むフレーズの情報のみを表示します。「類」を選択すると、その見出し語の類義語を検索します。「読」を選択すると、その見出し語を読み上げます。「&#x2605;」を選択すると、その見出し語に星印がつけられます。</p>
 <p>トップ画面で「<a href="?x=help">&#xFF1F;</a>」をクリックすると、このヘルプ画面が表示されます。トップ画面で「<a href="?x=stars">&#x2606;</a>」をクリックすると、星印をつけた見出し語の一覧が表示されます。この一覧は語彙学習の成果確認と復習に便利です。</p>
 <p>アクセシビリティのためのショートカット機能があります。Shift+Backspaceを押すと、フォーカスが検索窓に移動して、検索窓の語句が消去されます。これは素早く再検索するのに便利です。スクリーンリーダ等で検索結果の主要な内容を読み取るには、Shiftを押しながら矢印の左右を押すのが便利です。Shift+右を押すと、見出し語にフォーカスが進み、さらにShift+右を押すと、訳語のリストにフォーカスが移ります。さらにShift+右を押していくと、各々の語義説明のラベルにフォーカスが移っていきます。Shift+左で戻ります。同様にして、Shift+上とShift+下でも読み取りを行いますが、発音や派生語も飛ばさずに遷移します。</p>
-<p>このサイトはオープンな英和辞書検索のデモです。辞書データは、次のデータソースから抽出したデータを統合したものです。<a href="https://wordnet.princeton.edu/">WordNet</a>、<a href="https://bond-lab.github.io/wnja/">日本語WordNet</a>、<a href="https://en.wiktionary.org/">Wiktionary英語版</a>、<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>、<a href="https://en.wikipedia.org/wiki/Main_Page">Wikipedia英語版</a>、<a href="https://ja.wikipedia.org/wiki/Main_Page">Wikipedia日本語版</a>、<a href="http://www.edrdg.org/jmdict/edict.html">EDict2</a>、<a href="http://edrdg.org/wiki/index.php/Tanaka_Corpus">田中コーパス</a>、<a href="https://nlp.stanford.edu/projects/jesc/index_ja.html">Japanese-English Subtitle Corpus</a>。<a href="https://dbmx.net/dict/">統合英和辞書のホームページ</a>もご覧ください。検索システムはPythonと高性能データベースライブラリ<a href="https://dbmx.net/tkrzw/">Tkrzw</a>を用いて実装されています。<a href="https://github.com/estraier/tkrzw-dict">コードベース</a>はGitHubにて公開されています。</p>
+<p>このサイトはオープンな英和辞書検索のデモです。辞書データは、次のデータソースから抽出したデータを統合したものです。<a href="https://wordnet.princeton.edu/">WordNet</a>、<a href="https://bond-lab.github.io/wnja/">日本語WordNet</a>、<a href="https://en.wiktionary.org/">Wiktionary英語版</a>、<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>、<a href="https://en.wikipedia.org/wiki/Main_Page">Wikipedia英語版</a>、<a href="https://ja.wikipedia.org/wiki/Main_Page">Wikipedia日本語版</a>、<a href="http://www.edrdg.org/jmdict/edict.html">EDict2</a>、<a href="http://edrdg.org/wiki/index.php/Tanaka_Corpus">田中コーパス</a>、<a href="https://nlp.stanford.edu/projects/jesc/index_ja.html">Japanese-English Subtitle Corpus</a>、<a href="https://www.statmt.org/cc-aligned/">CCAligned</a>、<a href="https://commoncrawl.org/">Common Crawl</a>。<a href="https://dbmx.net/dict/">統合英和辞書のホームページ</a>もご覧ください。検索システムはPythonと高性能データベースライブラリ<a href="https://dbmx.net/tkrzw/">Tkrzw</a>を用いて実装されています。<a href="https://github.com/estraier/tkrzw-dict">コードベース</a>はGitHubにて公開されています。</p>
 </div>""")
   elif extra_mode == "stars":
     print("""<section id="star_info" class="message_view">
