@@ -1809,11 +1809,11 @@ function init_ruby_conf() {{
   let annot_navi_form = document.forms["annot_navi_form"];
   let min_aoa = localStorage.getItem(storage_key_ruby_min_aoa);
   if (min_aoa) {{
-    annot_navi_form.min_aoa.value = parseInt(min_aoa);
+    annot_navi_form.min_aoa.value = min_aoa;
   }}
   let init_only = localStorage.getItem(storage_key_ruby_init_only);
   if (init_only) {{
-    annot_navi_form.init_only.value = parseInt(init_only);
+    annot_navi_form.init_only.value = init_only;
   }}
 }}
 function toggle_rubies() {{
