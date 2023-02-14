@@ -1469,6 +1469,7 @@ function startup() {{
   }}
   let annot_navi_form = document.forms["annot_navi_form"];
   if (annot_navi_form) {{
+    init_ruby_conf();
     toggle_rubies();
   }}
   document.addEventListener("keydown", function(event) {{
@@ -1798,6 +1799,20 @@ function set_star(stars, word, hint, position) {{
     }}
   }}
 }}
+let storage_key_ruby_min_aoa = "union_dict_ruby_min_aoa";
+let storage_key_ruby_init_only = "union_dict_ruby_init_only";
+function init_ruby_conf() {{
+  if (!localStorage) return;
+  let annot_navi_form = document.forms["annot_navi_form"];
+  let min_aoa = localStorage.getItem(storage_key_ruby_min_aoa);
+  if (min_aoa) {{
+    annot_navi_form.min_aoa.value = min_aoa;
+  }}
+  let init_only = localStorage.getItem(storage_key_ruby_init_only);
+  if (init_only) {{
+    annot_navi_form.init_only.value = init_only;
+  }}
+}}
 function toggle_rubies() {{
   let annot_navi_form = document.forms["annot_navi_form"];
   let min_aoa = parseInt(annot_navi_form.min_aoa.value);
@@ -1821,6 +1836,10 @@ function toggle_rubies() {{
         elem.style.display = null;
       }}
     }}
+  }}
+  if (localStorage) {{
+    localStorage.setItem(storage_key_ruby_min_aoa, min_aoa.toString());
+    localStorage.setItem(storage_key_ruby_init_only, init_only ? "1" : "0");
   }}
 }}
 function show_tip(parent) {{
