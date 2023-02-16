@@ -154,6 +154,7 @@ STYLE_TEXT = """html,body { margin: 0; padding: 0; background: #fff; color: #000
 span.word { font-weight: bold; }
 span.pron { font-size: 90%; color: #444; }
 span.pos,span.attr { font-size: 80%; color: #555; word-spacing: 0; letter-spacing: 0; }
+span.exja { font-size: 85%; color: #444; }
 """
 NAVIGATION_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
@@ -289,7 +290,8 @@ class GenerateUnionEPUBBatch:
   def __init__(self, input_path, output_path, keyword_path,
                best_labels, vetted_labels, preferable_labels, trustable_labels,
                supplement_labels, title,
-               min_prob_normal, min_prob_capital, min_prob_multi, sufficient_prob, shrink):
+               min_prob_normal, min_prob_capital, min_prob_multi, sufficient_prob,
+               shrink, example_only):
     self.input_path = input_path
     self.output_path = output_path
     self.keyword_path = keyword_path
@@ -304,6 +306,7 @@ class GenerateUnionEPUBBatch:
     self.min_prob_multi = min_prob_multi
     self.sufficient_prob = sufficient_prob
     self.shrink = shrink
+    self.example_only = example_only
     self.num_words = 0
     self.num_trans = 0
     self.num_items = 0
@@ -517,7 +520,9 @@ class GenerateUnionEPUBBatch:
     prob = float(entry.get("probability") or "0")
     pronunciation = entry.get("pronunciation")
     translations = entry.get("translation")
+    examples = entry.get("example")
     is_major_word = prob >= 0.00001 and not regex.search("[A-Z]", word)
+    if self.example_only and not examples: return
     poses = set()
     sub_poses = set()
     is_vetted_verb = False
@@ -675,7 +680,7 @@ class GenerateUnionEPUBBatch:
         if not infl_norm or infl_norm in keys or infl_norm in inflections:
           continue
         sub_words.append(("phrase", rel_infl))
-    if sub_words:
+    if sub_words and not self.example_only:
       uniq_sub_words = set()
       P('<idx:infl inflgrp="common">')
       for sub_name, sub_word in sub_words:
@@ -714,22 +719,27 @@ class GenerateUnionEPUBBatch:
     if translations:
       self.num_trans += 1
       P('<div>{}</div>', ", ".join(translations[:6]))
-    for item in items:
-      self.MakeMainEntryItem(P, item)
-    for phrase in phrases:
-      self.MakeMainEntryPhraseItem(P, phrase)
-    parents = entry.get("parent") or []
-    etym_core = entry.get("etymology_core")
-    if etym_core and etym_core not in parents:
-      parents.append(etym_core)
-    if parents:
-      for parent in parents:
-        self.MakeMainEntryParentItem(P, parent, input_dbm)
-    for pos, values in infl_groups.items():
-      P('<div>')
-      for kind, value, label in values:
-        P('<span class="attr">[{}]</span> {}', label, value)
-      P('</div>')
+    if self.example_only:
+      if examples:
+        for example in examples:
+          self.MakeMainEntryExampleItem(P, example)
+    else:
+      for item in items:
+        self.MakeMainEntryItem(P, item)
+      for phrase in phrases:
+        self.MakeMainEntryPhraseItem(P, phrase)
+      parents = entry.get("parent") or []
+      etym_core = entry.get("etymology_core")
+      if etym_core and etym_core not in parents:
+        parents.append(etym_core)
+      if parents:
+        for parent in parents:
+          self.MakeMainEntryParentItem(P, parent, input_dbm)
+      for pos, values in infl_groups.items():
+        P('<div>')
+        for kind, value, label in values:
+          P('<span class="attr">[{}]</span> {}', label, value)
+        P('</div>')
     P('</idx:entry>')
     P('<br/>')
 
@@ -793,6 +803,13 @@ class GenerateUnionEPUBBatch:
         P('<span class="attr">[語幹]</span>')
         P('<span>{} : {}</span>', word, text)
         P('</div>')
+
+  def MakeMainEntryExampleItem(self, P, example):
+    P('<div>')
+    P('<span class="attr">[例]</span>')
+    P('<span class="exen">{}</span>', example["e"])
+    P('<span class="exja">({})</span>', example["j"])
+    P('</div>')
 
   def MakeNavigation(self, key_prefixes):
     out_path = os.path.join(self.output_path, "nav.xhtml")
@@ -907,6 +924,7 @@ def main():
   min_prob_multi = float(tkrzw_dict.GetCommandFlag(args, "--min_prob_capital", 1) or 0.000002)
   sufficient_prob = float(tkrzw_dict.GetCommandFlag(args, "--sufficient_prob", 1) or 0.00002)
   shrink = tkrzw_dict.GetCommandFlag(args, "--shrink", 0)
+  example_only = tkrzw_dict.GetCommandFlag(args, "--example_only", 0)
   if not input_path:
     raise RuntimeError("an input path is required")
   if not output_path:
@@ -914,7 +932,8 @@ def main():
   GenerateUnionEPUBBatch(
     input_path, output_path, keyword_path,
     best_labels, vetted_labels, preferable_labels, trustable_labels, supplement_labels,
-    title, min_prob_normal, min_prob_capital, min_prob_multi, sufficient_prob, shrink).Run()
+    title, min_prob_normal, min_prob_capital, min_prob_multi, sufficient_prob,
+    shrink, example_only).Run()
 
 
 if __name__=="__main__":
