@@ -246,8 +246,8 @@ class XMLHandler(xml.sax.handler.ContentHandler):
                 old_values = translations.get(mode) or []
                 old_values.append((tran_top, text))
                 translations[mode] = old_values
-      if regex.search(r"\{\{ipa\|en\|([^}]+)\}\}", line, regex.IGNORECASE):
-        value = regex.sub(r".*\{\{ipa\|en\|([^}]+)\}\}.*", r"\1",
+      if regex.search(r"\{\{ipa[-a-z]*\|en\|([^}]+)\}\}", line, regex.IGNORECASE):
+        value = regex.sub(r".*\{\{ipa[-a-z]*\|en\|([^}]+)\}\}.*", r"\1",
                           line, flags=regex.IGNORECASE)
         value = regex.sub(r"(qual[\d]=[^|]+\|)+", "", value)
         value = regex.sub(r"\|.*", "", value)
