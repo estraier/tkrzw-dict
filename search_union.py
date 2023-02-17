@@ -1416,7 +1416,7 @@ a.star_word {{ display: inline-block; min-width: 10ex; padding: 0ex 0.5ex;
   font-size: 65%; min-width: 3.5ex; text-align: center;
   margin-right: -0.3ex; color: #333333; }}
 @media (max-width:650px) {{
-  div.mainpage {{ width: 98%; zoom: 95%; padding-bottom: 0.1ex; }}
+  div.mainpage {{ width: 98%; padding-bottom: 0.1ex; }}
   .entry_view, .list_view, .annot_view, .message_view, .help {{
     border: none;
     margin: 0.5ex 0ex; padding: 0.3ex 0.3ex 0.6ex 0.3ex; }}
@@ -1430,7 +1430,7 @@ a.star_word {{ display: inline-block; min-width: 10ex; padding: 0ex 0.5ex;
   .item_omit {{ margin-left: 1.5ex; }}
 }}
 @media (max-width:500px) {{
-  div.mainpage {{ zoom: 85%; }}
+  div.mainpage {{ zoom: 90%; }}
 }}
 @media (max-width:400px) {{
   div.mainpage {{ zoom: 80%; }}
