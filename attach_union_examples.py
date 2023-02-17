@@ -52,15 +52,20 @@ def NormalizeSentence(text):
   return text
 
 class AttachExamplesBatch:
-  def __init__(self, input_path, output_path, index_paths, max_examples, min_examples):
+  def __init__(self, input_path, output_path, index_paths, rev_prob_path, hint_paths,
+               max_examples, min_examples, max_tran_matches):
     self.input_path = input_path
     self.output_path = output_path
     self.index_paths = index_paths
+    self.rev_prob_path = rev_prob_path
+    self.hint_paths = hint_paths
     self.max_examples = max_examples
     self.min_examples = min_examples
+    self.max_tran_matches = max_tran_matches
     self.count_all_entries = 0
     self.count_hit_entries = 0
     self.count_examples = 0
+    self.count_labels = collections.defaultdict(int)
     self.tokenizer = tkrzw_tokenizer.Tokenizer()
 
   def Run(self):
@@ -85,9 +90,19 @@ class AttachExamplesBatch:
       if match:
         rank = len(match.group(1))
         index_path = match.group(2)
+      match = regex.search(r"^(-+)(.*)", index_path)
+      if match:
+        rank = -1
+        index_path = match.group(2)
       index_dbm = tkrzw.DBM()
       index_dbm.Open(index_path, False).OrDie()
-      indices.append((index_dbm, rank))
+      label = os.path.splitext(os.path.basename(index_path))[0]
+      indices.append((index_dbm, rank, label))
+    rev_prob_dbm = None
+    if self.rev_prob_path:
+      rev_prob_dbm = tkrzw.DBM()
+      rev_prob_dbm.Open(self.rev_prob_path, False, dbm="HashDBM").OrDie()
+    hint_dict = self.ReadHint()
     it = input_dbm.MakeIterator()
     it.First().OrDie()
     word_dict = {}
@@ -95,6 +110,11 @@ class AttachExamplesBatch:
       record = it.GetStr()
       if not record: break;
       key, data = record
+
+      #if key not in ["inactivate"]:
+      #  it.Next()
+      #  continue
+      
       entries = json.loads(data)
       first_entry = True
       for entry in entries:
@@ -103,22 +123,41 @@ class AttachExamplesBatch:
           logger.info("Attaching: entries={}, hit_entries={}, examples={}".format(
             self.count_all_entries, self.count_hit_entries, self.count_examples))
         strict = not first_entry
-        self.AttachExamplesEntry(entry, indices, strict)
+        self.AttachExamplesEntry(entry, indices, input_dbm, rev_prob_dbm, hint_dict, strict)
         first_entry = False
       serialized = json.dumps(entries, separators=(",", ":"), ensure_ascii=False)
       word_dict[key] = serialized
       it.Next()
-    index_dbm.Close().OrDie()
+    for index_dbm, rank, label in indices:
+      index_dbm.Close().OrDie()
     input_dbm.Close().OrDie()
     logger.info("Attaching done: elapsed_time={:.2f}s,"
                 " entries={}, hit_entries={}, examples={}".format(
                   time.time() - start_time,
                   self.count_all_entries, self.count_hit_entries, self.count_examples))
+    for label in sorted(self.count_labels.keys()):
+      logger.info("  Label:{} = {}".format(label, self.count_labels[label]))
     return word_dict
 
-  def AttachExamplesEntry(self, entry, indices, strict):
+  def ReadHint(self):
+    hint_dict = collections.defaultdict(list)
+    for hint_path in self.hint_paths:
+      if not hint_path: continue
+      logger.info("Reading hint: path={}".format(hint_path))
+      with open(hint_path) as input_file:
+        for line in input_file:
+          fields = line.strip().split("\t")
+          if len(fields) < 2: continue
+          source = fields[0]
+          for target in fields[1:]:
+            hint_dict[source].append(target)
+      logger.info("Reading hint done: hints={}".format(len(hint_dict)))
+    return hint_dict
+
+  def AttachExamplesEntry(self, entry, indices, input_dbm, rev_prob_dbm, hint_dict, strict):
     entry.pop("example", None)
     word = entry["word"]
+    word_prob = float(entry.get("probability") or 0)
     core_words = collections.defaultdict(float)
     core_words[word] = 1.0
     inflections = [
@@ -132,6 +171,10 @@ class AttachExamplesBatch:
       ("adverb_comparative", 0.3),
       ("adverb_superlative", 0.2),
     ]
+    word_pos = None
+    for item in entry["item"]:
+      word_pos = item["pos"]
+      break
     best_source_length = 60
     best_target_length = 30
     for infl_name, weight in inflections:
@@ -142,12 +185,16 @@ class AttachExamplesBatch:
     docs = []
     for core_word, weight in core_words.items():
       for i, index in enumerate(indices):
-        index_dbm, rank = index
+        index_dbm, rank, label = index
         index_weight = 0.98 ** i
-        index_weight *= 0.5 ** rank
+        if rank > 0:
+          index_weight *= 0.5 ** rank
         expr = index_dbm.GetStr(core_word.lower())
         if not expr: continue
-        for doc_id in expr.split(","):
+        doc_ids = expr.split(",")
+        if rank < 0:
+          doc_ids = doc_ids[:4]
+        for doc_id in doc_ids:
           docs.append((i, doc_id, weight * index_weight))
     docs = sorted(docs, key=lambda x: (-x[2], x[0], x[1]))
     uniq_docs = []
@@ -159,6 +206,130 @@ class AttachExamplesBatch:
       uniq_docs.append((index_id, doc_id, weight))
     if not uniq_docs:
       return
+    hints = set(hint_dict.get(word) or [])
+    seed_records = []
+    source_hashes = set()
+    target_hashes = set()
+    for index_id, doc_id, doc_weight in uniq_docs:
+      index_dbm, rank, label = indices[index_id]
+      doc_key = "[" + doc_id + "]"
+      value = index_dbm.GetStr(doc_key)
+      if not value: continue
+      fields = value.split("\t")
+      if len(fields) < 2: continue
+      source, target = fields[:2]
+      source_hash = hash(source.lower())
+      if source_hash in source_hashes:
+        self.count_labels["reject-source-duplication"] += 1
+        continue
+      source_hashes.add(source_hash)
+      target_hash = hash(target.lower())
+      if target_hash in target_hashes:
+        self.count_labels["reject-target-duplication"] += 1
+        continue
+      target_hashes.add(target_hash)
+      source = NormalizeSentence(source)
+      target = NormalizeSentence(target)
+      if len(source) < best_source_length / 3:
+        self.count_labels["reject-source-short"] += 1
+        continue
+      if len(target) < best_target_length / 3:
+        self.count_labels["reject-target-short"] += 1
+        continue
+      if len(source) > best_source_length * 3:
+        self.count_labels["reject-source-long"] += 1
+        continue
+      if len(target) > best_target_length * 3:
+        self.count_labels["reject-target-long"] += 1
+        continue
+      if regex.search(r"あなた.*あなた", target) or regex.search(r"彼女.*彼女", target):
+        self.count_labels["reject-target-bad-pronoun"] += 1
+        continue
+      if regex.search(r"^[」』】］）)\].?!;,？！を。、；]", target):
+        self.count_labels["reject-target-bad-prefix"] += 1
+        continue
+      if target.count("、") >= 4 or target.count("。") >= 3 or target.count(" ") >= 4:
+        self.count_labels["reject-target-bad-punctuation"] += 1
+        continue
+      source_loc = -1
+      source_hit_weight = 0
+      for core_word, core_weight in core_words.items():
+        loc = source.find(core_word)
+        if regex.search(r"[A-Z]", core_word):
+          if loc > 0:
+            source_loc = loc
+            source_hit_weight = 1.0
+          elif not strict and loc == 0:
+            source_loc = loc
+            source_hit_weight = 0.5
+        else:
+          if loc >= 0:
+            source_loc = loc
+            source_hit_weight = 1.0
+          elif not strict:
+            cap_word = core_word[0].upper() + core_word[1:]
+            if source.startswith(cap_word):
+              source_loc = 0
+              source_hit_weight = 0.5
+      if source_loc < 0:
+        self.count_labels["reject-source-mismatch"] += 1
+        continue
+      source_hit_score = ((len(source) - source_loc) / len(source) / 2 + 0.5) ** 0.5
+      source_hit_score *= source_hit_weight
+      source_len_score = 1 / math.exp(abs(math.log(len(source) / best_source_length)))
+      target_len_score = 1 / math.exp(abs(math.log(len(target) / best_target_length)))
+      length_score = (source_len_score * target_len_score) ** 0.2
+      target_tokens = self.tokenizer.GetJaPosList(target)
+      uniq_key = MakeSentenceKey(source)
+      seed_records.append((
+        index_id, doc_weight, rank, source, target,
+        source_hit_score, length_score, target_tokens, uniq_key))
+      
+      #print(source, target)
+      
+    dedup_records = []
+    for i, record in enumerate(seed_records):
+      uniq_key = record[8]
+      ti = max(0, i - 10)
+      end = min(i + 10, len(seed_records))
+      is_dup = False
+      while ti < end:
+        if ti != i:
+          old_uniq_key = seed_records[ti][8]
+          dist = tkrzw.Utility.EditDistanceLev(old_uniq_key, uniq_key)
+          dist /= max(len(old_uniq_key), len(uniq_key))
+          if dist < 0.4:
+            is_dup = True
+            break
+        ti += 1
+      if is_dup:
+        self.count_labels["reject-source-similar"] += 1
+      else:
+        dedup_records.append(record)
+    if rev_prob_dbm and not regex.search(r"[A-Z]", word) and len(dedup_records) > 5:
+      adhoc_trans = self.GetAdHocTranslations(
+        word, word_pos, input_dbm, rev_prob_dbm, hints, dedup_records[:100])
+      if adhoc_trans:
+        
+        print(word, "{:.7f}".format(word_prob), adhoc_trans)
+
+        new_trans = []
+        uniq_trans = set()
+        for tran in entry.get("translation") or []:
+          norm_tran = tran.lower()
+          uniq_trans.add(norm_tran)
+          new_trans.append(tran)
+        adhoc_hit = False
+        for tran in adhoc_trans:
+          norm_tran = tran.lower()
+          for uniq_tran in uniq_trans:
+            if uniq_tran.find(norm_tran) >= 0: continue
+          uniq_trans.add(norm_tran)
+          new_trans.append(tran)
+          adhoc_hit = True
+        if adhoc_hit:
+          entry["translation"] = new_trans
+          self.count_labels["get-adhoc-translation"] += 1
     tran_cands = (entry.get("translation") or []).copy()
     for item in entry.get("item") or []:
       text = item["text"]
@@ -203,52 +374,9 @@ class AttachExamplesBatch:
         trans[alternative] = max(old_score, new_score * 0.8)
       tran_weight_base *= 0.97
     scored_records = []
-    tran_hit_counts = {}    
-    for index_id, doc_id, doc_weight in uniq_docs:
-      index_dbm, rank = indices[index_id]
-      doc_key = "[" + doc_id + "]"
-      value = index_dbm.GetStr(doc_key)
-      if not value: continue
-      fields = value.split("\t")
-      if len(fields) < 2: continue
-      source, target = fields[:2]
-      source = NormalizeSentence(source)
-      target = NormalizeSentence(target)
-      if len(source) < best_source_length / 3 or len(target) < best_target_length / 3: continue
-      if len(source) > best_source_length * 3 or len(target) > best_target_length * 3: continue
-      if regex.search(r"あなた.*あなた", target): continue
-      if regex.search(r"彼女.*彼女", target): continue
-      if regex.search(r"^[」』】］）)\]?!？！を]", target): continue
-      if target.count("、") >= 4: continue
-      if target.count("。") >= 3: continue
-      if target.count(" ") >= 4: continue
-      source_loc = -1
-      source_hit_weight = 0
-      for core_word, core_weight in core_words.items():
-        loc = source.find(core_word)
-        if regex.search(r"[A-Z]", core_word):
-          if loc > 0:
-            source_loc = loc
-            source_hit_weight = 1.0
-          elif not strict and loc == 0:
-            source_loc = loc
-            source_hit_weight = 0.5
-        else:
-          if loc >= 0:
-            source_loc = loc
-            source_hit_weight = 1.0
-          elif not strict:
-            cap_word = core_word[0].upper() + core_word[1:]
-            if source.startswith(cap_word):
-              source_loc = 0
-              source_hit_weight = 0.5
-      if source_loc < 0: continue
-      source_hit_score = ((len(source) - source_loc) / len(source) / 2 + 0.5) ** 0.5
-      source_hit_score *= source_hit_weight
-      source_len_score = 1 / math.exp(abs(math.log(len(source) / best_source_length)))
-      target_len_score = 1 / math.exp(abs(math.log(len(target) / best_target_length)))
-      length_score = (source_len_score * target_len_score) ** 0.2
-      target_tokens = self.tokenizer.GetJaPosList(target)
+    tran_hit_counts = {}
+    for (index_id, doc_weight, rank, source, target,
+         source_hit_score, length_score, target_tokens, uniq_key) in dedup_records:
       tran_score = 0
       best_tran = None
       for tran, tran_weight in trans.items():
@@ -261,19 +389,29 @@ class AttachExamplesBatch:
       if best_tran:
         tran_hit_count = tran_hit_counts.get(best_tran) or 0
         tran_hit_counts[best_tran] = tran_hit_count + 1
-      if (strict or rank != 0) and not best_tran: continue
+      if (strict or rank != 0) and not best_tran:
+        self.count_labels["reject-target-mismatch"] += 1
+        continue
       tran_score += 0.2
       final_score = (tran_score * tran_score *
                      source_hit_score * length_score * doc_weight) ** (1 / 5)
-      scored_records.append((final_score, source, target, best_tran))
-    scored_records = sorted(scored_records, reverse=True)
-    examples = []
-    reserve_examples = []
+      match = regex.search(r"[-\p{Latin}']{3,}", target)
+      if match:
+        raw_word = match.group(0)
+        if regex.fullmatch(r"[-A-Z]+", raw_word):
+          final_score *= 0.95
+        elif regex.search(r"[A-Z]", raw_word) and source.lower().find(raw_word.lower()) >= 0:
+          final_score *= 0.8
+        else:
+          final_score *= 0.5
+      scored_records.append((final_score, index_id, source, target, best_tran, uniq_key))
+    scored_records = sorted(scored_records, key=lambda x: (-x[0], x[1], x[2]))
+    final_records = []
+    reserve_records = []
     uniq_keys = []
     adopt_tran_counts = {}
-    for score, source, target, best_tran in scored_records:
-      if len(examples) >= self.max_examples: break
-      uniq_key = MakeSentenceKey(source)
+    for score, index_id, source, target, best_tran, uniq_key in scored_records:
+      if len(final_records) >= self.max_examples: break
       is_dup = False
       for old_uniq_key in uniq_keys:
         dist = tkrzw.Utility.EditDistanceLev(old_uniq_key, uniq_key)
@@ -282,25 +420,169 @@ class AttachExamplesBatch:
           is_dup = True
           break
       if is_dup:
+        self.count_labels["reject-source-similar"] += 1
         continue
       uniq_keys.append(uniq_key)
+      example = {"e": source, "j": target}
+      is_ok = True
       if best_tran:
         adopt_tran_count = adopt_tran_counts.get(best_tran) or 0
-        if adopt_tran_count >= 3:
-          continue
+        if adopt_tran_count > self.max_tran_matches:
+          self.count_labels["reserve-tran-dup"] += 1
+          is_ok = False
         adopt_tran_counts[best_tran] = adopt_tran_count + 1
-      example = {"e": source, "j": target}
-      if len(source) > best_source_length * 2 or len(target) > best_target_length * 2:
-        reserve_examples.append(example)
+      if len(source) > best_source_length * 2:
+        self.count_labels["reserve-source-long"] += 1
+        is_ok = False
+      elif len(target) > best_target_length * 2:
+        self.count_labels["reserve-target-long"] += 1
+        is_ok = False
+      if is_ok:
+        final_records.append((example, index_id))
       else:
+        reserve_records.append((example, index_id))
+    for example, index_id in reserve_records:
+      if len(final_records) >= self.min_examples: break
+      final_records.append((example, index_id))
+    if final_records:
+      examples = []
+      for example, index_id in final_records:
         examples.append(example)
-    for example in reserve_examples:
-      if len(examples) >= self.min_examples: break
-      examples.append(example)
-    if examples:
+        label = indices[index_id][2]
+        self.count_labels["adopt-" + label] += 1
       self.count_examples += len(examples)
       entry["example"] = examples
       self.count_hit_entries += 1
+
+  def GetAdHocTranslations(self, word, word_pos, input_dbm, rev_prob_dbm, hints, dedup_records):
+    sources = []
+    pos_list = []
+    for record in dedup_records:
+      if record[2] > 2: continue
+      sources.append(record[3])
+      pos_list.append(record[7])
+    if not pos_list:
+      return []
+    norm_phrases = collections.defaultdict(list)
+    for tokens in pos_list:
+      uniq_phrases = set()
+      for start_index in range(len(tokens)):
+        i = start_index
+        end_index = min(start_index + 5, len(tokens))
+        mid_phrase = ""
+        norm_phrase = ""
+        phrase_poses = {}
+        while i < end_index:
+          token = tokens[i]
+          if token[1] in ["助詞", "助動詞"] and i - start_index >= 3: break
+          if token[2] == "数":
+            token[3] = token[0]
+          if not token[3] or token[1] == "記号": break
+          if token[3] in ["は", "が"] and token[1] == "助詞": break
+          if i > start_index:
+            norm_phrase += " "
+          if token[1] in "助動詞" and token[0] == "な":
+            phrase = mid_phrase + token[0]
+          elif token[1] in "助動詞" and token[3] == "だ" and word_pos == "adjective":
+            phrase = mid_phrase + "な"
+          else:
+            phrase = mid_phrase + token[3]
+          mid_phrase += token[0]
+          norm_phrase += token[3]
+          if token[1] == "名詞" and token[2] == "形容動詞語幹":
+            phrase_poses = {"noun", "adjective"}
+          elif token[1] == "名詞" and token[2] == "サ変接続":
+            phrase_poses = {"noun", "verb"}
+          elif token[1] == "名詞":
+            phrase_poses = {"noun"}
+          elif token[1] == "動詞":
+            phrase_poses = {"verb"}
+          elif token[1] == "形容詞":
+            phrase_poses = {"adjective", "adverb"}
+          all_ok = True
+          if phrase in hints:
+            pass
+          elif len(phrase) < 2 or len(phrase) > 12:
+            all_ok = False
+          elif word_pos not in phrase_poses:
+            all_ok = False
+          elif token[1] == "助詞":
+            all_ok = False
+          elif norm_phrase in uniq_phrases:
+            all_ok = False
+          if all_ok:
+            norm_phrases[norm_phrase].append(phrase)
+            uniq_phrases.add(norm_phrase)
+          i += 1
+    candidates = []
+    min_count = max(5, len(pos_list) / 4)
+    for norm_phrase, surfaces in norm_phrases.items():
+      count = len(surfaces)
+      count_surfaces = collections.defaultdict(float)
+      for surface in surfaces:
+        count_surfaces[surface] += 1.2 if surface.endswith("る") else 1
+      top_surface = sorted(count_surfaces.items(), key=lambda x: (-x[1], x[0]))[0][0]
+      if top_surface in hints:
+        count = int(count * 1.2 + 1)
+      if count < min_count: continue
+      if not regex.search("^[0-9]*[\p{Han}\p{Katakana}ー]{2,}", top_surface): continue
+      ef_prob = count / len(pos_list)
+      gen_prob = float(rev_prob_dbm.GetStr(norm_phrase) or 0) + 0.00001
+      score = ef_prob / gen_prob
+      if gen_prob >= 0.001: continue
+      if score < 100.0: continue
+      surfaces = set(surfaces)
+      if top_surface.endswith("だ"):
+        surfaces.add(top_surface[:-1] + "な")
+      candidates.append((norm_phrase, top_surface, surfaces, score))
+
+      #print(norm_phrase, top_surface, surfaces, count, norm_phrase, count,
+      #      "{:.7f} | {:.7f} | {:.3f}".format(ef_prob, gen_prob, score))
+      
+    if not candidates:
+      return []
+    colloc_trans = set()
+    word_key = word.lower()
+    colloc_word_counts = collections.defaultdict(int)
+    for source in sources:
+      for token in regex.split(r"\W", source):
+        token = token.strip().lower()
+        if token and token != word_key:
+          colloc_word_counts[token] += 1
+    for colloc_word, count in sorted(colloc_word_counts.items(), key=lambda x: (-x[1], x[0]))[:32]:
+      if count < min_count: continue
+      colloc_data = input_dbm.GetStr(colloc_word)
+      if not colloc_data: continue
+      colloc_entries = json.loads(colloc_data)
+      for colloc_entry in colloc_entries:
+        for colloc_tran in colloc_entry.get("translation") or []:
+          colloc_trans.add(colloc_tran)
+    candidates = sorted(candidates, key=lambda x: (-len(x[0]), norm_phrase, top_surface, score))
+    new_candidates = []
+    for norm_phrase, top_surface, surfaces, score in candidates:
+      is_dup = False
+      for surface in surfaces:
+        if surface in colloc_trans:
+          is_dup = True
+      if is_dup: continue
+      for sub_norm_phrase, sub_top_surface, sub_surfaces, sub_score in candidates:
+        if len(norm_phrase) > len(sub_norm_phrase) and norm_phrase.find(sub_norm_phrase) >= 0:
+          score += sub_score * 0.6
+      new_candidates.append((norm_phrase, top_surface, score))
+    new_candidates = sorted(new_candidates, key=lambda x: (-x[2], x[0], x[1]))
+    final_records = []
+    if new_candidates:
+      min_score = new_candidates[0][2] * 0.7
+      for norm_phrase, surface, score in new_candidates[:2]:
+        if score < min_score: continue
+        is_dup = False
+        for final_norm_phrase, final_surface in final_records:
+          if final_norm_phrase.find(norm_phrase) >= 0:
+            is_dup = True
+            break
+        if is_dup: continue
+        final_records.append((norm_phrase, surface))
+    return [x[1] for x in final_records]
 
   def CheckTranMatch(self, target, tokens, query):
     if len(query) >= 2 and target.find(query) >= 0: return True
@@ -343,15 +625,19 @@ def main():
   input_path = tkrzw_dict.GetCommandFlag(args, "--input", 1) or "union-body.tkh"
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-body-final.tkh"
   index_paths = (tkrzw_dict.GetCommandFlag(args, "--index", 1) or "tanaka-index.tkh").split(",")
-  max_examples = int(tkrzw_dict.GetCommandFlag(args, "--max_examples", 1) or 5)
-  min_examples = int(tkrzw_dict.GetCommandFlag(args, "--min_examples", 1) or 1)
+  rev_prob_path = tkrzw_dict.GetCommandFlag(args, "--rev_prob", 1) or ""
+  hint_paths = (tkrzw_dict.GetCommandFlag(args, "--hint", 1) or "").split(",")
+  max_examples = int(tkrzw_dict.GetCommandFlag(args, "--max_examples", 1) or 8)
+  min_examples = int(tkrzw_dict.GetCommandFlag(args, "--min_examples", 1) or 3)
+  max_tran_matches = int(tkrzw_dict.GetCommandFlag(args, "--max_tran_matches", 1) or 2)
   if not input_path:
     raise RuntimeError("the input path is required")
   if not output_path:
     raise RuntimeError("the output path is required")
   if not index_paths:
     raise RuntimeError("the index path is required")
-  AttachExamplesBatch(input_path, output_path, index_paths, max_examples, min_examples).Run()
+  AttachExamplesBatch(input_path, output_path, index_paths, rev_prob_path, hint_paths,
+                      max_examples, min_examples, max_tran_matches).Run()
 
 
 if __name__=="__main__":
