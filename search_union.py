@@ -523,6 +523,11 @@ def main():
       result = searcher.SearchRelatedReverse(query, capacity)
     else:
       result = searcher.SearchRelated(query, capacity)
+  elif search_mode == "example":
+    if is_reverse:
+      result = searcher.SearchExampleReverse(query, capacity)
+    else:
+      result = searcher.SearchExample(query, capacity)
   elif search_mode == "grade":
     page = max(Atoi(query), 1)
     result = searcher.SearchByGrade(capacity, page, True)
@@ -2001,7 +2006,8 @@ def main_cgi():
     for value, label in (
         ("auto", "検索条件"), ("exact", "完全一致"),
         ("prefix", "前方一致"), ("suffix", "後方一致"), ("contain", "中間一致"),
-        ("word", "単語一致"), ("edit", "曖昧一致"), ("related", "類語展開")):
+        ("word", "単語一致"), ("edit", "曖昧一致"), ("related", "類語展開"),
+        ("example", "例文検索")):
       P('<option value="{}"', esc(value), end="")
       if value == search_mode:
         P(' selected="selected"', end="")
@@ -2104,6 +2110,11 @@ def main_cgi():
         result = searcher.SearchRelatedReverse(query, CGI_CAPACITY)
       else:
         result = searcher.SearchRelated(query, CGI_CAPACITY)
+    elif search_mode == "example":
+      if is_reverse:
+        result = searcher.SearchExampleReverse(query, CGI_CAPACITY)
+      else:
+        result = searcher.SearchExample(query, CGI_CAPACITY)
     elif search_mode == "grade":
       page = max(Atoi(query), 1)
       result = searcher.SearchByGrade(CGI_CAPACITY, page, True)
