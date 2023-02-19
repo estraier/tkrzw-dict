@@ -111,9 +111,11 @@ class AttachExamplesBatch:
       if not record: break;
       key, data = record
 
-      #if key not in ["inactivate"]:
+      #if key not in ["national record"]:
       #  it.Next()
       #  continue
+      #if len(word_dict) > 1000:
+      #  break
       
       entries = json.loads(data)
       first_entry = True
@@ -157,7 +159,6 @@ class AttachExamplesBatch:
   def AttachExamplesEntry(self, entry, indices, input_dbm, rev_prob_dbm, hint_dict, strict):
     entry.pop("example", None)
     word = entry["word"]
-    word_prob = float(entry.get("probability") or 0)
     core_words = collections.defaultdict(float)
     core_words[word] = 1.0
     inflections = [
@@ -171,10 +172,13 @@ class AttachExamplesBatch:
       ("adverb_comparative", 0.3),
       ("adverb_superlative", 0.2),
     ]
-    word_pos = None
+    labels = set()
+    word_poses = set()
     for item in entry["item"]:
-      word_pos = item["pos"]
-      break
+      labels.add(item["label"])
+      word_poses.add(item["pos"])
+    if len(labels) < 2:
+      strict = True
     best_source_length = 60
     best_target_length = 30
     for infl_name, weight in inflections:
@@ -192,8 +196,6 @@ class AttachExamplesBatch:
         expr = index_dbm.GetStr(core_word.lower())
         if not expr: continue
         doc_ids = expr.split(",")
-        if rank < 0:
-          doc_ids = doc_ids[:4]
         for doc_id in doc_ids:
           docs.append((i, doc_id, weight * index_weight))
     docs = sorted(docs, key=lambda x: (-x[2], x[0], x[1]))
@@ -306,31 +308,22 @@ class AttachExamplesBatch:
         self.count_labels["reject-source-similar"] += 1
       else:
         dedup_records.append(record)
+    adhoc_trans = None
     if rev_prob_dbm and not regex.search(r"[A-Z]", word) and len(dedup_records) > 5:
       adhoc_trans = self.GetAdHocTranslations(
-        word, word_pos, input_dbm, rev_prob_dbm, hints, dedup_records[:100])
-      if adhoc_trans:
-        
-        print(word, "{:.7f}".format(word_prob), adhoc_trans)
-
-        new_trans = []
-        uniq_trans = set()
-        for tran in entry.get("translation") or []:
-          norm_tran = tran.lower()
-          uniq_trans.add(norm_tran)
-          new_trans.append(tran)
-        adhoc_hit = False
-        for tran in adhoc_trans:
-          norm_tran = tran.lower()
-          for uniq_tran in uniq_trans:
-            if uniq_tran.find(norm_tran) >= 0: continue
-          uniq_trans.add(norm_tran)
-          new_trans.append(tran)
-          adhoc_hit = True
-        if adhoc_hit:
-          entry["translation"] = new_trans
-          self.count_labels["get-adhoc-translation"] += 1
+        word, word_poses, input_dbm, rev_prob_dbm, hints, dedup_records[:100])
     tran_cands = (entry.get("translation") or []).copy()
+    if adhoc_trans:
+
+      print("ADHOC", word, adhoc_trans)
+
+      for tran in adhoc_trans:
+        if tran not in tran_cands:
+          tran_cands.append(tran)
+          self.count_labels["use-adhoc-translation"] += 1
+          print("[USE ADHOC]", word, tran)
+
+      
     for item in entry.get("item") or []:
       text = item["text"]
       match = regex.search(r"\[translation\]: ([^\[]+)", text)
@@ -377,6 +370,11 @@ class AttachExamplesBatch:
     tran_hit_counts = {}
     for (index_id, doc_weight, rank, source, target,
          source_hit_score, length_score, target_tokens, uniq_key) in dedup_records:
+      if rank < 0: continue
+      if not target_tokens: continue
+      if target_tokens[0][1] in ["助詞", "助動詞"] and strict:
+        self.count_labels["reject-target-aux-start"] += 1
+        continue
       tran_score = 0
       best_tran = None
       for tran, tran_weight in trans.items():
@@ -454,7 +452,7 @@ class AttachExamplesBatch:
       entry["example"] = examples
       self.count_hit_entries += 1
 
-  def GetAdHocTranslations(self, word, word_pos, input_dbm, rev_prob_dbm, hints, dedup_records):
+  def GetAdHocTranslations(self, word, word_poses, input_dbm, rev_prob_dbm, hints, dedup_records):
     sources = []
     pos_list = []
     for record in dedup_records:
@@ -483,7 +481,7 @@ class AttachExamplesBatch:
             norm_phrase += " "
           if token[1] in "助動詞" and token[0] == "な":
             phrase = mid_phrase + token[0]
-          elif token[1] in "助動詞" and token[3] == "だ" and word_pos == "adjective":
+          elif token[1] in "助動詞" and token[3] == "だ" and "adjective" in word_poses:
             phrase = mid_phrase + "な"
           else:
             phrase = mid_phrase + token[3]
@@ -499,12 +497,16 @@ class AttachExamplesBatch:
             phrase_poses = {"verb"}
           elif token[1] == "形容詞":
             phrase_poses = {"adjective", "adverb"}
+          pos_ok = False
+          for word_pos in word_poses:
+            if word_pos in phrase_poses:
+              pos_ok = True
           all_ok = True
           if phrase in hints:
             pass
-          elif len(phrase) < 2 or len(phrase) > 12:
+          elif not pos_ok:
             all_ok = False
-          elif word_pos not in phrase_poses:
+          elif len(phrase) < 2 or len(phrase) > 12:
             all_ok = False
           elif token[1] == "助詞":
             all_ok = False
@@ -515,7 +517,7 @@ class AttachExamplesBatch:
             uniq_phrases.add(norm_phrase)
           i += 1
     candidates = []
-    min_count = max(5, len(pos_list) / 4)
+    min_count = max(3, len(pos_list) / 10)
     for norm_phrase, surfaces in norm_phrases.items():
       count = len(surfaces)
       count_surfaces = collections.defaultdict(float)
@@ -527,10 +529,10 @@ class AttachExamplesBatch:
       if count < min_count: continue
       if not regex.search("^[0-9]*[\p{Han}\p{Katakana}ー]{2,}", top_surface): continue
       ef_prob = count / len(pos_list)
-      gen_prob = float(rev_prob_dbm.GetStr(norm_phrase) or 0) + 0.00001
+      gen_prob = float(rev_prob_dbm.GetStr(norm_phrase) or 0) + 0.000001
       score = ef_prob / gen_prob
       if gen_prob >= 0.001: continue
-      if score < 100.0: continue
+      if score < 50.0: continue
       surfaces = set(surfaces)
       if top_surface.endswith("だ"):
         surfaces.add(top_surface[:-1] + "な")
@@ -567,13 +569,13 @@ class AttachExamplesBatch:
       if is_dup: continue
       for sub_norm_phrase, sub_top_surface, sub_surfaces, sub_score in candidates:
         if len(norm_phrase) > len(sub_norm_phrase) and norm_phrase.find(sub_norm_phrase) >= 0:
-          score += sub_score * 0.6
+          score += sub_score * 0.2
       new_candidates.append((norm_phrase, top_surface, score))
     new_candidates = sorted(new_candidates, key=lambda x: (-x[2], x[0], x[1]))
     final_records = []
     if new_candidates:
-      min_score = new_candidates[0][2] * 0.7
-      for norm_phrase, surface, score in new_candidates[:2]:
+      min_score = new_candidates[0][2] * 0.2
+      for norm_phrase, surface, score in new_candidates:
         if score < min_score: continue
         is_dup = False
         for final_norm_phrase, final_surface in final_records:
