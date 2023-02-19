@@ -360,6 +360,47 @@ class UnionSearcher:
         result.append(entry)
     return result
 
+  def SearchExample(self, text, capacity):
+    text = tkrzw_dict.NormalizeWord(text)
+    result = []
+    def SearchExample(key, serialized):
+      if len(result) >= capacity: return None
+      if not serialized: return None
+      key = key.decode()
+      entries = json.loads(serialized)
+      for entry in entries:
+        if len(result) >= capacity: return None
+        examples = entry.get("example")
+        if not examples: continue
+        for example in examples:
+          extext = tkrzw_dict.NormalizeWord(example["e"])
+          if extext.find(text) >= 0:
+            result.append(entry)
+            break
+    self.body_dbm.ProcessEach(SearchExample, False)
+    return result
+
+  def SearchExampleReverse(self, text, capacity):
+    text = tkrzw_dict.NormalizeWord(text)
+    result = []
+    def SearchExample(key, serialized):
+      if len(result) >= capacity: return None
+      if not serialized: return None
+      key = key.decode()
+      entries = json.loads(serialized)
+      for entry in entries:
+        if len(result) >= capacity: return None
+        examples = entry.get("example")
+        if not examples: continue
+        for example in examples:
+          extext = tkrzw_dict.NormalizeWord(example["j"])
+          if extext.find(text) >= 0:
+            print(extext)
+            result.append(entry)
+            break
+    self.body_dbm.ProcessEach(SearchExample, False)
+    return result
+
   def SearchByGrade(self, capacity, page, first_only):
     keys = self.keys_file.Search("begin", "", capacity * page)
     if page > 1:
