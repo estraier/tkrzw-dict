@@ -1,7 +1,7 @@
 #! /usr/bin/python3
 # -*- coding: utf-8 -*-
 #--------------------------------------------------------------------------------------------------
-# Script to make a list of keys of a union dictionary
+# Script to make a list of example sentence pairs of a union dictionary
 #
 # Usage:
 #   extract_union_examples.py [--input str] [--output str] [--quiet]
