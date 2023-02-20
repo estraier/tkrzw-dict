@@ -7,7 +7,7 @@
 #   search_union.py [--data_prefix str] [--index str] [--search str] [--view str]
 #     [--capacity] [--query_file str] [--output_prefix str] [words...]
 #
-#   Index modes: auto (default), normal, reverse, inflection, grade, annot
+#   Index modes: auto (default), normal, reverse, inflection, example, grade, annot
 #   Search modes: auto (default), expact, prefix, suffix, contain, word, edit, related
 #   View mode: auto (default), full, simple, list, annot
 #
@@ -477,6 +477,8 @@ def main():
         query = ",".join(lemmas)
       else:
         query = lemmas[0]
+  elif index_mode == "example":
+    search_mode = "example"
   elif index_mode == "grade":
     search_mode = "grade"
   elif index_mode == "annot":
@@ -524,10 +526,8 @@ def main():
     else:
       result = searcher.SearchRelated(query, capacity)
   elif search_mode == "example":
-    if is_reverse:
-      result = searcher.SearchExampleReverse(query, capacity)
-    else:
-      result = searcher.SearchExample(query, capacity)
+    result = searcher.SearchExample(query, capacity)
+    view_mode = "full"
   elif search_mode == "grade":
     page = max(Atoi(query), 1)
     result = searcher.SearchByGrade(capacity, page, True)
@@ -739,41 +739,41 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
     label_counts = {}
     for item in entry["item"]:
       label_counts[item["label"]] = 0
-    P('<div class="entry_navi">')
-    for label, _ in label_counts.items():
-      if details:
-        P('<span class="entry_icon entry_label_icon"'
-          ' onclick="toggle_label(\'{}\',\'{}\')" title="{}語義に注目">{}</span>',
-          ent_id, label, label.upper(), label.upper())
-      else:
-        jump_url = "{}?q={}&j={}{}".format(
-          script_name, urllib.parse.quote(word), ent_id, label)
-        P('<a class="entry_icon entry_label_icon" href="{}" title="{}語義に注目">{}</a>',
-          jump_url, label.upper(), label.upper())
-    if "example" in entry:
-      if details:
-        P('<span class="entry_icon entry_extra_icon"'
-          ' onclick="toggle_label(\'{}\', \'x\')" title="例文に注目">例</span>', ent_id)
-      else:
-        jump_url = "{}?q={}&j={}x".format(script_name, urllib.parse.quote(word), ent_id)
-        P('<a class="entry_icon entry_extra_icon" href="{}" title="例文に注目">例</a>',
-          jump_url)
-    if "phrase" in entry:
-      if details:
-        P('<span class="entry_icon entry_extra_icon"'
-          ' onclick="toggle_label(\'{}\', \'p\')" title="句に注目">句</span>', ent_id)
-      else:
-        jump_url = "{}?q={}&j={}p".format(script_name, urllib.parse.quote(word), ent_id)
-        P('<a class="entry_icon entry_extra_icon" href="{}" title="句に注目">句</a>',
-          jump_url)
-    related_url = "{}?q={}&s=related".format(script_name, urllib.parse.quote(word))
-    P('<a class="entry_icon entry_extra_icon" href="{}" title="類似検索">類</a>',
-      related_url)
-    P('<span class="entry_icon entry_extra_icon" data-word="{}"'
-      ' onclick="utter_elem(this, 0.8)" title="読み上げ">読</span>', word)
-    P('<span class="entry_icon entry_star_icon star_icon" data-word="{}" data-hint="{}"'
-      ' onclick="toggle_star(this, -1)" title="星印の変更">&#x2605;</span>', word, hint)
-    P('</div>')
+    if label_counts:
+      P('<div class="entry_navi">')
+      for label, _ in label_counts.items():
+        if details:
+          P('<span class="entry_icon entry_label_icon"'
+            ' onclick="toggle_label(\'{}\',\'{}\')" title="{}語義に注目">{}</span>',
+            ent_id, label, label.upper(), label.upper())
+        else:
+          jump_url = "{}?q={}&j=0{}".format(script_name, urllib.parse.quote(word), label)
+          P('<a class="entry_icon entry_label_icon" href="{}" title="{}語義に注目">{}</a>',
+            jump_url, label.upper(), label.upper())
+      if "example" in entry:
+        if details:
+          P('<span class="entry_icon entry_extra_icon"'
+            ' onclick="toggle_label(\'{}\', \'x\')" title="例文に注目">例</span>', ent_id)
+        else:
+          jump_url = "{}?q={}&j=0x".format(script_name, urllib.parse.quote(word))
+          P('<a class="entry_icon entry_extra_icon" href="{}" title="例文に注目">例</a>',
+            jump_url)
+      if "phrase" in entry:
+        if details:
+          P('<span class="entry_icon entry_extra_icon"'
+            ' onclick="toggle_label(\'{}\', \'p\')" title="句に注目">句</span>', ent_id)
+        else:
+          jump_url = "{}?q={}&j=0p".format(script_name, urllib.parse.quote(word))
+          P('<a class="entry_icon entry_extra_icon" href="{}" title="句に注目">句</a>',
+            jump_url)
+      related_url = "{}?q={}&s=related".format(script_name, urllib.parse.quote(word))
+      P('<a class="entry_icon entry_extra_icon" href="{}" title="類似検索">類</a>',
+        related_url)
+      P('<span class="entry_icon entry_extra_icon" data-word="{}"'
+        ' onclick="utter_elem(this, 0.8)" title="読み上げ">読</span>', word)
+      P('<span class="entry_icon entry_star_icon star_icon" data-word="{}" data-hint="{}"'
+        ' onclick="toggle_star(this, -1)" title="星印の変更">&#x2605;</span>', word, hint)
+      P('</div>')
     word_url = "{}?q={}".format(script_name, urllib.parse.quote(word))
     P('<h2 class="entry_word">', end="")
     P('<a href="{}" class="word_link focal1 focal2" lang="en">{}</a>', word_url, word, end="")
@@ -1626,7 +1626,16 @@ function jump_label() {{
   if (!match) return;
   let ent_id = match[1];
   let label = match[2];
-  toggle_label(ent_id, label);
+  if (ent_id > 0) {{
+    toggle_label(ent_id, label);
+  }} else {{
+    ent_id = 1;
+    while (true) {{
+      if (!document.getElementById("e" + ent_id)) break;
+      toggle_label(ent_id, label);
+      ent_id++;
+    }}
+  }}
 }}
 let ent_labels = {{}};
 function toggle_label(ent_id, label) {{
@@ -1994,28 +2003,27 @@ def main_cgi():
     P('</div>')
     P('<div id="query_line">')
     P('<select name="i" id="index_mode_box">')
-    for value, label in (("auto", "索引"), ("normal", "英和"),
+    for value, label in [("auto", "索引"), ("normal", "英和"),
                          ("reverse", "和英"), ("inflection", "屈折"),
-                         ("grade", "等級"), ("annot", "注釈")):
+                         ("example", "例文"), ("grade", "等級"), ("annot", "注釈")]:
       P('<option value="{}"', esc(value), end="")
       if value == index_mode:
         P(' selected="selected"', end="")
       P('>{}</option>', label)
     P('</select>')
     P('<select name="s" id="search_mode_box">')
-    for value, label in (
+    for value, label in [
         ("auto", "検索条件"), ("exact", "完全一致"),
         ("prefix", "前方一致"), ("suffix", "後方一致"), ("contain", "中間一致"),
-        ("word", "単語一致"), ("edit", "曖昧一致"), ("related", "類語展開"),
-        ("example", "例文検索")):
+        ("word", "単語一致"), ("edit", "曖昧一致"), ("related", "類語展開")]:
       P('<option value="{}"', esc(value), end="")
       if value == search_mode:
         P(' selected="selected"', end="")
       P('>{}</option>', label)
     P('</select>')
     P('<select name="v" id="view_mode_box">')
-    for value, label in (("auto", "表示形式"), ("full", "詳細表示"),
-                         ("simple", "簡易表示"), ("list", "リスト表示")):
+    for value, label in [("auto", "表示形式"), ("full", "詳細表示"),
+                         ("simple", "簡易表示"), ("list", "リスト表示")]:
       P('<option value="{}"', esc(value), end="")
       if value == view_mode:
         P(' selected="selected"', end="")
@@ -2050,6 +2058,9 @@ def main_cgi():
           query = ",".join(lemmas)
         else:
           query = lemmas[0]
+    elif index_mode == "example":
+      search_mode = "example"
+      view_mode = "full"
     elif index_mode == "grade":
       search_mode = "grade"
     elif index_mode == "annot":
@@ -2111,10 +2122,7 @@ def main_cgi():
       else:
         result = searcher.SearchRelated(query, CGI_CAPACITY)
     elif search_mode == "example":
-      if is_reverse:
-        result = searcher.SearchExampleReverse(query, CGI_CAPACITY)
-      else:
-        result = searcher.SearchExample(query, CGI_CAPACITY)
+      result = searcher.SearchExample(query, CGI_CAPACITY)
     elif search_mode == "grade":
       page = max(Atoi(query), 1)
       result = searcher.SearchByGrade(CGI_CAPACITY, page, True)
@@ -2143,7 +2151,7 @@ def main_cgi():
     if result:
       if view_mode == "auto":
         keys = searcher.GetResultKeys(result)
-        if len(keys) < 2 and extra_mode != "popup" or jump_expr:
+        if (len(keys) < 2 and extra_mode != "popup") or jump_expr:
           PrintResultCGI(script_name, result, query, searcher, True)
         elif len(keys) < 6:
           PrintResultCGI(script_name, result, query, searcher, False)

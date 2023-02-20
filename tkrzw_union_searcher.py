@@ -35,16 +35,35 @@ class UnionSearcher:
     infl_index_path = data_prefix + "-infl-index.tkh"
     self.infl_index_dbm = tkrzw.DBM()
     self.infl_index_dbm.Open(infl_index_path, False, dbm="HashDBM").OrDie()
-    keys_path = data_prefix + "-keys.txt"
-    self.keys_file = tkrzw.File()
-    self.keys_file.Open(keys_path, False).OrDie()
-    tran_keys_path = data_prefix + "-tran-keys.txt"
-    self.tran_keys_file = tkrzw.File()
-    self.tran_keys_file.Open(tran_keys_path, False).OrDie()
+    self.keys_path = data_prefix + "-keys.txt"
+    self.keys_file = None
+    self.tran_keys_path = data_prefix + "-tran-keys.txt"
+    self.tran_keys_file = None
+    self.examples_path = data_prefix + "-examples.tsv"
+    self.examples_file = None
 
   def __del__(self):
+    if self.examples_file:
+      self.examples_file.Close().OrDie()
+    if self.tran_keys_file:
+      self.tran_keys_file.Close().OrDie()
+    if self.keys_file:
+      self.keys_file.Close().OrDie()
+    self.infl_index_dbm.Close().OrDie()
     self.tran_index_dbm.Close().OrDie()
     self.body_dbm.Close().OrDie()
+
+  def OpenKeysFile(self):
+    self.keys_file = tkrzw.File()
+    self.keys_file.Open(self.keys_path, False).OrDie()
+
+  def OpenTranKeysFile(self):
+    self.tran_keys_file = tkrzw.File()
+    self.tran_keys_file.Open(self.tran_keys_path, False).OrDie()
+
+  def OpenExamplesFile(self):
+    self.examples_file = tkrzw.File()
+    self.examples_file.Open(self.examples_path, False).OrDie()
 
   def SearchBody(self, text):
     serialized = self.body_dbm.GetStr(text)
@@ -336,6 +355,7 @@ class UnionSearcher:
     return self.SearchRelatedWithSeeds(seeds, capacity)
 
   def SearchPatternMatch(self, mode, text, capacity):
+    self.OpenKeysFile()
     text = tkrzw_dict.NormalizeWord(text)
     keys = self.keys_file.Search(mode, text, capacity)
     result = []
@@ -346,6 +366,7 @@ class UnionSearcher:
     return result
 
   def SearchPatternMatchReverse(self, mode, text, capacity):
+    self.OpenTranKeysFile()
     text = tkrzw_dict.NormalizeWord(text)
     keys = self.tran_keys_file.Search(mode, text, capacity)
     result = []
@@ -360,48 +381,8 @@ class UnionSearcher:
         result.append(entry)
     return result
 
-  def SearchExample(self, text, capacity):
-    text = tkrzw_dict.NormalizeWord(text)
-    result = []
-    def SearchExample(key, serialized):
-      if len(result) >= capacity: return None
-      if not serialized: return None
-      key = key.decode()
-      entries = json.loads(serialized)
-      for entry in entries:
-        if len(result) >= capacity: return None
-        examples = entry.get("example")
-        if not examples: continue
-        for example in examples:
-          extext = tkrzw_dict.NormalizeWord(example["e"])
-          if extext.find(text) >= 0:
-            result.append(entry)
-            break
-    self.body_dbm.ProcessEach(SearchExample, False)
-    return result
-
-  def SearchExampleReverse(self, text, capacity):
-    text = tkrzw_dict.NormalizeWord(text)
-    result = []
-    def SearchExample(key, serialized):
-      if len(result) >= capacity: return None
-      if not serialized: return None
-      key = key.decode()
-      entries = json.loads(serialized)
-      for entry in entries:
-        if len(result) >= capacity: return None
-        examples = entry.get("example")
-        if not examples: continue
-        for example in examples:
-          extext = tkrzw_dict.NormalizeWord(example["j"])
-          if extext.find(text) >= 0:
-            print(extext)
-            result.append(entry)
-            break
-    self.body_dbm.ProcessEach(SearchExample, False)
-    return result
-
   def SearchByGrade(self, capacity, page, first_only):
+    self.OpenKeysFile()
     keys = self.keys_file.Search("begin", "", capacity * page)
     if page > 1:
       skip = capacity * (page - 1)
@@ -413,6 +394,23 @@ class UnionSearcher:
         result.append(entry)
         if first_only:
           break
+    return result
+
+  def SearchExample(self, text, capacity):
+    self.OpenExamplesFile()
+    result = []
+    lines = self.examples_file.Search("contain", text, capacity)
+    if lines:
+      entry = {"word": text, "probability": ".0", "item": []}
+      examples = []
+      for line in lines:
+        fields = line.split("\t")
+        if len(fields) != 2: continue
+        source, target = fields
+        example = {"e": source, "j": target}
+        examples.append(example)
+      entry["example"] = examples
+      result.append(entry)
     return result
 
   infl_names = (
