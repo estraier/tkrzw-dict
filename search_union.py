@@ -717,6 +717,7 @@ def P(*args, end="\n", file=sys.stdout):
 
 
 def PrintResultCGI(script_name, entries, query, searcher, details):
+  P('<div id="loupe" onclick="jump_loupe()">&#x1F50D;</div>')
   for ent_id, entry in enumerate(entries, 1):
     P('<article class="entry_view" id="e{}">', ent_id)
     word = entry["word"]
@@ -1275,12 +1276,16 @@ def PrintCGIHeader(page_title, extra_mode="", file=sys.stdout):
 html {{ margin: 0ex; padding: 0ex; background: #eeeeee; font-size: 12pt; }}
 body {{ margin: 0ex; padding: 0ex; text-align: center; -webkit-text-size-adjust: 100%;
   overflow-x: hidden; overflow-y: auto; }}
-div.mainpage {{ display: inline-block; width: 100ex; text-align: left; padding-bottom: 3ex; }}
+#mainpage {{ display: inline-block; width: 100ex; text-align: left; padding-bottom: 3ex; }}
 a,a:visited {{ text-decoration: none; }}
 a:hover {{ color: #0011ee; text-decoration: underline; }}
 h1 a,h2 a {{ color: #000000; text-decoration: none; }}
 h1 {{ font-size: 110%; margin: 1ex 0ex 0ex 0ex; }}
 h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
+#loupe {{ display: none; position: absolute; z-index: 2;
+  top: 0; right: 0; width: 3ex; text-align: center; font-size: 90%; cursor: pointer;
+  background: #ddeeff; border: 1px solid #cccccc; border-radius: 0.5ex; opacity: 0.5; }}
+#loupe:hover {{ opacity: 0.9; }}
 .search_form,.entry_view,.list_view,.annot_view,.message_view,.help {{
   border: 1px solid #dddddd; border-radius: 0.5ex;
   margin: 1ex 0ex; padding: 0.8ex 1ex 1.3ex 1ex; background: #ffffff; position: relative; }}
@@ -1424,7 +1429,7 @@ a.star_word {{ display: inline-block; min-width: 10ex; padding: 0ex 0.5ex;
   font-size: 65%; min-width: 3.5ex; text-align: center;
   margin-right: -0.3ex; color: #333333; }}
 @media (max-width:650px) {{
-  div.mainpage {{ width: 98%; padding-bottom: 0.1ex; }}
+  #mainpage {{ width: 98%; padding-bottom: 0.1ex; }}
   .entry_view, .list_view, .annot_view, .message_view, .help {{
     border: none;
     margin: 0.5ex 0ex; padding: 0.3ex 0.3ex 0.6ex 0.3ex; }}
@@ -1438,16 +1443,16 @@ a.star_word {{ display: inline-block; min-width: 10ex; padding: 0ex 0.5ex;
   .item_omit {{ margin-left: 1.5ex; }}
 }}
 @media (max-width:500px) {{
-  div.mainpage {{ zoom: 90%; }}
+  #mainpage {{ zoom: 90%; }}
 }}
 @media (max-width:400px) {{
-  div.mainpage {{ zoom: 80%; }}
+  #mainpage {{ zoom: 80%; }}
 }}
 @media (max-device-width:720px) {{
   html {{ background: #eeeeee; font-size: 32pt; }}
   body {{ padding: 0; }}
   h1 {{ padding: 0; text-align: center; }}
-  div.mainpage {{ width: 100%; overflow-x: hidden; }}
+  #mainpage {{ width: 100%; overflow-x: hidden; }}
   #query_line,#annot_navi_line {{ font-size: 12pt; zoom: 250%; }}
   .search_form,.entry_view,.list_view,.annot_view,.message_view,.help {{
     padding: 0.8ex 0.8ex; }}
@@ -1512,6 +1517,7 @@ function startup() {{
   mark_stars();
   list_stars(false);
   jump_label();
+  init_loupe();
 }}
 function check_search_form() {{
   let search_form = document.forms["search_form"];
@@ -1655,6 +1661,57 @@ function toggle_label(ent_id, label) {{
   ent_labels[ent_id] = old_label == label ? null : label;
   var new_url = new URL(document.location.href);
   new_url.hash = "#" + ent_id + label;
+  document.location.href = new_url;
+}}
+function init_loupe() {{
+  let loupe = document.getElementById("loupe");
+  if (!loupe) return;
+  document.addEventListener("mouseup", loupe_toggle, false);
+}}
+function loupe_toggle() {{
+  let loupe = document.getElementById("loupe");
+  loupe.style.display = "none";
+  let selection = window.getSelection();
+  if (selection.rangeCount < 1) {{
+    return;
+  }}
+  let in_item = false
+  let elem = selection.focusNode.parentNode;
+  while (elem != undefined && elem.classList) {{
+     if (elem.classList.contains("item")) {{
+       in_item = true;
+     }}
+     if (elem.classList.contains("label") || elem.classList.contains("subattr_label")) return;
+     elem = elem.parentNode;
+  }}
+  if (!in_item) return;
+  let text = selection.toString();
+  text = text.replaceAll(
+        /[^-'\d\p{{Script=Latin}}\p{{Script=Han}}\p{{Script=Hiragana}}\p{{Script=Katakana}}ー]+/gu,
+        " ");
+  text = text.trim();
+  if (text.length == 0 > text.length > 40) return;
+  let zoom = getComputedStyle(document.getElementById("mainpage")).zoom;
+  let range = selection.getRangeAt(0);
+  let rect = range.getBoundingClientRect();
+  let left = rect.x;
+  let top = rect.y + rect.height;
+  let loupe_left = Math.min(rect.left + rect.width - 10, innerWidth / zoom - 32);
+  let loupe_top = rect.top + rect.height + 2;
+  loupe_left += window.pageXOffset / zoom;
+  loupe_top += window.pageYOffset / zoom;
+  loupe.style.display = "block";
+  loupe.style.left = loupe_left + "px";
+  loupe.style.top = loupe_top + "px";
+  loupe.query = text;
+}}
+function jump_loupe() {{
+  let loupe = document.getElementById("loupe");
+  let base_url = new URL(document.location.href);
+  let new_url = "?q=" + encodeURIComponent(loupe.query);
+  if (base_url.search && base_url.search.match(/[&?]x=popup(&|$)/)) {{
+    new_url += "&x=popup";
+  }}
   document.location.href = new_url;
 }}
 function utter_elem(elem, rate) {{
@@ -1902,7 +1959,7 @@ function is_touchable() {{
 /*]]>*/</script>
 </head>
 <body onload="startup()" class="normal">
-<div class="mainpage">
+<div id="mainpage">
 """.format(esc(page_title)), end="", file=file)
 
 
