@@ -774,12 +774,14 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
       P('<span class="entry_icon entry_star_icon star_icon" data-word="{}" data-hint="{}"'
         ' onclick="toggle_star(this, -1)" title="星印の変更">&#x2605;</span>', word, hint)
       P('</div>')
-    word_url = "{}?q={}".format(script_name, urllib.parse.quote(word))
-    P('<h2 class="entry_word">', end="")
-    P('<a href="{}" class="word_link focal1 focal2" lang="en">{}</a>', word_url, word, end="")
-    if not details and pron:
-      P(' <span class="title_pron">{}</span>', pron, end="")
-    P('</h2>')
+      word_url = "{}?q={}".format(script_name, urllib.parse.quote(word))
+      P('<h2 class="entry_word">', end="")
+      P('<a href="{}" class="word_link focal1 focal2" lang="en">{}</a>', word_url, word, end="")
+      if not details and pron:
+        P(' <span class="title_pron">{}</span>', pron, end="")
+      P('</h2>')
+    else:
+      P('<h2 class="entry_misc">{}</h2>', word)
     if translations:
       if tkrzw_dict.PredictLanguage(query) != "en":
         translations = tkrzw_dict.TwiddleWords(translations, query)
@@ -1282,6 +1284,7 @@ h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
 .search_form,.entry_view,.list_view,.annot_view,.message_view,.help {{
   border: 1px solid #dddddd; border-radius: 0.5ex;
   margin: 1ex 0ex; padding: 0.8ex 1ex 1.3ex 1ex; background: #ffffff; position: relative; }}
+h2.entry_misc {{ font-size: 100%; font-weight: normal; color: #666666; }}
 #query_line,#annot_navi_line {{ color: #333333; }}
 #query_input {{ zoom: 125%; color: #111111; width: 32ex; }}
 #query_input_annot {{ color: #111111; width: 99%; height: 30ex; }}
@@ -2287,7 +2290,15 @@ def main_cgi():
 </div>""".format(int(CGI_MAX_QUERY_LENGTH / 1024)))
   elif extra_mode == "help":
     print("""<div class="help">
-<p>検索窓に検索語を入れて、「検索」ボタンを押してください。デフォルトでは、英語の検索語が入力されると英和の索引が検索され、日本語の検索語が入力されると和英の索引が検索されます。オプションで索引を明示的に指定できます。屈折は、単語の過去形などの屈折形を吸収した検索を行います。等級は、検索語を無視して全ての見出し語を重要度順に表示します。注釈は、英文を和訳の注釈付きの形式に整形します。</p>
+<p>検索窓に検索語を入れて、「検索」ボタンを押してください。デフォルトでは、英語の検索語が入力されると英和の索引が検索され、日本語の検索語が入力されると和英の索引が検索されます。オプションで索引を以下のものから明示的に指定できます。</p>
+<ul>
+<li>英和 : 英語のフレーズをそのままの形で検索する。</li>
+<li>和英 : 日本語のフレーズをそのままの形で検索する。</li>
+<li>屈折 : 英単語の過去形などの屈折形を吸収した検索を行う。</li>
+<li>例文 : 英語か日本語で例文の全文検索を行う。</li>
+<li>等級 : 検索語を無視して全ての見出し語を重要度順に表示する。</li>
+<li>注釈 : 英文を和訳の注釈付きの形式に整形する。</li>
+</ul>
 <p>検索条件のデフォルトは、完全一致です。つまり、入力語そのものを見出しに含む語が表示されます。ただし、該当がない場合には自動的に曖昧検索が行われて、綴りが似た語が表示されます。オプションで検索条件を以下のものから明示的に選択できます。</p>
 <ul>
 <li>完全一致 : 見出し語が検索語と完全一致するものが該当する。</li>

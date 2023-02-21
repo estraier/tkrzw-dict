@@ -399,9 +399,12 @@ class UnionSearcher:
   def SearchExample(self, text, capacity):
     self.OpenExamplesFile()
     result = []
-    mode = "contain"
     if tkrzw_dict.PredictLanguage(text) == "en":
       mode = "containcaseword"
+    elif regex.search("[a-zA-Z]", text):
+      mode = "containcase"
+    else:
+      mode = "contain"
     lines = self.examples_file.Search(mode, text, capacity)
     if lines:
       entry = {"word": text, "probability": ".0", "item": []}
