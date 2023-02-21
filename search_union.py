@@ -820,10 +820,8 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
         P('<span class="attr_label focal2" tabindex="-1" role="tooltip">代替</span>', end="")
         P(' <span class="attr_value" lang="en">{}</span>', ", ".join(alternatives), end="")
         P('</div>')
-    omitted = False
     for num_items, item in enumerate(entry["item"]):
       if not details and num_items >= 8:
-        omitted = True
         break
       label = item.get("label") or "misc"
       pos = item.get("pos") or "misc"
@@ -834,7 +832,6 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
       attr_match = regex.search(r"^\[([a-z]+)\]: ", section)
       if attr_match:
         if not details and attr_match.group(1) == "translation":
-          omitted = True
           continue
         attr_label = WORDNET_ATTRS.get(attr_match.group(1))
         if attr_label:
@@ -1054,7 +1051,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
           P('<span class="attr_label focal2" tabindex="-1" role="tooltip">年齢</span>'
             ' <span class="attr_value">{:.2f}</span>', aoa)
         P('</div>')
-    if omitted:
+    if not details:
       P('<div class="item item_omit">', label)
       P('<a href="{}" class="omit_link">... ...</a>', word_url)
       P('</div>')
