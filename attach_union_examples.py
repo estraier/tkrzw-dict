@@ -85,6 +85,7 @@ class AttachExamplesBatch:
     input_dbm.Open(self.input_path, False).OrDie()
     indices = []
     for index_path in self.index_paths:
+      logger.info("Opening an index: path={}".format(index_path))
       rank = 0
       match = regex.search(r"^(\++)(.*)", index_path)
       if match:
@@ -111,7 +112,7 @@ class AttachExamplesBatch:
       if not record: break;
       key, data = record
 
-      #if key not in ["national record"]:
+      #if key not in ["tip of the iceberg"]:
       #  it.Next()
       #  continue
       #if len(word_dict) > 1000:
@@ -286,9 +287,6 @@ class AttachExamplesBatch:
       seed_records.append((
         index_id, doc_weight, rank, source, target,
         source_hit_score, length_score, target_tokens, uniq_key))
-      
-      #print(source, target)
-      
     dedup_records = []
     for i, record in enumerate(seed_records):
       uniq_key = record[8]
@@ -314,16 +312,16 @@ class AttachExamplesBatch:
         word, word_poses, input_dbm, rev_prob_dbm, hints, dedup_records[:100])
     tran_cands = (entry.get("translation") or []).copy()
     if adhoc_trans:
-
-      print("ADHOC", word, adhoc_trans)
-
       for tran in adhoc_trans:
+
+        print("[ADHOC]", word, tran)
+        
         if tran not in tran_cands:
           tran_cands.append(tran)
-          self.count_labels["use-adhoc-translation"] += 1
-          print("[USE ADHOC]", word, tran)
 
-      
+          print("[ADHOC:USE]", word, tran)
+          
+          self.count_labels["use-adhoc-translation"] += 1
     for item in entry.get("item") or []:
       text = item["text"]
       match = regex.search(r"\[translation\]: ([^\[]+)", text)
@@ -342,7 +340,7 @@ class AttachExamplesBatch:
       if norm_tran in uniq_trans: continue
       tran_score = 1.0
       if regex.search(r"\p{Han}", tran):
-        tran_score *= 1.2
+        tran_score *= 1.3
       elif regex.search(r"\p{Katakana}", tran):
         tran_score *= 1.1
       if len(tran) == 1:
@@ -537,10 +535,6 @@ class AttachExamplesBatch:
       if top_surface.endswith("だ"):
         surfaces.add(top_surface[:-1] + "な")
       candidates.append((norm_phrase, top_surface, surfaces, score))
-
-      #print(norm_phrase, top_surface, surfaces, count, norm_phrase, count,
-      #      "{:.7f} | {:.7f} | {:.3f}".format(ef_prob, gen_prob, score))
-      
     if not candidates:
       return []
     colloc_trans = set()
