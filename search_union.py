@@ -939,11 +939,19 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
       examples = entry.get("example")
       if examples:
         for label_id, example in enumerate(examples, 1):
-          P('<div class="item item_text1 item_x" id="i{}x{}">', ent_id, label_id)
+          item_classes = ["item_x"]
+          if not entry["item"]:
+            item_classes.append("item_focus")
+          P('<div class="item item_text1 {}" id="i{}x{}">',
+            " ".join(item_classes), ent_id, label_id)
           P('<span class="label focal2" tabindex="-1" role="tooltip"'
             ' onclick="utter_sibling(this, 0.9)">例</span>')
-          P('<span class="text readable" lang="en">{}</span>', example["e"])
-          P('<span class="text extran" lang="ja">({})</span>', example["j"])
+          P('<span class="text readable" lang="en">', end="")
+          PrintExampleCGI(example["e"], query)
+          P('</span>')
+          P('<span class="text extran" lang="ja">(', end="")
+          PrintExampleCGI(example["j"], query)
+          P(')</span>')
           P('</div>')
       phrases = entry.get("phrase")
       if phrases:
@@ -1070,6 +1078,32 @@ def PrintItemTextCGI(text):
       print(esc(text), end="")
       break
   P('</span>', end="")
+
+
+def PrintExampleCGI(text, query):
+  if not query:
+    P('{}', text, end="")
+    return
+  if tkrzw_dict.PredictLanguage(query) == "en":
+    phrase_regex = regex.compile(r"(?i)(^|\W)(" + regex.escape(query) + r")(\W|$)")
+  else:
+    phrase_regex = regex.compile(r"(?i)(.*)(" + regex.escape(query) + r")(.*)")
+  while True:
+    match = phrase_regex.search(text)
+    if match:
+      pos = match.span()[0]
+      if pos > 0:
+        P('{}', text[:pos], end="")
+      P('{}', match.group(1), end="")
+      P('<b>{}</b>', match.group(2), end="")
+      P('{}', match.group(3), end="")
+      pos = match.span()[1]
+      text = text[pos:]
+    else:
+      if text:
+        P('{}', text, end="")
+      break
+
 
 
 def PrintResultCGIList(script_name, entries, query):
@@ -1349,7 +1383,10 @@ a.navi_link:hover {{ background: #dddddd; opacity: 1; }}
 .tran {{ color: #000000; }}
 .attr_value {{ margin-left: 0.3ex; color: #111111; }}
 .text {{ margin-left: 0.3ex; color: #111111; }}
+.item_x b {{ font-weight: normal; font-style: italic; }}
+.item_x.item_focus b {{ font-weight: 600; color: #001177; }}
 .extran {{ padding-left: 0.5ex; font-size: 80%; color: #555555; }}
+.item_x .extran b {{ font-style: normal; }}
 .entry_navi {{ position: absolute; top: 1ex; right: 1ex; font-size: 95%; user-select: none; }}
 .entry_icon {{ display: inline-block; text-align: center; color: #bbbbbb; opacity: 0.8; }}
 .entry_label_icon {{ font-family: monospace; width: 2.1ex; transform: scaleX(0.7); }}
@@ -1605,7 +1642,6 @@ function adjust_history() {{
   if (is_hist_jump) return;
   if (!hist_next_item) return;
   let next_time = hist_next_item["time"];
-  console.log(next_time);
   let history = []
   for (let item of load_history()) {{
     if (item["time"] < next_time) {{
@@ -1765,7 +1801,14 @@ function toggle_label(ent_id, label) {{
   }}
   let item_label = "item_" + label;
   for (let item of ent_elem.getElementsByClassName("item")) {{
-    item.style.display = old_label == label || item.classList.contains(item_label) ? null : "none";
+    item.style.display = old_label == label || item.classList.contains(item_label) ?
+       null : "none";
+    console.log(label, old_label, item.classList);
+    if (old_label != label && item.classList.contains(item_label)) {{
+      item.classList.add("item_focus");
+    }} else {{
+      item.classList.remove("item_focus");
+    }}
   }}
   ent_labels[ent_id] = old_label == label ? null : label;
   var new_url = new URL(document.location.href);
