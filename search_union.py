@@ -938,6 +938,14 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
     if details:
       examples = entry.get("example")
       if examples:
+        highlights = {query}
+        for attr_list in INFLECTIONS:
+          fields = []
+          for name, label in attr_list:
+            value = entry.get(name)
+            if value:
+              for infl in value:
+                highlights.add(infl)
         for label_id, example in enumerate(examples, 1):
           item_classes = ["item_x"]
           if not entry["item"]:
@@ -947,10 +955,10 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
           P('<span class="label focal2" tabindex="-1" role="tooltip"'
             ' onclick="utter_sibling(this, 0.9)">例</span>')
           P('<span class="text readable" lang="en">', end="")
-          PrintExampleCGI(example["e"], query)
+          PrintExampleCGI(example["e"], query, highlights)
           P('</span>')
           P('<span class="text extran" lang="ja">(', end="")
-          PrintExampleCGI(example["j"], query)
+          PrintExampleCGI(example["j"], query, highlights)
           P(')</span>')
           P('</div>')
       phrases = entry.get("phrase")
@@ -1080,14 +1088,16 @@ def PrintItemTextCGI(text):
   P('</span>', end="")
 
 
-def PrintExampleCGI(text, query):
-  if not query:
-    P('{}', text, end="")
-    return
+def PrintExampleCGI(text, query, highlights):
+
+  highlights = [regex.escape(x) for x in highlights]
+  core_expr = "|".join(highlights)
+
+  
   if tkrzw_dict.PredictLanguage(query) == "en":
-    phrase_regex = regex.compile(r"(?i)(^|\W)(" + regex.escape(query) + r")(\W|$)")
+    phrase_regex = regex.compile(r"(?i)(^|\W)(" + core_expr + r")(\W|$)")
   else:
-    phrase_regex = regex.compile(r"(?i)(.*)(" + regex.escape(query) + r")(.*)")
+    phrase_regex = regex.compile(r"(?i)(.*)(" + core_expr + r")(.*)")
   while True:
     match = phrase_regex.search(text)
     if match:
@@ -1803,7 +1813,6 @@ function toggle_label(ent_id, label) {{
   for (let item of ent_elem.getElementsByClassName("item")) {{
     item.style.display = old_label == label || item.classList.contains(item_label) ?
        null : "none";
-    console.log(label, old_label, item.classList);
     if (old_label != label && item.classList.contains(item_label)) {{
       item.classList.add("item_focus");
     }} else {{
