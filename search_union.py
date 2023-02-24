@@ -1394,7 +1394,7 @@ a.navi_link:hover {{ background: #dddddd; opacity: 1; }}
 .attr_value {{ margin-left: 0.3ex; color: #111111; }}
 .text {{ margin-left: 0.3ex; color: #111111; }}
 .item_x b {{ font-weight: normal; font-style: italic; }}
-.item_x.item_focus b {{ font-weight: 600; color: #001177; }}
+.item_x.item_focus b {{ font-weight: 550; color: #001166; }}
 .extran {{ padding-left: 0.5ex; font-size: 80%; color: #555555; }}
 .item_x .extran b {{ font-style: normal; }}
 .entry_navi {{ position: absolute; top: 1ex; right: 1ex; font-size: 95%; user-select: none; }}
