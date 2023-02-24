@@ -1273,6 +1273,16 @@ def PrintCGIHeader(page_title, extra_mode="", file=sys.stdout):
 html {{ margin: 0ex; padding: 0ex; background: #eeeeee; font-size: 12pt; }}
 body {{ margin: 0ex; padding: 0ex; text-align: center; -webkit-text-size-adjust: 100%;
   overflow-x: hidden; overflow-y: auto; }}
+.historybutton {{
+  position: fixed; z-index: 2; bottom: 2px; width: 2ex; border-radius: 0.5ex;
+  cursor: pointer; user-select: none; opacity: 0.1;
+}}
+.historybutton:hover {{
+ opacity: 0.9;
+ background: #ddeeff;
+}}
+#histbackwardbutton {{ left: 2px; }}
+#histforwardbutton {{ right: 2px; }}
 #mainpage {{ display: inline-block; width: 100ex; text-align: left; padding-bottom: 3ex; }}
 a,a:visited {{ text-decoration: none; }}
 a:hover {{ color: #0011ee; text-decoration: underline; }}
@@ -1280,7 +1290,8 @@ h1 a,h2 a {{ color: #000000; text-decoration: none; }}
 h1 {{ font-size: 110%; margin: 1ex 0ex 0ex 0ex; }}
 h2 {{ font-size: 105%; margin: 0.7ex 0ex 0.3ex 0.8ex; }}
 #loupe {{ display: none; position: absolute; z-index: 2;
-  top: 0; right: 0; width: 3ex; text-align: center; font-size: 90%; cursor: pointer;
+  top: 0; right: 0; width: 3ex; text-align: center; font-size: 90%;
+  cursor: pointer; user-select: none;
   background: #ddeeff; border: 1px solid #cccccc; border-radius: 0.5ex; opacity: 0.5; }}
 #loupe:hover {{ opacity: 0.9; }}
 .search_form,.entry_view,.list_view,.annot_view,.message_view,.help {{
@@ -1307,7 +1318,8 @@ a.navi_link:hover {{ background: #dddddd; opacity: 1; }}
 .page_icon {{ display: inline-block; width: 3ex; text-align: center;
  border: 1px solid #dddddd; border-radius: 0.5ex; background: #eeeeee;
  color: #111111; padding-left: 0.5ex; text-decoration: none; opacity: 0.5; }}
-.page_icon:hover {{ color: #000000; text-decoration: underline; opacity: 1; cursor: pointer; }}
+.page_icon:hover {{ color: #000000; text-decoration: underline; opacity: 1;
+  cursor: pointer; user-select: none; }}
 .title_pron {{ margin-left: 1.5ex; font-size: 85%; font-weight: normal; color: #444444; }}
 .title_pron:before,.title_pron:after {{ content: "/"; font-size: 90%; color: #999999; }}
 .attr,.item {{ color: #999999; }}
@@ -1319,11 +1331,11 @@ a.navi_link:hover {{ background: #dddddd; opacity: 1; }}
 .item_text3 {{ margin-left: 9ex; margin-right: 1ex; }}
 .item_text4 {{ margin-left: 12ex; margin-right: 1ex; }}
 .item_text_n {{ font-size: 90%; }}
-.item_omit {{ margin-left: 3.5ex; opacity: 0.6; font-size: 90%; }}
+.item_omit {{ margin-left: 3.5ex; opacity: 0.6; font-size: 90%; user-select: none; }}
 .attr_label,.label,.pos,.subattr_label {{
   display: inline-block; border: solid 1px #999999; border-radius: 0.5ex;
   font-size: 65%; min-width: 3.5ex; text-align: center; margin-right: -0.5ex;
-  color: #111111; background: #eeeeee; opacity: 0.8; }}
+  color: #111111; background: #eeeeee; user-select: none; opacity: 0.8; }}
 .item_xa .label {{ background: #eeeeee; }}
 .item_xz .label {{ background: #eeeeee; }}
 .item_wn .label {{ background: #eeffdd; }}
@@ -1333,17 +1345,17 @@ a.navi_link:hover {{ background: #dddddd; opacity: 1; }}
 .item_xs .label {{ background: #ffffdd; }}
 .item_x .label {{ background: #e8eef3; cursor: pointer; }}
 .item_p .label {{ background: #e8f3ee; }}
-.subattr_func_label {{ cursor: pointer; }}
+.subattr_func_label {{ cursor: pointer; user-select: none; }}
 .tran {{ color: #000000; }}
 .attr_value {{ margin-left: 0.3ex; color: #111111; }}
 .text {{ margin-left: 0.3ex; color: #111111; }}
 .extran {{ padding-left: 0.5ex; font-size: 80%; color: #555555; }}
-.entry_navi {{ position: absolute; top: 1ex; right: 1ex; font-size: 95%; }}
+.entry_navi {{ position: absolute; top: 1ex; right: 1ex; font-size: 95%; user-select: none; }}
 .entry_icon {{ display: inline-block; text-align: center; color: #bbbbbb; opacity: 0.8; }}
 .entry_label_icon {{ font-family: monospace; width: 2.1ex; transform: scaleX(0.7); }}
 .entry_extra_icon {{ font-family: monospace; width: 1.8ex; }}
 .entry_star_icon {{ width: 2.1ex; }}
-.entry_icon:hover {{ opacity: 1; cursor: pointer; text-decoration: none; }}
+.entry_icon:hover {{ opacity: 1; cursor: pointer; user-select: none; text-decoration: none; }}
 .entry_label_icon:hover,.entry_extra_icon:hover {{ color: #44aa88; }}
 #star_list div {{ white-space: nowrap; overflow: hidden; }}
 .star_hint {{ display: none; }}
@@ -1380,7 +1392,7 @@ a.star_word {{ display: inline-block; min-width: 10ex; padding: 0ex 0.5ex;
 .annot_line_navi {{ position: absolute; top: 0.3ex; right: 0.3ex; }}
 .annot_line_icon {{ width: 3ex; text-align: center; font-size: 80%;
   color: #111111; background: #eeeeee; opacity: 0.3;
-  border: 1px solid #dddddd; border-radius: 0.8ex; cursor: pointer; }}
+  border: 1px solid #dddddd; border-radius: 0.8ex; cursor: pointer; user-select: none; }}
 .annot_line_icon:hover {{ opacity: 0.8; background: #eeffff; }}
 .annot_view rt {{ color: #1133aa; text-align: center; padding: 1ex; }}
 .annot_view i {{ color: #006622; }}
@@ -1437,7 +1449,7 @@ a.star_word {{ display: inline-block; min-width: 10ex; padding: 0ex 0.5ex;
   .item_text4 {{ margin-left: 7ex; margin-right: 0.4ex; }}
   .item_text_n {{ font-size: 90%; }}
   .list_view, .help {{ padding: 0.3ex 0.7ex; }}
-  .item_omit {{ margin-left: 1.5ex; }}
+  .item_omit {{ margin-left: 2.5ex; }}
 }}
 @media (max-width:500px) {{
   #mainpage {{ zoom: 90%; }}
@@ -1510,11 +1522,93 @@ function startup() {{
       event.preventDefault();
     }}
   }}, false);
+  config_history();
   modify_urls();
   mark_stars();
   list_stars(false);
   jump_label();
   init_loupe();
+}}
+let storage_key_history = "union_dict_history";
+let hist_prev_item;
+let hist_next_item;
+function config_history() {{
+  let base_url = new URL(document.location.href);
+  let base_url_str = base_url.toString();
+  let history = load_history();
+  let hist_time = base_url.searchParams.get("hist");
+  if (hist_time) {{
+    hist_time = parseInt(hist_time);
+    for (let i = 0; i < history.length; i++) {{
+      let item = history[i];
+      if (item["time"] < hist_time) {{
+        hist_prev_item = item;
+      }} else {{
+        break;
+      }}
+    }}
+    for (let i = history.length - 1; i >= 0; i--) {{
+      let item = history[i];
+      if (item["time"] > hist_time) {{
+        hist_next_item = item;
+      }} else {{
+        break;
+      }}
+    }}
+  }} else {{
+    if (history.length > 0) {{
+      hist_prev_item = history[history.length - 1];
+    }}
+    if (base_url.searchParams.has("q") && !base_url.hash &&
+      (history.length < 1 || history[history.length - 1]["url"] != base_url_str)) {{
+      let item = {{"url": base_url_str, "time": Date.now()}};
+      history.push(item);
+    }}
+  }}
+  if (!hist_prev_item) {{
+    let histbutton = document.getElementById("histbackwardbutton");
+    if (histbutton) {{
+      histbutton.style.display = "none";
+    }}
+  }}
+  if (!hist_next_item) {{
+    let histbutton = document.getElementById("histforwardbutton");
+    if (histbutton) {{
+      histbutton.style.display = "none";
+    }}
+  }}
+  save_history(history);
+}}
+function load_history() {{
+  if (!localStorage) return [];
+  let history = localStorage.getItem(storage_key_history);
+  if (history == null) {{
+    history = [];
+  }} else {{
+    history = JSON.parse(history);
+  }}
+  return history;
+}}
+function save_history(history) {{
+  if (!localStorage) return;
+  let max_history_length = 100;
+  if (history.length > max_history_length) {{
+    history = history.slice(-max_history_length);
+  }}
+  localStorage.setItem(storage_key_history, JSON.stringify(history));
+}}
+function historyjump(item) {{
+  let hist_url = new URL(item["url"]);
+  hist_url.searchParams.set("hist", item["time"].toString())
+  document.location.href = hist_url.toString();
+}}
+function historybackward() {{
+  if (!hist_prev_item) return;
+  historyjump(hist_prev_item);
+}}
+function historyforward() {{
+  if (!hist_next_item) return;
+  historyjump(hist_next_item);
 }}
 function check_search_form() {{
   let search_form = document.forms["search_form"];
@@ -1601,7 +1695,7 @@ function move_focus(class_name, reverse) {{
 }}
 function modify_urls() {{
   let base_url = new URL(document.location.href);
-  if (base_url.search && base_url.search.match(/[&?]x=popup(&|$)/)) {{
+  if (base_url.searchParams.get("x") == "popup") {{
     let base_prefix = base_url.origin + base_url.pathname;
     let links = document.getElementsByTagName("a");
     for (let link of links) {{
@@ -1706,7 +1800,7 @@ function jump_loupe() {{
   let loupe = document.getElementById("loupe");
   let base_url = new URL(document.location.href);
   let new_url = "?q=" + encodeURIComponent(loupe.query);
-  if (base_url.search && base_url.search.match(/[&?]x=popup(&|$)/)) {{
+  if (base_url.search && base_url.searchParams.get("x") == "popup") {{
     new_url += "&x=popup";
   }}
   document.location.href = new_url;
@@ -1956,6 +2050,8 @@ function is_touchable() {{
 /*]]>*/</script>
 </head>
 <body onload="startup()" class="normal">
+<div id="histbackwardbutton" class="historybutton" onclick="historybackward()">&#x25C1;</div>
+<div id="histforwardbutton" class="historybutton" onclick="historyforward()">&#x25B7;</div>
 <div id="mainpage">
 """.format(esc(page_title)), end="", file=file)
 
@@ -2366,6 +2462,7 @@ def main_cgi():
 <p>デフォルトでは、表示形式は自動的に設定されます。ヒット件数が1件の場合にはその語の語義が詳細に表示され、ヒット件数が5以下の場合には主要語義のみが表示され、ヒット件数がそれ以上の場合には翻訳語のみがリスト表示されます。結果の見出し語を選択すると詳細表示が見られます。</p>
 <p>各見出し語の欄の右上にはページ内のリンクや特殊操作のアイコンが置かれます。「WN」「WE」等を選択すると、そのラベルの語義のみを表示します。もう一度選択すると解除されます。「例」を選択すると、その見出し語を含む対訳例文のみを表示します。「句」を選択すると、その見出し語を含むフレーズの情報のみを表示します。「類」を選択すると、その見出し語の類義語を検索します。「読」を選択すると、その見出し語を読み上げます。「&#x2605;」を選択すると、その見出し語に星印がつけられます。</p>
 <p>トップ画面で「<a href="?x=help">&#xFF1F;</a>」をクリックすると、このヘルプ画面が表示されます。トップ画面で「<a href="?x=stars">&#x2606;</a>」をクリックすると、星印をつけた見出し語の一覧が表示されます。この一覧は語彙学習の成果確認と復習に便利です。</p>
+<p>表示された訳語や派生語はリンクになっているので、それをクリックするとその語句の検索結果に飛びます。語義説明の文中の単語やフレーズをダブルクリックやドラッグで選択すると、近くに虫眼鏡アイコンが現れます。それをクリックすると、その語句の検索結果に飛びます。</p>
 <p>アクセシビリティのためのショートカット機能があります。Shift+Backspaceを押すと、フォーカスが検索窓に移動して、検索窓の語句が消去されます。これは素早く再検索するのに便利です。スクリーンリーダ等で検索結果の主要な内容を読み取るには、Shiftを押しながら矢印の左右を押すのが便利です。Shift+右を押すと、見出し語にフォーカスが進み、さらにShift+右を押すと、訳語のリストにフォーカスが移ります。さらにShift+右を押していくと、各々の語義説明のラベルにフォーカスが移っていきます。Shift+左で戻ります。同様にして、Shift+上とShift+下でも読み取りを行いますが、発音や派生語も飛ばさずに遷移します。</p>
 <p>このサイトはオープンな英和辞書検索のデモです。辞書データは、次のデータソースから抽出したデータを統合したものです。<a href="https://wordnet.princeton.edu/">WordNet</a>、<a href="https://bond-lab.github.io/wnja/">日本語WordNet</a>、<a href="https://en.wiktionary.org/">Wiktionary英語版</a>、<a href="https://ja.wiktionary.org/">Wiktionary日本語版</a>、<a href="https://en.wikipedia.org/wiki/Main_Page">Wikipedia英語版</a>、<a href="https://ja.wikipedia.org/wiki/Main_Page">Wikipedia日本語版</a>、<a href="http://www.edrdg.org/jmdict/edict.html">EDict2</a>、<a href="http://edrdg.org/wiki/index.php/Tanaka_Corpus">田中コーパス</a>、<a href="https://alaginrc.nict.go.jp/WikiCorpus/">Wikipedia日英京都関連文書対訳コーパス</a>、<a href="https://nlp.stanford.edu/projects/jesc/index_ja.html">Japanese-English Subtitle Corpus</a>、<a href="https://www.statmt.org/cc-aligned/">CCAligned</a>、<a href="https://commoncrawl.org/">Common Crawl</a>。<a href="https://dbmx.net/dict/">統合英和辞書のホームページ</a>もご覧ください。検索システムはPythonと高性能データベースライブラリ<a href="https://dbmx.net/tkrzw/">Tkrzw</a>を用いて実装されています。<a href="https://github.com/estraier/tkrzw-dict">コードベース</a>はGitHubにて公開されています。</p>
 </div>""")
