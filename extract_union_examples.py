@@ -51,24 +51,33 @@ class ExtractExamplesBatch:
     it.First()
     num_entries = 0
     all_examples = []
+    exnum_dict = {}
     while True:
       record = it.GetStr()
       if not record: break
       key, serialized = record
       entry = json.loads(serialized)
+      exnum = 0
       for word_entry in entry:
         word = word_entry["word"]
         examples = word_entry.get("example")
         if not examples: continue
         for i, example in enumerate(examples):
           all_examples.append((i, num_entries, example["e"], example["j"]))
+        exnum += len(examples)
+      exnum_dict[key] = exnum
       num_entries += 1
       if num_entries % 10000 == 0:
         logger.info("Reading: entries={}".format(num_entries))
+
+        # hoge
+        #break
+
+        
       it.Next()
     input_dbm.Close().OrDie()
     logger.info("Reading done: entries={}, examples={}".format((num_entries), len(all_examples)))
-    aux_examples = self.ReadAuxExamples()
+    aux_examples = self.ReadAuxExamples(exnum_dict)
     for i, (source, target) in enumerate(aux_examples):
       all_examples.append((10000, i, source, target))
     all_examples = sorted(all_examples)
@@ -88,7 +97,7 @@ class ExtractExamplesBatch:
       logger.info("Writing done: entries={}".format(num_entries))
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
-  def ReadAuxExamples(self):
+  def ReadAuxExamples(self, exnum_dict):
     best_source_length = 60
     best_target_length = 30
     aux_examples = []
@@ -108,7 +117,22 @@ class ExtractExamplesBatch:
           source_len_score = 1 / math.exp(abs(math.log(len(source) / best_source_length)))
           target_len_score = 1 / math.exp(abs(math.log(len(target) / best_target_length)))
           length_score = (source_len_score * target_len_score) ** 0.5
-          aux_examples.append((source, target, length_score * file_score))
+          exnum_score = 1.0
+          ideal_exnum = 4
+          tokens = [x.lower() for x in regex.split(r"\W+", source) if x]
+          for start_index in range(len(tokens)):
+            index = start_index
+            end_index = min(start_index + 3, len(tokens))
+            phrase = ""
+            while index < end_index:
+              if phrase:
+                phrase += " "
+              phrase += tokens[index]
+              exnum = exnum_dict.get(phrase)
+              if exnum and exnum <= ideal_exnum:
+                exnum_score += ideal_exnum * 0.1 / (exnum + 2)          
+              index += 1
+          aux_examples.append((source, target, length_score * exnum_score * file_score))
       file_score *= 0.9
     aux_examples = sorted(aux_examples, key=lambda x: (-x[2], source, target))
     logger.info("Reading auxiliary examples done: num={}".format(len(aux_examples)))
@@ -120,7 +144,7 @@ def main():
   input_path = tkrzw_dict.GetCommandFlag(args, "--input", 1) or "union-body.tkh"
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-examples.tsv"
   aux_example_paths = (tkrzw_dict.GetCommandFlag(args, "--aux_example", 1) or "").split(",")
-  max_examples = int(tkrzw_dict.GetCommandFlag(args, "--max_examples", 1) or 700000)
+  max_examples = int(tkrzw_dict.GetCommandFlag(args, "--max_examples", 1) or 1000000)
   if tkrzw_dict.GetCommandFlag(args, "--quiet", 0):
     logger.setLevel(logging.ERROR)
   if args:
