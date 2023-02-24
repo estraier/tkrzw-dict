@@ -4,7 +4,7 @@
 # Script to make a list of keys of a union dictionary
 #
 # Usage:
-#   extract_union_keys.py [--input str] [--output str] [--tran_prob str] [--quiet]
+#   extract_union_keys.py [--input str] [--output str] [--tran_prob str] [--raw_word] [--quiet]
 #
 # Example:
 #   ./extract_union_keys.py --input union-body.tkh --output union-keys.txt
@@ -35,10 +35,11 @@ logger = tkrzw_dict.GetLogger()
 
 
 class ExtractKeysBatch:
-  def __init__(self, input_path, output_path, tran_prob_path):
+  def __init__(self, input_path, output_path, tran_prob_path, is_raw_word):
     self.input_path = input_path
     self.output_path = output_path
     self.tran_prob_path = tran_prob_path
+    self.is_raw_word = is_raw_word
 
   def Run(self):
     start_time = time.time()
@@ -150,7 +151,10 @@ class ExtractKeysBatch:
         elif regex.search(r".[\p{Lu}]", word):
           score *= 0.5
         max_score = max(max_score, score)
-      scores.append((key, max_score))
+        if self.is_raw_word:
+          scores.append((word, score))
+      if not self.is_raw_word:
+        scores.append((key, max_score))
       num_entries += 1
       if num_entries % 10000 == 0:
         logger.info("Reading: entries={}".format(num_entries))
@@ -176,11 +180,12 @@ def main():
   input_path = tkrzw_dict.GetCommandFlag(args, "--input", 1) or "union-body.tkh"
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-keys.txt"
   tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
+  is_raw_word = tkrzw_dict.GetCommandFlag(args, "--raw_word", 0)
   if tkrzw_dict.GetCommandFlag(args, "--quiet", 0):
     logger.setLevel(logging.ERROR)
   if args:
     raise RuntimeError("unknown arguments: {}".format(str(args)))
-  ExtractKeysBatch(input_path, output_path, tran_prob_path).Run()
+  ExtractKeysBatch(input_path, output_path, tran_prob_path, is_raw_word).Run()
 
 
 if __name__=="__main__":
