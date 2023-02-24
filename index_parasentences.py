@@ -53,7 +53,7 @@ class MakeIndexBatch:
     self.tokenizer = tkrzw_tokenizer.Tokenizer()
     self.output_dbm = None
     self.phrase_prob_dbm = None
-    self.focus_keywords = set()
+    self.focus_keywords = None
     self.word_index = {}
     self.random = random.Random(19780211)
 
@@ -79,15 +79,18 @@ class MakeIndexBatch:
   def ReadKeywords(self):
     start_time = time.time()
     logger.info("Reading keywords: path={}".format(self.keywords_path))
+    self.focus_keywords = tkrzw.DBM()
+    self.focus_keywords.Open("", True, dbm="BabyDBM")
     num_lines = 0
     with open(self.keywords_path) as input_file:
       for line in input_file:
         line = line.strip()
         if not line: continue
         line = line.lower()
-        self.focus_keywords.add(line)
+        self.focus_keywords.Set(line, "")
         norm_line = " ".join(self.tokenizer.Tokenize("en", line, False, True))
-        self.focus_keywords.add(norm_line)
+        if norm_line != line:
+          self.focus_keywords.Set(norm_line, "")
         num_lines += 1
         if num_lines % 10000 == 0:
           logger.info("Reading keywords: lines={}".format(num_lines))
@@ -136,6 +139,9 @@ class MakeIndexBatch:
     num_lines = 0
     num_words = 0
     sentence_hashes = set()
+    focus_it = None
+    if self.focus_keywords:
+      focus_it = self.focus_keywords.MakeIterator()
     for line in sys.stdin:
       line = line.strip()
       if not line: continue
@@ -182,6 +188,23 @@ class MakeIndexBatch:
           if is_good and phrase not in uniq_phrases:
             phrases.append(phrase)
             uniq_phrases.add(phrase)
+          if focus_it and index == start_index + self.max_ngram:
+            next_index = index
+            next_phrase = phrase
+            while next_index < len(words):
+              next_phrase += " " + regex.sub(r"[^-'\p{Latin}]", "", words[next_index])
+              if not next_phrase: break
+              if next_phrase in self.focus_keywords:
+                if next_phrase not in uniq_phrases:
+                  phrases.append(next_phrase)
+                  uniq_phrases.add(next_phrase)
+              else:
+                next_key = next_phrase + " "
+                focus_it.Jump(next_key)
+                next_record = focus_it.GetStr()
+                if not next_record or not next_record[0].startswith(next_key):
+                  break
+              next_index += 1
           if tail_symbol: break
         start_index += 1
       if len(phrases) > self.max_words:
