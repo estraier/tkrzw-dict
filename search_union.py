@@ -1529,9 +1529,13 @@ function startup() {{
   jump_label();
   init_loupe();
 }}
+function cleanup() {{
+  adjust_history();
+}}
 let storage_key_history = "union_dict_history";
 let hist_prev_item;
 let hist_next_item;
+let is_hist_jump = false;
 function config_history() {{
   let base_url = new URL(document.location.href);
   let base_url_str = base_url.toString();
@@ -1597,9 +1601,23 @@ function save_history(history) {{
   }}
   localStorage.setItem(storage_key_history, JSON.stringify(history));
 }}
+function adjust_history() {{
+  if (is_hist_jump) return;
+  if (!hist_next_item) return;
+  let next_time = hist_next_item["time"];
+  console.log(next_time);
+  let history = []
+  for (let item of load_history()) {{
+    if (item["time"] < next_time) {{
+      history.push(item);
+    }}
+  }}
+  save_history(history);
+}}
 function historyjump(item) {{
   let hist_url = new URL(item["url"]);
   hist_url.searchParams.set("hist", item["time"].toString())
+  is_hist_jump = true;
   document.location.href = hist_url.toString();
 }}
 function historybackward() {{
@@ -2049,7 +2067,7 @@ function is_touchable() {{
 }}
 /*]]>*/</script>
 </head>
-<body onload="startup()" class="normal">
+<body onload="startup()" onunload="cleanup()" class="normal">
 <div id="histbackwardbutton" class="historybutton" onclick="historybackward()">&#x25C1;</div>
 <div id="histforwardbutton" class="historybutton" onclick="historyforward()">&#x25B7;</div>
 <div id="mainpage">
