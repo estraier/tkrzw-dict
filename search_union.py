@@ -8,7 +8,7 @@
 #     [--capacity] [--query_file str] [--output_prefix str] [words...]
 #
 #   Index modes: auto (default), normal, reverse, inflection, example, grade, annot
-#   Search modes: auto (default), expact, prefix, suffix, contain, word, edit, related
+#   Search modes: auto (default), exact, prefix, suffix, contain, word, edit, related
 #   View mode: auto (default), full, simple, list, annot
 #
 # Example:
@@ -459,6 +459,7 @@ def main():
     query = tkrzw_dict.NormalizeWord(query)
   searcher = tkrzw_union_searcher.UnionSearcher(data_prefix)
   is_reverse = False
+  sub_search_mode = None
   if index_mode == "auto":
     if tkrzw_dict.PredictLanguage(query) != "en":
       is_reverse = True
@@ -478,7 +479,9 @@ def main():
       else:
         query = lemmas[0]
   elif index_mode == "example":
+    sub_search_mode = search_mode
     search_mode = "example"
+    view_mode = "full"
   elif index_mode == "grade":
     search_mode = "grade"
   elif index_mode == "annot":
@@ -526,8 +529,7 @@ def main():
     else:
       result = searcher.SearchRelated(query, capacity)
   elif search_mode == "example":
-    result = searcher.SearchExample(query, capacity)
-    view_mode = "full"
+    result = searcher.SearchExample(query, sub_search_mode, capacity)
   elif search_mode == "grade":
     page = max(Atoi(query), 1)
     result = searcher.SearchByGrade(capacity, page, True)
@@ -946,6 +948,10 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
             if value:
               for infl in value:
                 highlights.add(infl)
+        surfaces = entry.get("surface")
+        if surfaces:
+          for surface in surfaces:
+            highlights.add(surface.lower())
         for label_id, example in enumerate(examples, 1):
           item_classes = ["item_x"]
           if not entry["item"]:
@@ -2251,6 +2257,7 @@ def main_cgi():
     P('</div>')
     P('</form>')
     P('</nav>')
+  sub_search_mode = None
   if error_notes:
     P('<section class="message_view">')
     for note in error_notes:
@@ -2278,6 +2285,7 @@ def main_cgi():
         else:
           query = lemmas[0]
     elif index_mode == "example":
+      sub_search_mode = search_mode
       search_mode = "example"
       view_mode = "full"
     elif index_mode == "grade":
@@ -2341,7 +2349,7 @@ def main_cgi():
       else:
         result = searcher.SearchRelated(query, CGI_CAPACITY)
     elif search_mode == "example":
-      result = searcher.SearchExample(query, CGI_CAPACITY)
+      result = searcher.SearchExample(query, sub_search_mode, CGI_CAPACITY)
     elif search_mode == "grade":
       page = max(Atoi(query), 1)
       result = searcher.SearchByGrade(CGI_CAPACITY, page, True)

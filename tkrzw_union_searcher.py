@@ -396,18 +396,59 @@ class UnionSearcher:
           break
     return result
 
-  def SearchExample(self, text, capacity):
+  _infl_names = ["noun_plural", "verb_singular", "verb_present_participle",
+                 "verb_past", "verb_past_participle",
+                 "adjective_comparative", "adjective_superlative",
+                 "adverb_comparative", "adverb_superlative"]
+  def SearchExample(self, text, search_mode, capacity):
     self.OpenExamplesFile()
     result = []
+    surfaces = {}
     if tkrzw_dict.PredictLanguage(text) == "en":
-      mode = "containcaseword"
+      if search_mode == "exact":
+        mode = "containcaseword"
+        query = text
+      elif search_mode == "prefix":
+        mode = "regex"
+        query = r"(?i)(^|\W){}".format(regex.escape(text))
+      elif search_mode == "suffix":
+        mode = "regex"
+        query = r"(?i){}(\W|$)".format(regex.escape(text))
+      elif search_mode == "contain":
+        mode = "containcase"
+        query = text
+      else:
+        infls = {text.lower()}
+        entries = self.SearchExact(text, 4)
+        if entries:
+          for entry in entries:
+            word = entry["word"]
+            infls.add(word.lower())
+            surfaces[word] = True
+            for infl_name in self._infl_names:
+              value = entry.get(infl_name)
+              if value:
+                for infl in value:
+                  infls.add(infl.lower())
+                  surfaces[infl] = True
+        if len(infls) > 1:
+          core_expr = "|".join([regex.escape(x) for x in infls])
+          mode = "regex"
+          query = r"(?i)(^|\W)(" + core_expr + r")(\W|$)"
+        else:
+          mode = "containcaseword"
+          query = text
     elif regex.search("[a-zA-Z]", text):
       mode = "containcase"
+      query = text
     else:
       mode = "contain"
-    lines = self.examples_file.Search(mode, text, capacity)
+      query = text
+    lines = self.examples_file.Search(mode, query, capacity)
     if lines:
       entry = {"word": text, "probability": ".0", "item": []}
+      if surfaces:
+        entry["surface"] = surfaces.keys()
       examples = []
       for line in lines:
         fields = line.split("\t")
