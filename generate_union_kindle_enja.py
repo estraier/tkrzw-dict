@@ -154,6 +154,7 @@ STYLE_TEXT = """html,body { margin: 0; padding: 0; background: #fff; color: #000
 span.word { font-weight: bold; }
 span.pron { font-size: 90%; color: #444; }
 span.pos,span.attr { font-size: 80%; color: #555; word-spacing: 0; letter-spacing: 0; }
+span.exen b { font-weight: 550; font-style: italic; color: #000; }
 span.exja { font-size: 85%; color: #444; }
 """
 NAVIGATION_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
@@ -722,7 +723,7 @@ class GenerateUnionEPUBBatch:
     if self.example_only:
       if examples:
         for example in examples:
-          self.MakeMainEntryExampleItem(P, example)
+          self.MakeMainEntryExampleItem(P, example, entry)
     else:
       for item in items:
         self.MakeMainEntryItem(P, item)
@@ -804,10 +805,38 @@ class GenerateUnionEPUBBatch:
         P('<span>{} : {}</span>', word, text)
         P('</div>')
 
-  def MakeMainEntryExampleItem(self, P, example):
+  def MakeMainEntryExampleItem(self, P, example, entry):
+    highlights = {entry["word"].lower()}
+    for attr_list in INFLECTIONS:
+      fields = []
+      for name, label in attr_list:
+        value = entry.get(name)
+        if value:
+          for infl in value:
+            highlights.add(infl)
     P('<div>')
-    P('<span class="attr">[例]</span>')
-    P('<span class="exen">{}</span>', example["e"])
+    P('<span class="attr">&#x2023;</span>')
+    P('<span class="exen">', end="")
+    highlights = [regex.escape(x) for x in highlights]
+    core_expr = "|".join(highlights)
+    phrase_regex = regex.compile(r"(?i)(^|\W)(" + core_expr + r")(\W|$)")
+    text = example["e"]
+    while True:
+      match = phrase_regex.search(text)
+      if match:
+        pos = match.span()[0]
+        if pos > 0:
+          P('{}', text[:pos], end="")
+        P('{}', match.group(1), end="")
+        P('<b>{}</b>', match.group(2), end="")
+        P('{}', match.group(3), end="")
+        pos = match.span()[1]
+        text = text[pos:]
+      else:
+        if text:
+          P('{}', text, end="")
+        break
+    P('</span>')
     P('<span class="exja">({})</span>', example["j"])
     P('</div>')
 
