@@ -432,9 +432,8 @@ class UnionSearcher:
                   infls.add(infl.lower())
                   surfaces[infl] = True
         if len(infls) > 1:
-          core_expr = "|".join([regex.escape(x) for x in infls])
-          mode = "regex"
-          query = r"(?i)(^|\W)(" + core_expr + r")(\W|$)"
+          mode = "containcaseword*"
+          query = "\n".join([regex.escape(x) for x in infls])
         else:
           mode = "containcaseword"
           query = text
