@@ -1089,11 +1089,8 @@ def PrintItemTextCGI(text):
 
 
 def PrintExampleCGI(text, query, highlights):
-
   highlights = [regex.escape(x) for x in highlights]
   core_expr = "|".join(highlights)
-
-  
   if tkrzw_dict.PredictLanguage(query) == "en":
     phrase_regex = regex.compile(r"(?i)(^|\W)(" + core_expr + r")(\W|$)")
   else:
@@ -1113,7 +1110,6 @@ def PrintExampleCGI(text, query, highlights):
       if text:
         P('{}', text, end="")
       break
-
 
 
 def PrintResultCGIList(script_name, entries, query):
