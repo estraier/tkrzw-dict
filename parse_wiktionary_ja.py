@@ -450,6 +450,11 @@ class XMLHandler(xml.sax.handler.ContentHandler):
               elif len(values) == 2:
                 comparative = values[0]
                 superlative = values[1]
+              if title not in ["many", "much"]:
+                if comparative in ["more", "most"]:
+                  comparative = ""
+                if superlative in ["more", "most"]:
+                  superlative = ""
               if self.IsGoodInflection(comparative):
                 output.append("inflection_adjective_comparative={}".format(comparative))
               if self.IsGoodInflection(superlative):
