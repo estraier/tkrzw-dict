@@ -1836,16 +1836,17 @@ function toggle_label(ent_id, label) {{
   new_url.searchParams.delete("j");
   new_url.searchParams.delete("hist");
   let history = load_history();
-  if (history.length > 0) {{
-    let last_url = new URL(history[history.length - 1]["url"]);
+  let min_check_index = Math.max(0, history.length - 3);
+  for (let i = history.length - 1; i >= min_check_index; i--) {{
+    let last_url = new URL(history[i]["url"]);
     last_url.searchParams.delete("x");
     last_url.searchParams.delete("j");
     last_url.searchParams.delete("hist");
     if (last_url.toString() == new_url.toString()) {{
       new_url.searchParams.set("j", ent_id + label);
-      let item = {{"url": new_url.toString(), "time": Date.now()}};
-      history[history.length - 1] = item;
+      history[i]["url"] = new_url.toString();
       save_history(history);
+      break;
     }}
   }}
 }}
