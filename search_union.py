@@ -1587,6 +1587,7 @@ let hist_next_item;
 let is_hist_jump = false;
 function config_history() {{
   let base_url = new URL(document.location.href);
+  base_url.searchParams.delete("x");
   let base_url_str = base_url.toString();
   let history = load_history();
   let hist_time = base_url.searchParams.get("hist");
@@ -1663,7 +1664,12 @@ function adjust_history() {{
   save_history(history);
 }}
 function historyjump(item) {{
+  let base_url = new URL(document.location.href);
+  let extra = base_url.searchParams.get("x");
   let hist_url = new URL(item["url"]);
+  if (extra) {{
+    hist_url.searchParams.set("x", extra);
+  }}
   hist_url.searchParams.set("hist", item["time"].toString())
   is_hist_jump = true;
   document.location.href = hist_url.toString();
@@ -1822,9 +1828,26 @@ function toggle_label(ent_id, label) {{
     }}
   }}
   ent_labels[ent_id] = old_label == label ? null : label;
-  var new_url = new URL(document.location.href);
+  let new_url = new URL(document.location.href);
   new_url.hash = "#" + ent_id + label;
   document.location.href = new_url;
+  new_url.hash = ""
+  new_url.searchParams.delete("x");
+  new_url.searchParams.delete("j");
+  new_url.searchParams.delete("hist");
+  let history = load_history();
+  if (history.length > 0) {{
+    let last_url = new URL(history[history.length - 1]["url"]);
+    last_url.searchParams.delete("x");
+    last_url.searchParams.delete("j");
+    last_url.searchParams.delete("hist");
+    if (last_url.toString() == new_url.toString()) {{
+      new_url.searchParams.set("j", ent_id + label);
+      let item = {{"url": new_url.toString(), "time": Date.now()}};
+      history[history.length - 1] = item;
+      save_history(history);
+    }}
+  }}
 }}
 function init_loupe() {{
   let loupe = document.getElementById("loupe");
