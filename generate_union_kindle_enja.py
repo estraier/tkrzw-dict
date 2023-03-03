@@ -154,7 +154,6 @@ STYLE_TEXT = """html,body { margin: 0; padding: 0; background: #fff; color: #000
 span.word { font-weight: bold; }
 span.pron { font-size: 90%; color: #444; }
 span.pos,span.attr { font-size: 80%; color: #555; word-spacing: 0; letter-spacing: 0; }
-span.exen b { font-weight: 550; font-style: italic; color: #000; }
 span.exja { font-size: 85%; color: #444; }
 """
 NAVIGATION_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
@@ -187,14 +186,17 @@ OVERVIEW_TEXT = """<?xml version="1.0" encoding="utf-8"?>
 <body>
 <article>
 <h2>Overview</h2>
-<p>This dictionary is made from multiple data sources published as open-source data.  They include <a href="https://wordnet.princeton.edu/">WordNet</a>, <a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">Japanese WordNet</a>, <a href="https://ja.wiktionary.org/">Japanese Wiktionary</a>, <a href="https://en.wiktionary.org/">English Wiktionary</a>, and <a href="http://www.edrdg.org/jmdict/edict.html">EDict2</a>.  See <a href="https://dbmx.net/dict/">the homepage</a> for details to organize the data.  Using and/or redistributing this data should be done according to the license of each data source.</p>
+<p>This dictionary is made from multiple data sources published as open-source data.  They include <a href="https://wordnet.princeton.edu/">WordNet</a>, <a href="http://compling.hss.ntu.edu.sg/wnja/index.en.html">Japanese WordNet</a>, <a href="https://ja.wiktionary.org/">Japanese Wiktionary</a>, <a href="https://en.wiktionary.org/">English Wiktionary</a>, <a href="http://www.edrdg.org/jmdict/edict.html">EDict2</a>, <a href="http://edrdg.org/wiki/index.php/Tanaka_Corpus">Tanaka corpus</a>, <a href="https://alaginrc.nict.go.jp/WikiCorpus/">Japanese-English Bilingual Corpus of Wikipedia's Kyoto Articles</a>, <a href="https://nlp.stanford.edu/projects/jesc/index_ja.html">Japanese-English Subtitle Corpus</a>, <a href="https://www.statmt.org/cc-aligned/">CCAligned</a>, and <a href="https://commoncrawl.org/">Common Crawl</a>.  See <a href="https://dbmx.net/dict/">the homepage</a> for details to organize the data.  Using and/or redistributing this data should be done according to the license of each data source.</p>
 <p>In each word entry, the title word is shown in bold.  Some words have a pronounciation expression in the IPA format, bracketed as "/.../".  A list of translations can come next.  Then, definitions of the word come in English or Japanese.  Each definition is led by a part of speech label.  Additional information such as inflections and varints can come next.</p>
 <p>The number of words is {}.  The number of words with translations is {}.  The number of definition items is {}.  The number of inflections is {}.  The number of redirections is {}.  The number of collocations is {}.</p>
 <h2>Copyright</h2>
 <div>WordNet Copyright 2021 The Trustees of Princeton University.</div>
 <div>Japanese Wordnet Copyright 2009-2011 NICT, 2012-2015 Francis Bond and 2016-2017 Francis Bond, Takayuki Kuribayashi.</div>
-<div>Wiktionary data is copyrighted by each contributers and licensed under CC BY-SA and GFDL.</div>
+<div>Wikipedia and Wiktionary data are copyrighted by each contributers and licensed under CC BY-SA and GFDL.</div>
 <div>EDict2 Copyright 2017 The Electronic Dictionary Research and Development Group.</div>
+<div>Japanese-English Bilingual Corpus of Wikipedia's Kyoto Articles Copyright 2010-2011 NICT.</div>
+<div>Japanese-English Subtitle Corpus Copyright 2019 Stanford University, Google Brain, and Rakuten Institute of Technology. </div>
+<div>CCAlign Copyright 2020 Ahmed El-Kishky, Vishrav Chaudhary, Francisco Guzman, Philipp Koehn.</div>
 </article>
 </body>
 </html>
@@ -422,7 +424,7 @@ class GenerateUnionEPUBBatch:
         if particle_suffix:
           return True
     translations = entry.get("translation")
-    if translations:
+    if translations and not self.example_only:
       if "verb" in poses or "adjective" in poses or "adverb" in poses:
         return True
       if regex.fullmatch("[a-z]+", word) and "we" in labels:
@@ -722,7 +724,7 @@ class GenerateUnionEPUBBatch:
       P('<div>{}</div>', ", ".join(translations[:6]))
     if self.example_only:
       if examples:
-        for example in examples:
+        for example in examples[:6]:
           self.MakeMainEntryExampleItem(P, example, entry)
     else:
       for item in items:

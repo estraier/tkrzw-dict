@@ -98,8 +98,8 @@ class ExtractExamplesBatch:
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
   def ReadAuxExamples(self, exnum_dict):
-    best_source_length = 60
-    best_target_length = 30
+    best_source_length = 57
+    best_target_length = 29
     aux_examples = []
     file_score = 1.0
     for aux_path in self.aux_example_paths:
