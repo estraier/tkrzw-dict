@@ -105,17 +105,28 @@ class AttachExamplesBatch:
       rev_prob_dbm.Open(self.rev_prob_path, False, dbm="HashDBM").OrDie()
     hint_dict = self.ReadHint()
     it = input_dbm.MakeIterator()
+    keys = []
     it.First().OrDie()
-    word_dict = {}
     while True:
       record = it.GetStr()
       if not record: break;
       key, data = record
+      entries = json.loads(data)
+      sum_prob = 0
+      for entry in entries:
+        sum_prob += float(entry.get("probability") or 0)
+      keys.append((key, sum_prob))
+      it.Next()
+    keys = sorted(keys, key=lambda x: (-x[1], x[0]))
+    word_dict = {}
+    adopt_source_counts = collections.defaultdict(int)
+    for key, sum_prob in keys:
+      data = input_dbm.GetStr(key)
+      if not data: continue
 
-      #if key not in ["tip of the iceberg"]:
-      #  it.Next()
+      #if key.find("super") < 0:
       #  continue
-      #if len(word_dict) > 1000:
+      #if len(word_dict) > 100:
       #  break
       
       entries = json.loads(data)
@@ -126,11 +137,11 @@ class AttachExamplesBatch:
           logger.info("Attaching: entries={}, hit_entries={}, examples={}".format(
             self.count_all_entries, self.count_hit_entries, self.count_examples))
         strict = not first_entry
-        self.AttachExamplesEntry(entry, indices, input_dbm, rev_prob_dbm, hint_dict, strict)
+        self.AttachExamplesEntry(
+          entry, indices, input_dbm, rev_prob_dbm, hint_dict, adopt_source_counts, strict)
         first_entry = False
       serialized = json.dumps(entries, separators=(",", ":"), ensure_ascii=False)
       word_dict[key] = serialized
-      it.Next()
     for index_dbm, rank, label in indices:
       index_dbm.Close().OrDie()
     input_dbm.Close().OrDie()
@@ -157,7 +168,8 @@ class AttachExamplesBatch:
       logger.info("Reading hint done: hints={}".format(len(hint_dict)))
     return hint_dict
 
-  def AttachExamplesEntry(self, entry, indices, input_dbm, rev_prob_dbm, hint_dict, strict):
+  def AttachExamplesEntry(self, entry, indices, input_dbm, rev_prob_dbm,
+                          hint_dict, adopt_source_counts, strict):
     entry.pop("example", None)
     word = entry["word"]
     core_words = collections.defaultdict(float)
@@ -180,8 +192,8 @@ class AttachExamplesBatch:
       word_poses.add(item["pos"])
     if len(labels) < 2:
       strict = True
-    best_source_length = 60
-    best_target_length = 30
+    best_source_length = 57
+    best_target_length = 29
     for infl_name, weight in inflections:
       infls = entry.get(infl_name)
       if infls:
@@ -233,10 +245,13 @@ class AttachExamplesBatch:
       target_hashes.add(target_hash)
       source = NormalizeSentence(source)
       target = NormalizeSentence(target)
-      if len(source) < best_source_length / 3:
+      short_min_ratio = 3
+      if regex.search("[A-Z].*[.!?]$", source):
+        short_min_ratio = 4
+      if len(source) < best_source_length / short_min_ratio:
         self.count_labels["reject-source-short"] += 1
         continue
-      if len(target) < best_target_length / 3:
+      if len(target) < best_target_length / short_min_ratio:
         self.count_labels["reject-target-short"] += 1
         continue
       if len(source) > best_source_length * 3:
@@ -254,6 +269,10 @@ class AttachExamplesBatch:
       if target.count("、") >= 4 or target.count("。") >= 3 or target.count(" ") >= 4:
         self.count_labels["reject-target-bad-punctuation"] += 1
         continue
+      adopt_count = adopt_source_counts.get(source_hash) or 0
+      if adopt_count > 0:
+        doc_weight *= 0.9 ** adopt_count
+        self.count_labels["demote-dup-source"] += 1
       source_loc = -1
       source_hit_weight = 0
       for core_word, core_weight in core_words.items():
@@ -282,20 +301,27 @@ class AttachExamplesBatch:
       source_len_score = 1 / math.exp(abs(math.log(len(source) / best_source_length)))
       target_len_score = 1 / math.exp(abs(math.log(len(target) / best_target_length)))
       length_score = (source_len_score * target_len_score) ** 0.2
+      tmp_score = doc_weight * source_hit_score * length_score
+      seed_records.append((index_id, doc_weight, rank, source, target,
+                           source_hit_score, length_score, tmp_score))
+    seed_records = sorted(seed_records, key=lambda x: (-x[7], source, target))
+    seed_records = seed_records[:500]
+    prep_records = []
+    for (index_id, doc_weight, rank, source, target,
+         source_hit_score, length_score, tmp_score) in seed_records:
       target_tokens = self.tokenizer.GetJaPosList(target)
       uniq_key = MakeSentenceKey(source)
-      seed_records.append((
-        index_id, doc_weight, rank, source, target,
-        source_hit_score, length_score, target_tokens, uniq_key))
+      prep_records.append((index_id, doc_weight, rank, source, target,
+                           source_hit_score, length_score, target_tokens, uniq_key))
     dedup_records = []
-    for i, record in enumerate(seed_records):
+    for i, record in enumerate(prep_records):
       uniq_key = record[8]
       ti = max(0, i - 10)
-      end = min(i + 10, len(seed_records))
+      end = min(i + 10, len(prep_records))
       is_dup = False
       while ti < end:
         if ti != i:
-          old_uniq_key = seed_records[ti][8]
+          old_uniq_key = prep_records[ti][8]
           dist = tkrzw.Utility.EditDistanceLev(old_uniq_key, uniq_key)
           dist /= max(len(old_uniq_key), len(uniq_key))
           if dist < 0.4:
@@ -311,16 +337,23 @@ class AttachExamplesBatch:
       adhoc_trans = self.GetAdHocTranslations(
         word, word_poses, input_dbm, rev_prob_dbm, hints, dedup_records[:100])
     tran_cands = (entry.get("translation") or []).copy()
+    uniq_trans = set()
+    for tran in tran_cands:
+      norm_tran = tran.lower()
+      uniq_trans.add(norm_tran)
+    orig_trans = uniq_trans.copy()
+    for tran in hints:
+      norm_tran = tran.lower()
+      if norm_tran not in uniq_trans:
+        tran_cands.append(tran)
+        uniq_trans.add(norm_tran)
+        self.count_labels["use-hint-translation"] += 1
     if adhoc_trans:
       for tran in adhoc_trans:
-
-        print("[ADHOC]", word, tran)
-        
-        if tran not in tran_cands:
+        norm_tran = tran.lower()
+        if norm_tran not in uniq_trans:
           tran_cands.append(tran)
-
-          print("[ADHOC:USE]", word, tran)
-          
+          uniq_trans.add(norm_tran)
           self.count_labels["use-adhoc-translation"] += 1
     for item in entry.get("item") or []:
       text = item["text"]
@@ -379,6 +412,9 @@ class AttachExamplesBatch:
         tran_hit_count = tran_hit_counts.get(tran) or 0
         tran_weight *= 0.7 ** tran_hit_count
         if self.CheckTranMatch(target, target_tokens, tran):
+          norm_tran = tran.lower()
+          if norm_tran not in orig_trans:
+            tran_weight *= 0.4
           if tran_weight > tran_score:
             tran_score = tran_weight
             best_tran = tran
@@ -446,6 +482,8 @@ class AttachExamplesBatch:
         examples.append(example)
         label = indices[index_id][2]
         self.count_labels["adopt-" + label] += 1
+        source_hash = hash(example["e"])
+        adopt_source_counts[source_hash] += 1
       self.count_examples += len(examples)
       entry["example"] = examples
       self.count_hit_entries += 1
