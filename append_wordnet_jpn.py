@@ -46,7 +46,7 @@ logger = tkrzw_dict.GetLogger()
 class AppendWordnetJPNBatch:
   def __init__(self, input_path, output_path, wnjpn_path, feedback_path,
                phrase_prob_path, rev_prob_path, tran_prob_path,
-               tran_aux_paths, tran_subaux_paths, tran_thes_path):
+               tran_aux_paths, tran_subaux_paths, tran_thes_path, hint_path):
     self.input_path = input_path
     self.output_path = output_path
     self.wnjpn_path = wnjpn_path
@@ -57,6 +57,7 @@ class AppendWordnetJPNBatch:
     self.tran_aux_paths = tran_aux_paths
     self.tran_subaux_paths = tran_subaux_paths
     self.tran_thes_path = tran_thes_path
+    self.hint_path = hint_path
 
   def Run(self):
     tokenizer = tkrzw_tokenizer.Tokenizer()
@@ -69,11 +70,13 @@ class AppendWordnetJPNBatch:
     else:
       feedback_trans = None
     aux_trans, subaux_trans, tran_thes = self.ReadAuxTranslations()
+    hints = self.ReadHints()
     synset_index = self.ReadSynsetIndex()
     tran_index = {}
     tran_index = self.ReadTranIndex(synset_index)
     self.AppendTranslations(
-      wnjpn_trans, feedback_trans, aux_trans, subaux_trans, tran_thes, synset_index, tran_index)
+      wnjpn_trans, feedback_trans, aux_trans, subaux_trans, tran_thes, hints,
+      synset_index, tran_index)
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
   def ReadTranslations(self):
@@ -167,6 +170,26 @@ class AppendWordnetJPNBatch:
             tran_thes[fields[0]] = fields[1:]
     return aux_trans, subaux_trans, tran_thes
 
+  def ReadHints(self):
+    if not self.hint_path: return
+    hints = {}
+    start_time = time.time()
+    logger.info("Reading hints: path={}".format(self.hint_path))
+    num_hints = 0
+    with open(self.hint_path) as input_file:
+      for line in input_file:
+        fields = line.strip().split("\t")
+        if len(fields) < 3: continue
+        word, poses, prob = fields[:3]
+        hints[word] = (poses, prob)
+        num_hints += 1
+        if num_hints % 10000 == 0:
+          logger.info("Reading hints: hints={}".format(num_hints))
+    logger.info(
+      "Reading hints done: hints={}, elapsed_time={:.2f}s".format(
+        num_hints, time.time() - start_time))
+    return hints
+
   def ReadSynsetIndex(self):
     logger.info("Reading synset index: input_path={}".format(self.input_path))
     synset_index = collections.defaultdict(set)
@@ -221,7 +244,7 @@ class AppendWordnetJPNBatch:
     return tran_index
 
   def AppendTranslations(self, wnjpn_trans, feedback_trans,
-                         aux_trans, subaux_trans, tran_thes, synset_index, tran_index):
+                         aux_trans, subaux_trans, tran_thes, hints, synset_index, tran_index):
     start_time = time.time()
     logger.info("Appending translations: input_path={}, output_path={}".format(
       self.input_path, self.output_path))
@@ -468,6 +491,14 @@ class AppendWordnetJPNBatch:
                 tran_score_map[tran] = "{:.6f}".format(tran_score).replace("0.", ".")
             item["translation_score"] = tran_score_map
         item_score += spell_ratio * 0.5
+        hint = hints.get(word)
+        if hint:
+          hint_score = 0.4
+          for hint_pos in hint[0].split(","):
+            if pos == hint_pos:
+              item_score += hint_score
+              break
+            hint_score *= 0.7
         item["score"] = "{:.8f}".format(item_score).replace("0.", ".")
         if "link" in item:
           del item["link"]
@@ -716,6 +747,7 @@ def main():
   tran_aux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or "").split(",")
   tran_subaux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_subaux", 1) or "").split(",")
   tran_thes_path = tkrzw_dict.GetCommandFlag(args, "--tran_thes", 1) or ""
+  hint_path = tkrzw_dict.GetCommandFlag(args, "--hint", 1) or ""
   if tkrzw_dict.GetCommandFlag(args, "--quiet", 0):
     logger.setLevel(logging.ERROR)
   if args:
@@ -723,7 +755,7 @@ def main():
   AppendWordnetJPNBatch(
     input_path, output_path, wnjpn_path, feedback_path,
     phrase_prob_path, rev_prob_path, tran_prob_path,
-    tran_aux_paths, tran_subaux_paths, tran_thes_path).Run()
+    tran_aux_paths, tran_subaux_paths, tran_thes_path, hint_path).Run()
 
 
 if __name__=="__main__":
