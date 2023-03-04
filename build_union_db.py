@@ -261,7 +261,7 @@ class BuildUnionDBBatch:
   def __init__(self, input_confs, output_path, core_labels, full_def_labels, gross_labels,
                surfeit_labels, top_labels, slim_labels, tran_list_labels, supplement_labels,
                phrase_prob_path, tran_prob_path, tran_aux_paths, tran_aux_last_paths,
-               rev_prob_path, cooc_prob_path, aoa_paths, keyword_path, min_prob_map):
+               rev_prob_path, cooc_prob_path, aoa_paths, keyword_path, hint_path, min_prob_map):
     self.input_confs = input_confs
     self.output_path = output_path
     self.core_labels = core_labels
@@ -280,6 +280,7 @@ class BuildUnionDBBatch:
     self.cooc_prob_path = cooc_prob_path
     self.aoa_paths = aoa_paths
     self.keyword_path = keyword_path
+    self.hint_path = hint_path
     self.min_prob_map = min_prob_map
     self.tokenizer = tkrzw_tokenizer.Tokenizer()
 
@@ -310,7 +311,10 @@ class BuildUnionDBBatch:
     keywords = set()
     if self.keyword_path:
       self.ReadKeywords(self.keyword_path, keywords)
-    self.SaveWords(word_dicts, aux_trans, aux_last_trans, aoa_words, keywords)
+    hints = {}
+    if self.hint_path:
+      self.ReadHints(self.hint_path, hints)
+    self.SaveWords(word_dicts, aux_trans, aux_last_trans, aoa_words, keywords, hints)
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
   def NormalizeText(self, text):
@@ -481,10 +485,26 @@ class BuildUnionDBBatch:
         num_entries += 1
         if num_entries % 10000 == 0:
           logger.info("Reading a keyword file: num_entries={}".format(num_entries))
-    logger.info("Reading a translation aux file: num_entries={}, elapsed_time={:.2f}s".format(
+    logger.info("Reading a keyword file: num_entries={}, elapsed_time={:.2f}s".format(
       num_entries, time.time() - start_time))
 
-  def SaveWords(self, word_dicts, aux_trans, aux_last_trans, aoa_words, keywords):
+  def ReadHints(self, input_path, hints):
+    start_time = time.time()
+    logger.info("Reading a hint file: input_path={}".format(input_path))
+    num_entries = 0
+    with open(input_path) as input_file:
+      for line in input_file:
+        fields = line.strip().split("\t")
+        if len(fields) < 3: continue
+        surface, poses, prob = fields[:3]
+        hints[surface] = (poses, float(prob))
+        num_entries += 1
+        if num_entries % 10000 == 0:
+          logger.info("Reading a hint file: num_entries={}".format(num_entries))
+    logger.info("Reading a hint file: num_entries={}, elapsed_time={:.2f}s".format(
+      num_entries, time.time() - start_time))
+
+  def SaveWords(self, word_dicts, aux_trans, aux_last_trans, aoa_words, keywords, hints):
     logger.info("Preparing DBMs")
     phrase_prob_dbm = None
     if self.phrase_prob_path:
@@ -612,7 +632,7 @@ class BuildUnionDBBatch:
     core_word_probs = {}
     for key in keys:
       merged_entry = self.MergeRecord(
-        key, word_dicts, aux_trans, aoa_words, keywords,
+        key, word_dicts, aux_trans, aoa_words, keywords, hints,
         phrase_prob_dbm, tran_prob_dbm, rev_prob_dbm, cooc_prob_dbm)
       if not merged_entry: continue
       merged_entries.append((key, merged_entry))
@@ -1076,7 +1096,7 @@ class BuildUnionDBBatch:
     valid_stems.discard(word)
     return list(valid_stems)
 
-  def MergeRecord(self, key, word_dicts, aux_trans, aoa_words, keywords,
+  def MergeRecord(self, key, word_dicts, aux_trans, aoa_words, keywords, hints,
                   phrase_prob_dbm, tran_prob_dbm, rev_prob_dbm, cooc_prob_dbm):
     word_entries = {}
     word_shares = collections.defaultdict(float)
@@ -1335,6 +1355,11 @@ class BuildUnionDBBatch:
               pron_prob = self.GetPhraseProb(phrase_prob_dbm, "en", phrase)
               if pron_prob > 0.0000001:
                 prob += pron_prob
+        hint = hints.get(word)
+        if hint:
+          hint_prob = hint[1]
+          if hint_prob > prob:
+            prob = (prob + hint_prob) / 2
         word_entry["probability"] = "{:.7f}".format(prob).replace("0.", ".")
         if self.min_prob_map:
           has_good_label = False
@@ -3295,6 +3320,7 @@ def main():
   cooc_prob_path = tkrzw_dict.GetCommandFlag(args, "--cooc_prob", 1) or ""
   aoa_paths = (tkrzw_dict.GetCommandFlag(args, "--aoa", 1) or "").split(",")
   keyword_path = tkrzw_dict.GetCommandFlag(args, "--keyword", 1) or ""
+  hint_path = tkrzw_dict.GetCommandFlag(args, "--hint", 1) or ""
   min_prob_exprs = tkrzw_dict.GetCommandFlag(args, "--min_prob", 1) or ""
   min_prob_map = {}
   for min_prob_expr in min_prob_exprs.split(","):
@@ -3318,7 +3344,7 @@ def main():
   BuildUnionDBBatch(input_confs, output_path, core_labels, full_def_labels, gross_labels,
                     surfeit_labels, top_labels, slim_labels, tran_list_labels, supplement_labels,
                     phrase_prob_path, tran_prob_path, tran_aux_paths, tran_aux_last_paths,
-                    rev_prob_path, cooc_prob_path, aoa_paths, keyword_path,
+                    rev_prob_path, cooc_prob_path, aoa_paths, keyword_path, hint_path,
                     min_prob_map).Run()
 
 
