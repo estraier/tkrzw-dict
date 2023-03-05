@@ -493,12 +493,11 @@ class AppendWordnetJPNBatch:
         item_score += spell_ratio * 0.5
         hint = hints.get(word)
         if hint:
-          hint_score = 0.4
-          for hint_pos in hint[0].split(","):
+          for hi, hint_pos in enumerate(hint[0].split(",")):
             if pos == hint_pos:
-              item_score += hint_score
+              hint_weight = 2 ** (1.0 / ((hi + 1) * 2))
+              item_score *= hint_weight
               break
-            hint_score *= 0.7
         item["score"] = "{:.8f}".format(item_score).replace("0.", ".")
         if "link" in item:
           del item["link"]
