@@ -35,6 +35,10 @@ import tkrzw_tokenizer
 
 
 logger = tkrzw_dict.GetLogger()
+inflection_names = ("noun_plural", "verb_singular", "verb_present_participle",
+                    "verb_past", "verb_past_participle",
+                    "adjective_comparative", "adjective_superlative",
+                    "adverb_comparative", "adverb_superlative")
 
 
 def MakeSentenceKey(text):
@@ -106,6 +110,7 @@ class AttachExamplesBatch:
     hint_dict = self.ReadHint()
     it = input_dbm.MakeIterator()
     keys = []
+    infl_dict = collections.defaultdict(list)
     it.First().OrDie()
     while True:
       record = it.GetStr()
@@ -114,21 +119,34 @@ class AttachExamplesBatch:
       entries = json.loads(data)
       sum_prob = 0
       for entry in entries:
-        sum_prob += float(entry.get("probability") or 0)
+        word = entry["word"]
+        prob = float(entry.get("probability") or 0)
+        if entry.get("parent"):
+          prob *= 0.1
+        sum_prob += prob
+        for infl_name in inflection_names:
+          infl_values = entry.get(infl_name)
+          if not infl_values or infl_name == word: continue
+          for infl in infl_values:
+            infl_dict[infl].append(word)
+        for item in entry["item"]:
+          for text in item["text"].split(" [-] ")[1:]:
+            match = regex.search("^\[synonym\]: ", text)
+            if match:
+              for synonym in text[match.span()[1]:].split(","):
+                synonym = synonym.strip()
+                synonym_tokens = synonym.split(" ")
+                if len(synonym_tokens) >= 2 and word in synonym_tokens:
+                  infl_dict[synonym].append(word)
       keys.append((key, sum_prob))
       it.Next()
     keys = sorted(keys, key=lambda x: (-x[1], x[0]))
     word_dict = {}
     adopt_source_counts = collections.defaultdict(int)
+    adopt_parent_hashes = set()
     for key, sum_prob in keys:
       data = input_dbm.GetStr(key)
       if not data: continue
-
-      #if key.find("super") < 0:
-      #  continue
-      #if len(word_dict) > 100:
-      #  break
-      
       entries = json.loads(data)
       first_entry = True
       for entry in entries:
@@ -138,7 +156,8 @@ class AttachExamplesBatch:
             self.count_all_entries, self.count_hit_entries, self.count_examples))
         strict = not first_entry
         self.AttachExamplesEntry(
-          entry, indices, input_dbm, rev_prob_dbm, hint_dict, adopt_source_counts, strict)
+          entry, indices, input_dbm, rev_prob_dbm,
+          infl_dict, hint_dict, adopt_source_counts, adopt_parent_hashes, strict)
         first_entry = False
       serialized = json.dumps(entries, separators=(",", ":"), ensure_ascii=False)
       word_dict[key] = serialized
@@ -169,7 +188,7 @@ class AttachExamplesBatch:
     return hint_dict
 
   def AttachExamplesEntry(self, entry, indices, input_dbm, rev_prob_dbm,
-                          hint_dict, adopt_source_counts, strict):
+                          infl_dict, hint_dict, adopt_source_counts, adopt_parent_hashes, strict):
     entry.pop("example", None)
     word = entry["word"]
     core_words = collections.defaultdict(float)
@@ -305,7 +324,7 @@ class AttachExamplesBatch:
       seed_records.append((index_id, doc_weight, rank, source, target,
                            source_hit_score, length_score, tmp_score))
     seed_records = sorted(seed_records, key=lambda x: (-x[7], source, target))
-    seed_records = seed_records[:500]
+    seed_records = seed_records[:3000]
     prep_records = []
     for (index_id, doc_weight, rank, source, target,
          source_hit_score, length_score, tmp_score) in seed_records:
@@ -397,6 +416,19 @@ class AttachExamplesBatch:
         old_score = trans.get(alternative) or 0
         trans[alternative] = max(old_score, new_score * 0.8)
       tran_weight_base *= 0.97
+    infls = infl_dict.get(word)
+    infl_trans = set()
+    if infls:
+      for infl in infls:
+        infl_key = tkrzw_dict.NormalizeWord(infl)
+        infl_data = input_dbm.GetStr(infl_key)
+        if not infl_data: continue
+        infl_entries = json.loads(infl_data)
+        for infl_entry in infl_entries:
+          if infl_entry["word"] != infl: continue
+          for infl_tran in infl_entry.get("translation") or []:
+            infl_trans.add(infl_tran)
+    cache_stem_trans = {}
     scored_records = []
     tran_hit_counts = {}
     for (index_id, doc_weight, rank, source, target,
@@ -408,6 +440,7 @@ class AttachExamplesBatch:
         continue
       tran_score = 0
       best_tran = None
+      is_dup_tran = False
       for tran, tran_weight in trans.items():
         tran_hit_count = tran_hit_counts.get(tran) or 0
         tran_weight *= 0.7 ** tran_hit_count
@@ -415,6 +448,23 @@ class AttachExamplesBatch:
           norm_tran = tran.lower()
           if norm_tran not in orig_trans:
             tran_weight *= 0.4
+          if infl_trans:
+            if tran in infl_trans:
+              tran_weight *= 0.1
+              is_dup_tran = True
+            else:
+              stem_trans = cache_stem_trans.get(tran)
+              if not stem_trans:
+                stem_trans = self.GetTranslationStems(tran)
+                cache_stem_trans[tran] = stem_trans
+              stem_hit = False
+              for stem_tran in stem_trans:
+                if stem_tran in infl_trans:
+                  stem_hit = True
+                  break
+              if stem_hit:
+                tran_weight *= 0.1
+                is_dup_tran = True
           if tran_weight > tran_score:
             tran_score = tran_weight
             best_tran = tran
@@ -424,7 +474,8 @@ class AttachExamplesBatch:
       if (strict or rank != 0) and not best_tran:
         self.count_labels["reject-target-mismatch"] += 1
         continue
-      tran_score += 0.2
+      if not is_dup_tran:
+        tran_score += 0.2
       final_score = (tran_score * tran_score *
                      source_hit_score * length_score * doc_weight) ** (1 / 5)
       match = regex.search(r"[-\p{Latin}']{3,}", target)
@@ -436,6 +487,12 @@ class AttachExamplesBatch:
           final_score *= 0.8
         else:
           final_score *= 0.5
+      if infls:
+        for infl in infls:
+          parent_hash = hash(infl + ":" + source)
+          if parent_hash in adopt_parent_hashes:
+            final_score *= 0.1
+            break
       scored_records.append((final_score, index_id, source, target, best_tran, uniq_key))
     scored_records = sorted(scored_records, key=lambda x: (-x[0], x[1], x[2]))
     final_records = []
@@ -484,6 +541,8 @@ class AttachExamplesBatch:
         self.count_labels["adopt-" + label] += 1
         source_hash = hash(example["e"])
         adopt_source_counts[source_hash] += 1
+        parent_hash = hash(word + ":" + example["e"])
+        adopt_parent_hashes.add(parent_hash)
       self.count_examples += len(examples)
       entry["example"] = examples
       self.count_hit_entries += 1
@@ -635,6 +694,43 @@ class AttachExamplesBatch:
         i += 1
       start_index += 1
     return False
+
+  def GetTranslationStems(self, text):
+    stem_trans = set()
+    stem_trans.add(text)
+    match = regex.search(
+      r"^(.*[\p{Han}\p{Katakana}ー])(する|した|している|された|されて)$", text)
+    if match:
+      stem = match.group(1)
+      stem_trans.add(stem + "する")
+      stem_trans.add(stem + "した")
+      stem_trans.add(stem + "している")
+      stem_trans.add(stem + "された")
+      stem_trans.add(stem + "されて")
+    tokens = self.tokenizer.GetJaPosList(text)
+    if tokens and tokens[-1][2] == "サ変接続":
+      stem_trans.add(text + "する")
+      stem_trans.add(text + "した")
+      stem_trans.add(text + "している")
+      stem_trans.add(text + "された")
+      stem_trans.add(text + "されて")
+    tokens[-1][0] = tokens[-1][3]
+    phrase = ""
+    for token in tokens:
+      phrase += token[0]
+    stem_trans.add(phrase)
+    while len(tokens) >= 2:
+      last_token = tokens[-1]
+      if last_token[1] in ("助詞", "助動詞") or last_token[2] == "接尾":
+        tokens = tokens[:-1]
+        tokens[-1][0] = tokens[-1][3]
+        phrase = ""
+        for token in tokens:
+          phrase += token[0]
+        stem_trans.add(phrase)
+      else:
+        break
+    return stem_trans
 
   def SaveEntries(self, word_dict):
     start_time = time.time()
