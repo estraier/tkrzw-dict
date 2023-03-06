@@ -721,7 +721,7 @@ class AttachExamplesBatch:
     stem_trans.add(phrase)
     while len(tokens) >= 2:
       last_token = tokens[-1]
-      if last_token[1] in ("助詞", "助動詞") or last_token[2] == "接尾":
+      if last_token[1] in ("助詞", "助動詞") or last_token[2] in ("接尾", "非自立"):
         tokens = tokens[:-1]
         tokens[-1][0] = tokens[-1][3]
         phrase = ""
