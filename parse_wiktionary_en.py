@@ -112,6 +112,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
     fulltext = html.unescape(self.text)
     fulltext = regex.sub(r"<!--.*?-->", "", fulltext)
     fulltext = regex.sub(r"(\n==+[^=]+==+)", "\\1\n", fulltext)
+    fulltext = self.ConcatNestLines(fulltext)
     output = []
     ipa_us = ""
     ipa_misc = ""
@@ -742,6 +743,30 @@ class XMLHandler(xml.sax.handler.ContentHandler):
       output.append("mode=translation")
     if output:
       print("word={}\t{}".format(title, "\t".join(output)))
+
+  def ConcatNestLines(self, text):
+    segments = []
+    level = 0
+    while True:
+      beg_pos = text.find("{{")
+      end_pos = text.find("}}")
+      if end_pos >= 0 and (beg_pos < 0 or end_pos < beg_pos):
+        segments.append((level, text[:end_pos+2]))
+        text = text[end_pos+2:]
+        level -= 1
+      elif beg_pos >= 0:
+        segments.append((level, text[:beg_pos+2]))
+        text = text[beg_pos+2:]
+        level += 1
+      else:
+        segments.append((level, text))
+        break
+    new_segments = []
+    for level, segment in segments:
+      if level > 0:
+        segment = segment.replace("\n", " ")
+      new_segments.append(segment)
+    return "".join(new_segments)
 
   def IsGoodInflection(self, text):
     if not text: return False
