@@ -392,9 +392,7 @@ class AttachExamplesBatch:
       if norm_tran in uniq_trans: continue
       tran_score = 1.0
       if regex.search(r"\p{Han}", tran):
-        tran_score *= 1.3
-      elif regex.search(r"\p{Katakana}", tran):
-        tran_score *= 1.1
+        tran_score *= 1.5
       if len(tran) == 1:
         tran_score *= 0.5
       elif len(tran) == 2:
