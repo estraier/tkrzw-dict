@@ -579,6 +579,7 @@ class BuildUnionDBBatch:
       time.time() - start_time))
     start_time = time.time()
     logger.info("Indexing base forms")
+    infl_dict = collections.defaultdict(list)
     extra_word_bases = {}
     for label, word_dict in word_dicts:
       if label not in self.top_labels: continue
@@ -588,6 +589,11 @@ class BuildUnionDBBatch:
         for entry in entries:
           word = entry["word"]
           if not regex.fullmatch("[a-z]+", word): continue
+          for infl_name in inflection_names:
+            for infl in (entry.get(infl_name) or "").split(","):
+              infl = infl.strip()
+              if infl and infl != word:
+                infl_dict[infl].append(word)
           if word in verb_words:
             children = set()
             for part_name in ("verb_present_participle", "verb_past_participle"):
@@ -746,7 +752,7 @@ class BuildUnionDBBatch:
             if entry["word"] == word:
               entries.append((label, entry))
         self.SetAOA(word_entry, entries, aoa_words, live_words, phrase_prob_dbm)
-        self.SetTranslations(word_entry, aux_trans, tran_prob_dbm, rev_prob_dbm)
+        self.SetTranslations(word_entry, aux_trans, tran_prob_dbm, rev_prob_dbm, infl_dict)
         self.SetRelations(word_entry, entries, word_dicts,
                           live_words, rev_live_words, pivot_live_words,
                           phrase_prob_dbm, tran_prob_dbm, cooc_prob_dbm, extra_word_bases,
@@ -1563,7 +1569,7 @@ class BuildUnionDBBatch:
           trans.append(tran)
     return trans
 
-  def SetTranslations(self, entry, aux_trans, tran_prob_dbm, rev_prob_dbm):
+  def SetTranslations(self, entry, aux_trans, tran_prob_dbm, rev_prob_dbm, infl_dict):
     word = entry["word"]
     tran_probs = {}
     if tran_prob_dbm:
@@ -1759,6 +1765,11 @@ class BuildUnionDBBatch:
         del tran_probs[norm_tran]
         scored_translations.add(norm_tran)
       bonus_translations.append((tran, score))
+    base_trans = set()
+    for base_word in set(infl_dict.get(word) or []):
+      for base_tran in aux_trans.get(base_word) or []:
+        for stem in self.GetTranslationStems(base_tran):
+          base_trans.add(stem)
     sorted_translations = []
     for tran, score in bonus_translations:
       norm_tran = tkrzw_dict.NormalizeWord(tran)
@@ -1810,6 +1821,13 @@ class BuildUnionDBBatch:
           score *= 0.95
         elif not regex.search(r"[\p{Han}\p{Hiragana}\p{Katakana}]+", tran):
           score *= 0.8
+      is_dup_base = False
+      for stem_tran in self.GetTranslationStems(tran):
+        if stem_tran in base_trans:
+          is_dup_base = True
+          break
+      if is_dup_base:
+        score *= 0.5
       sorted_translations.append((tran, score))
     sorted_translations = sorted(sorted_translations, key=lambda x: x[1], reverse=True)
     deduped_translations = []
@@ -2326,6 +2344,43 @@ class BuildUnionDBBatch:
         variant = word[:-len(suffix2)] + suffix1
         variants.add(variant)
     return variants
+
+  def GetTranslationStems(self, text):
+    stem_trans = set()
+    stem_trans.add(text)
+    match = regex.search(
+      r"^(.*[\p{Han}\p{Katakana}ー])(する|した|している|された|されて)$", text)
+    if match:
+      stem = match.group(1)
+      stem_trans.add(stem + "する")
+      stem_trans.add(stem + "した")
+      stem_trans.add(stem + "している")
+      stem_trans.add(stem + "された")
+      stem_trans.add(stem + "されて")
+    tokens = self.tokenizer.GetJaPosList(text)
+    if tokens and tokens[-1][2] == "サ変接続":
+      stem_trans.add(text + "する")
+      stem_trans.add(text + "した")
+      stem_trans.add(text + "している")
+      stem_trans.add(text + "された")
+      stem_trans.add(text + "されて")
+    tokens[-1][0] = tokens[-1][3]
+    phrase = ""
+    for token in tokens:
+      phrase += token[0]
+    stem_trans.add(phrase)
+    while len(tokens) >= 2:
+      last_token = tokens[-1]
+      if last_token[1] in ("助詞", "助動詞") or last_token[2] in ("接尾", "非自立"):
+        tokens = tokens[:-1]
+        tokens[-1][0] = tokens[-1][3]
+        phrase = ""
+        for token in tokens:
+          phrase += token[0]
+        stem_trans.add(phrase)
+      else:
+        break
+    return stem_trans
 
   def GetEntryTranslations(self, merged_dict, word, is_capital, best_pos):
     key = tkrzw_dict.NormalizeWord(word)
