@@ -332,29 +332,28 @@ class AttachExamplesBatch:
       uniq_key = MakeSentenceKey(source)
       prep_records.append((index_id, doc_weight, rank, source, target,
                            source_hit_score, length_score, target_tokens, uniq_key))
-    dedup_records = []
-    for i, record in enumerate(prep_records):
-      uniq_key = record[8]
-      ti = max(0, i - 10)
-      end = min(i + 10, len(prep_records))
-      is_dup = False
-      while ti < end:
-        if ti != i:
-          old_uniq_key = prep_records[ti][8]
-          dist = tkrzw.Utility.EditDistanceLev(old_uniq_key, uniq_key)
-          dist /= max(len(old_uniq_key), len(uniq_key))
-          if dist < 0.4:
-            is_dup = True
-            break
-        ti += 1
-      if is_dup:
-        self.count_labels["reject-source-similar"] += 1
-      else:
-        dedup_records.append(record)
     adhoc_trans = None
-    if rev_prob_dbm and not regex.search(r"[A-Z]", word) and len(dedup_records) > 5:
-      adhoc_trans = self.GetAdHocTranslations(
-        word, word_poses, input_dbm, rev_prob_dbm, hints, dedup_records[:100])
+    if rev_prob_dbm and not regex.search(r"[A-Z]", word) and len(prep_records) > 5:
+      dedup_records = []
+      for i, record in enumerate(prep_records):
+        uniq_key = record[8]
+        ti = max(0, i - 10)
+        end = min(i + 10, len(prep_records))
+        is_dup = False
+        while ti < end:
+          if ti != i:
+            old_uniq_key = prep_records[ti][8]
+            dist = tkrzw.Utility.EditDistanceLev(old_uniq_key, uniq_key)
+            dist /= max(len(old_uniq_key), len(uniq_key))
+            if dist < 0.4:
+              is_dup = True
+              break
+          ti += 1
+        if not is_dup:
+          dedup_records.append(record)
+      if len(dedup_records) > 5:
+        adhoc_trans = self.GetAdHocTranslations(
+          word, word_poses, input_dbm, rev_prob_dbm, hints, dedup_records[:100])
     tran_cands = (entry.get("translation") or []).copy()
     uniq_trans = set()
     for tran in tran_cands:
@@ -430,7 +429,7 @@ class AttachExamplesBatch:
     scored_records = []
     tran_hit_counts = {}
     for (index_id, doc_weight, rank, source, target,
-         source_hit_score, length_score, target_tokens, uniq_key) in dedup_records:
+         source_hit_score, length_score, target_tokens, uniq_key) in prep_records:
       if rank < 0: continue
       if not target_tokens: continue
       if target_tokens[0][1] in ["助詞", "助動詞"] and strict:
