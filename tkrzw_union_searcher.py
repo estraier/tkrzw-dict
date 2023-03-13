@@ -433,7 +433,7 @@ class UnionSearcher:
                   surfaces[infl] = True
         if len(infls) > 1:
           mode = "containcaseword*"
-          query = "\n".join([regex.escape(x) for x in infls])
+          query = "\n".join(infls)
         else:
           mode = "containcaseword"
           query = text
