@@ -82,14 +82,12 @@ class AttachExamplesBatch:
 
   def AttachExamples(self):
     start_time = time.time()
-    logger.info("Attaching started: input_path={}, index_path={}".format(
-      self.input_path, ":".join(self.index_paths)))
+    logger.info("Attaching started: input_path={}".format(self.input_path))
     word_dict = {}
     input_dbm = tkrzw.DBM()
     input_dbm.Open(self.input_path, False).OrDie()
     indices = []
     for index_path in self.index_paths:
-      logger.info("Opening an index: path={}".format(index_path))
       rank = 0
       match = regex.search(r"^(\++)(.*)", index_path)
       if match:
@@ -99,6 +97,7 @@ class AttachExamplesBatch:
       if match:
         rank = -1
         index_path = match.group(2)
+      logger.info("Opening an index: rank={}, path={}".format(rank, index_path))
       index_dbm = tkrzw.DBM()
       index_dbm.Open(index_path, False).OrDie()
       label = os.path.splitext(os.path.basename(index_path))[0]
@@ -468,10 +467,16 @@ class AttachExamplesBatch:
       if best_tran:
         tran_hit_count = tran_hit_counts.get(best_tran) or 0
         tran_hit_counts[best_tran] = tran_hit_count + 1
+      is_mismatch = False
       if (strict or rank != 0) and not best_tran:
         self.count_labels["reject-target-mismatch"] += 1
-        continue
-      if not is_dup_tran:
+        is_mismatch = True
+        if rank > 2: continue
+      if is_mismatch:
+        tran_score += 0.0001
+      elif is_dup_tran:
+        tran_score += 0.01
+      else:
         tran_score += 0.2
       final_score = (tran_score * tran_score *
                      source_hit_score * length_score * doc_weight) ** (1 / 5)
@@ -490,13 +495,14 @@ class AttachExamplesBatch:
           if parent_hash in adopt_parent_hashes:
             final_score *= 0.1
             break
-      scored_records.append((final_score, index_id, source, target, best_tran, uniq_key))
+      scored_records.append((final_score, index_id, source, target, best_tran,
+                             uniq_key, is_mismatch))
     scored_records = sorted(scored_records, key=lambda x: (-x[0], x[1], x[2]))
     final_records = []
     reserve_records = []
     uniq_keys = []
     adopt_tran_counts = {}
-    for score, index_id, source, target, best_tran, uniq_key in scored_records:
+    for score, index_id, source, target, best_tran, uniq_key, is_mismatch in scored_records:
       if len(final_records) >= self.max_examples: break
       is_dup = False
       for old_uniq_key in uniq_keys:
@@ -522,6 +528,9 @@ class AttachExamplesBatch:
         is_ok = False
       elif len(target) > best_target_length * 2:
         self.count_labels["reserve-target-long"] += 1
+        is_ok = False
+      elif is_mismatch:
+        self.count_labels["reserve-target-mismatch"] += 1
         is_ok = False
       if is_ok:
         final_records.append((example, index_id))
