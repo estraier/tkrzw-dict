@@ -260,7 +260,8 @@ force_parents = {
 class BuildUnionDBBatch:
   def __init__(self, input_confs, output_path, core_labels, full_def_labels, gross_labels,
                surfeit_labels, top_labels, slim_labels, tran_list_labels, supplement_labels,
-               phrase_prob_path, tran_prob_path, tran_aux_paths, tran_aux_last_paths,
+               phrase_prob_path, tran_prob_path, nmt_prob_path,
+               tran_aux_paths, tran_aux_last_paths,
                rev_prob_path, cooc_prob_path, aoa_paths, keyword_path, hint_path, min_prob_map):
     self.input_confs = input_confs
     self.output_path = output_path
@@ -274,6 +275,7 @@ class BuildUnionDBBatch:
     self.supplement_labels = supplement_labels
     self.phrase_prob_path = phrase_prob_path
     self.tran_prob_path = tran_prob_path
+    self.nmt_prob_path = nmt_prob_path
     self.tran_aux_paths = tran_aux_paths
     self.tran_aux_last_paths = tran_aux_last_paths
     self.rev_prob_path = rev_prob_path
@@ -531,6 +533,7 @@ class BuildUnionDBBatch:
         keys.add(key)
     logger.info("Extracting keys done: num_keys={}, elapsed_time={:.2f}s".format(
       len(keys), time.time() - start_time))
+    nmt_probs = self.ReadNMTProbs(keys)
     start_time = time.time()
     logger.info("Indexing stems")
     stem_index = collections.defaultdict(list)
@@ -752,7 +755,8 @@ class BuildUnionDBBatch:
             if entry["word"] == word:
               entries.append((label, entry))
         self.SetAOA(word_entry, entries, aoa_words, live_words, phrase_prob_dbm)
-        self.SetTranslations(word_entry, aux_trans, tran_prob_dbm, rev_prob_dbm, infl_dict)
+        self.SetTranslations(word_entry, aux_trans, tran_prob_dbm, rev_prob_dbm,
+                             infl_dict, nmt_probs)
         self.SetRelations(word_entry, entries, word_dicts,
                           live_words, rev_live_words, pivot_live_words,
                           phrase_prob_dbm, tran_prob_dbm, cooc_prob_dbm, extra_word_bases,
@@ -783,7 +787,8 @@ class BuildUnionDBBatch:
       for word_id, word_entry in enumerate(merged_entry):
         self.RemoveDuplicatedtranslations(word_entry, rival_key_trans)
         self.SetPhraseTranslations(word_entry, merged_dict, aux_trans, aux_last_trans,
-                                   tran_prob_dbm, phrase_prob_dbm, noun_words, verb_words,
+                                   tran_prob_dbm, phrase_prob_dbm, nmt_probs,
+                                   noun_words, verb_words,
                                    live_words, rev_live_words, pivot_live_words, pivot_dead_words,
                                    keywords, rival_key_trans)
         self.FilterParents(word_entry, merged_dict)
@@ -1101,6 +1106,31 @@ class BuildUnionDBBatch:
       valid_stems.add(force_parent)
     valid_stems.discard(word)
     return list(valid_stems)
+
+  def ReadNMTProbs(self, keys):
+    nmt_probs = {}
+    if not self.nmt_prob_path: return nmt_probs
+    logger.info("Reading NMT probs: path={}".format(self.nmt_prob_path))
+    num_probs = 0
+    with open(self.nmt_prob_path) as input_file:
+      for line in input_file:
+        fields = line.strip().split("\t")
+        if len(fields) < 3: continue
+        word = fields[0]
+        if word not in keys: continue
+        tran_probs = {}
+        for i in range(1, len(fields), 2):
+          tran = fields[i]
+          prob = float(fields[i + 1]) * 0.3
+          if prob > 0.02:
+            tran_probs[tran] = prob
+        if tran_probs:
+          nmt_probs[word] = tran_probs
+        num_probs += 1
+        if num_probs % 10000 == 0:
+          logger.info("Reading NMT probs: hints={}".format(num_probs))
+    logger.info("Reading NMT probs done: records={}".format(len(nmt_probs)))
+    return nmt_probs
 
   def MergeRecord(self, key, word_dicts, aux_trans, aoa_words, keywords, hints,
                   phrase_prob_dbm, tran_prob_dbm, rev_prob_dbm, cooc_prob_dbm):
@@ -1569,44 +1599,51 @@ class BuildUnionDBBatch:
           trans.append(tran)
     return trans
 
-  def SetTranslations(self, entry, aux_trans, tran_prob_dbm, rev_prob_dbm, infl_dict):
+  def SetTranslations(self, entry, aux_trans, tran_prob_dbm, rev_prob_dbm, infl_dict, nmt_probs):
     word = entry["word"]
     tran_probs = {}
     if tran_prob_dbm:
       key = tkrzw_dict.NormalizeWord(word)
+      sum_tran_probs = collections.defaultdict(float)
       tsv = tran_prob_dbm.GetStr(key)
       if tsv:
         fields = tsv.split("\t")
-        extra_records = []
         for i in range(0, len(fields), 3):
           src, trg, prob = fields[i], fields[i + 1], float(fields[i + 2])
-          if regex.search("[っん]$", trg) and self.tokenizer.GetJaLastPos(trg)[1] == "動詞":
-            continue
           if src != word:
             prob *= 0.1
-          norm_trg = tkrzw_dict.NormalizeWord(trg)
-          if tkrzw_dict.IsStopWord("ja", norm_trg):
-            prob *= 0.7
-          elif len(norm_trg) < 2:
-            prob *= 0.9
-          prob **= 0.8
-          tran_probs[norm_trg] = max(tran_probs.get(norm_trg) or 0.0, prob)
-          stem_trg = regex.sub(
-            r"([\p{Han}\p{Katakana}ー]{2,})(する|すること|される|されること|をする)$",
-            r"\1", norm_trg)
-          if stem_trg != norm_trg:
-            extra_records.append((stem_trg, prob * 0.5))
-          stem_trg = self.tokenizer.CutJaWordNounParticle(norm_trg)
-          if stem_trg != norm_trg:
-            extra_records.append((stem_trg, prob * 0.5))
-          stem_trg = regex.sub(r"([\p{Han}\p{Katakana}ー]{2,})(的|的な|的に)$", r"\1", norm_trg)
-          if stem_trg != norm_trg:
-            extra_records.append((stem_trg, prob * 0.5))
-          if self.tokenizer.IsJaWordSahenNoun(norm_trg):
-            long_trg = norm_trg + "する"
-            extra_records.append((long_trg, prob * 0.5))
-        for extra_trg, extra_prob in extra_records:
-          tran_probs[extra_trg] = max(tran_probs.get(extra_trg) or 0.0, extra_prob)
+          sum_tran_probs[trg] += prob
+      nmt_tran_probs = nmt_probs.get(word)
+      if nmt_tran_probs:
+        for trg, prog in nmt_tran_probs.items():
+          sum_tran_probs[trg] += prog
+      extra_records = []
+      for trg, prob in sum_tran_probs.items():
+        if regex.search("[っん]$", trg) and self.tokenizer.GetJaLastPos(trg)[1] == "動詞":
+          continue
+        norm_trg = tkrzw_dict.NormalizeWord(trg)
+        if tkrzw_dict.IsStopWord("ja", norm_trg):
+          prob *= 0.7
+        elif len(norm_trg) < 2:
+          prob *= 0.9
+        prob **= 0.8
+        tran_probs[norm_trg] = max(tran_probs.get(norm_trg) or 0.0, prob)
+        stem_trg = regex.sub(
+          r"([\p{Han}\p{Katakana}ー]{2,})(する|すること|される|されること|をする)$",
+          r"\1", norm_trg)
+        if stem_trg != norm_trg:
+          extra_records.append((stem_trg, prob * 0.5))
+        stem_trg = self.tokenizer.CutJaWordNounParticle(norm_trg)
+        if stem_trg != norm_trg:
+          extra_records.append((stem_trg, prob * 0.5))
+        stem_trg = regex.sub(r"([\p{Han}\p{Katakana}ー]{2,})(的|的な|的に)$", r"\1", norm_trg)
+        if stem_trg != norm_trg:
+          extra_records.append((stem_trg, prob * 0.5))
+        if self.tokenizer.IsJaWordSahenNoun(norm_trg):
+          long_trg = norm_trg + "する"
+          extra_records.append((long_trg, prob * 0.5))
+      for extra_trg, extra_prob in extra_records:
+        tran_probs[extra_trg] = max(tran_probs.get(extra_trg) or 0.0, extra_prob)
     word_aux_trans = aux_trans.get(word)
     count_aux_trans = {}
     if word_aux_trans:
@@ -2739,7 +2776,7 @@ class BuildUnionDBBatch:
     return tran
 
   def SetPhraseTranslations(self, entry, merged_dict, aux_trans, aux_last_trans,
-                            tran_prob_dbm, phrase_prob_dbm, noun_words, verb_words,
+                            tran_prob_dbm, phrase_prob_dbm, nmt_probs, noun_words, verb_words,
                             live_words, rev_live_words, pivot_live_words, pivot_dead_words,
                             keywords, rival_key_trans):
     if not tran_prob_dbm or not phrase_prob_dbm:
@@ -2824,7 +2861,6 @@ class BuildUnionDBBatch:
       verb_prob *= 20
     for particle in particles:
       phrase = particle + " " + word
-
       is_live = False
       phrase_prob = None
       phrase_entries = merged_dict.get(phrase)
@@ -2948,7 +2984,7 @@ class BuildUnionDBBatch:
             phrases.append((phrase, is_live, False, ratio, score, phrase_prob, affix))
     if not phrases:
       return
-    orig_trans = {}
+    orig_trans = collections.defaultdict(float)
     tsv = tran_prob_dbm.GetStr(word)
     if tsv:
       fields = tsv.split("\t")
@@ -2958,6 +2994,10 @@ class BuildUnionDBBatch:
         trg, trg_prefix, trg_suffix = self.tokenizer.StripJaParticles(trg)
         if src == word and prob >= 0.06:
           orig_trans[trg] = prob
+    nmt_tran_probs = nmt_probs.get(word)
+    if nmt_tran_probs:
+      for trg, prog in nmt_tran_probs.items():
+        orig_trans[trg] += prog
     aux_orig_trans = (aux_trans.get(word) or []) + (aux_last_trans.get(word) or [])
     if aux_orig_trans:
       for trg in set(aux_orig_trans):
@@ -2985,6 +3025,7 @@ class BuildUnionDBBatch:
       if is_live:
         pos_match = is_verb if is_suffix else is_noun
       if mod_prob >= 0.02 and pos_match:
+        sum_tran_probs = collections.defaultdict(float)
         tsv = tran_prob_dbm.GetStr(phrase)
         if tsv:
           fields = tsv.split("\t")
@@ -2992,53 +3033,61 @@ class BuildUnionDBBatch:
             src, trg, prob = fields[i], fields[i + 1], float(fields[i + 2])
             if src != phrase:
               continue
-            if regex.search("[っん]$", trg) and self.tokenizer.GetJaLastPos(trg)[1] == "動詞":
-              continue
-            if (is_verb and regex.search("[いきしちにひみり]$", trg) and
-                self.tokenizer.GetJaLastPos(trg)[1] == "動詞"):
-              continue
-            trg = regex.sub(r"[～〜]", "", trg)
-            trg, trg_prefix, trg_suffix = self.tokenizer.StripJaParticles(trg)
-            if not trg or regex.fullmatch(r"[\p{Katakana}ー]+", trg):
-              continue
-            pos = self.tokenizer.GetJaLastPos(trg)
-            if (is_noun and is_suffix and pos[1] == "名詞" and
-                not self.tokenizer.IsJaWordSahenNoun(trg)):
-              continue
-            if is_noun and is_suffix and trg in ("ある", "いる", "です", "ます"):
-              continue
-            orig_prob = orig_trans.get(trg) or 0.0
-            if is_verb:
-              if self.tokenizer.IsJaWordSahenNoun(trg):
-                orig_prob = max(orig_prob, orig_trans.get(trg + "する") or 0.0)
-              for ext_suffix in ("する", "した", "して", "される", "された", "されて"):
-                if len(trg) >= len(ext_suffix) + 2 and trg.endswith(ext_suffix):
-                  orig_prob = max(orig_prob, orig_trans.get(trg[:-len(ext_suffix)]) or 0.0)
-            if (is_suffix and is_verb and not trg_prefix and trg_suffix and
-                (pos[1] == "動詞" or self.tokenizer.IsJaWordSahenNoun(trg))):
-              trg_prefix = trg_suffix
-              trg_suffix = ""
-            elif is_suffix and is_noun and not trg_prefix:
-              if trg_suffix == "のため":
-                trg_suffix = "ための"
-              trg_prefix = trg_suffix
-              trg_suffix = ""
-            elif not trg_suffix and trg_prefix in ("ための", "のため"):
-              if trg.endswith("する"):
-                trg += "ための"
-              else:
-                trg += "のため"
-              trg_prefix = ""
-            elif trg_suffix:
-              trg += trg_suffix
-            sum_prob = orig_prob + prob
-            if sum_prob >= 0.1:
-              if is_verb and pos[1] == "動詞":
-                sum_prob += 0.1
-              phrase_trans[trg] = float(phrase_trans.get(trg) or 0.0) + sum_prob
-              if trg_prefix and not trg_suffix:
-                part_key = trg + ":" + trg_prefix
-                phrase_prefixes[part_key] = float(phrase_trans.get(part_key) or 0.0) + sum_prob
+            sum_tran_probs[trg] += prob
+        nmt_tran_probs = nmt_probs.get(phrase)
+        if nmt_tran_probs:
+          phrase_aux_trans = aux_trans.get(phrase) or []
+          for trg, prog in nmt_tran_probs.items():
+            if sum_tran_probs[trg] > 0.04 or trg in phrase_aux_trans:
+              sum_tran_probs[trg] += prog
+        for trg, prob in sum_tran_probs.items():
+          if regex.search("[っん]$", trg) and self.tokenizer.GetJaLastPos(trg)[1] == "動詞":
+            continue
+          if (is_verb and regex.search("[いきしちにひみり]$", trg) and
+              self.tokenizer.GetJaLastPos(trg)[1] == "動詞"):
+            continue
+          trg = regex.sub(r"[～〜]", "", trg)
+          trg, trg_prefix, trg_suffix = self.tokenizer.StripJaParticles(trg)
+          if not trg or regex.fullmatch(r"[\p{Katakana}ー]+", trg):
+            continue
+          pos = self.tokenizer.GetJaLastPos(trg)
+          if (is_noun and is_suffix and pos[1] == "名詞" and
+              not self.tokenizer.IsJaWordSahenNoun(trg)):
+            continue
+          if is_noun and is_suffix and trg in ("ある", "いる", "です", "ます"):
+            continue
+          orig_prob = orig_trans.get(trg) or 0.0
+          if is_verb:
+            if self.tokenizer.IsJaWordSahenNoun(trg):
+              orig_prob = max(orig_prob, orig_trans.get(trg + "する") or 0.0)
+            for ext_suffix in ("する", "した", "して", "される", "された", "されて"):
+              if len(trg) >= len(ext_suffix) + 2 and trg.endswith(ext_suffix):
+                orig_prob = max(orig_prob, orig_trans.get(trg[:-len(ext_suffix)]) or 0.0)
+          if (is_suffix and is_verb and not trg_prefix and trg_suffix and
+              (pos[1] == "動詞" or self.tokenizer.IsJaWordSahenNoun(trg))):
+            trg_prefix = trg_suffix
+            trg_suffix = ""
+          elif is_suffix and is_noun and not trg_prefix:
+            if trg_suffix == "のため":
+              trg_suffix = "ための"
+            trg_prefix = trg_suffix
+            trg_suffix = ""
+          elif not trg_suffix and trg_prefix in ("ための", "のため"):
+            if trg.endswith("する"):
+              trg += "ための"
+            else:
+              trg += "のため"
+            trg_prefix = ""
+          elif trg_suffix:
+            trg += trg_suffix
+          sum_prob = orig_prob + prob
+          if sum_prob >= 0.1:
+            if is_verb and pos[1] == "動詞":
+              sum_prob += 0.1
+            phrase_trans[trg] = float(phrase_trans.get(trg) or 0.0) + sum_prob
+            if trg_prefix and not trg_suffix:
+              part_key = trg + ":" + trg_prefix
+              phrase_prefixes[part_key] = float(phrase_trans.get(part_key) or 0.0) + sum_prob
       for aux_phrase_trans in (aux_trans.get(phrase), aux_last_trans.get(phrase)):
         if aux_phrase_trans:
           for trg in aux_phrase_trans:
@@ -3369,6 +3418,7 @@ def main():
   supplement_labels = set((tkrzw_dict.GetCommandFlag(args, "--supplement", 1) or "xs").split(","))
   phrase_prob_path = tkrzw_dict.GetCommandFlag(args, "--phrase_prob", 1) or ""
   tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
+  nmt_prob_path = tkrzw_dict.GetCommandFlag(args, "--nmt_prob", 1) or ""
   tran_aux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or "").split(",")
   tran_aux_last_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux_last", 1) or "").split(",")
   rev_prob_path = tkrzw_dict.GetCommandFlag(args, "--rev_prob", 1) or ""
@@ -3398,7 +3448,8 @@ def main():
     input_confs.append(input_conf)
   BuildUnionDBBatch(input_confs, output_path, core_labels, full_def_labels, gross_labels,
                     surfeit_labels, top_labels, slim_labels, tran_list_labels, supplement_labels,
-                    phrase_prob_path, tran_prob_path, tran_aux_paths, tran_aux_last_paths,
+                    phrase_prob_path, tran_prob_path, nmt_prob_path,
+                    tran_aux_paths, tran_aux_last_paths,
                     rev_prob_path, cooc_prob_path, aoa_paths, keyword_path, hint_path,
                     min_prob_map).Run()
 

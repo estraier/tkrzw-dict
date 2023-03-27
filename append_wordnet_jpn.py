@@ -45,7 +45,7 @@ logger = tkrzw_dict.GetLogger()
 
 class AppendWordnetJPNBatch:
   def __init__(self, input_path, output_path, wnjpn_path, feedback_path,
-               phrase_prob_path, rev_prob_path, tran_prob_path,
+               phrase_prob_path, rev_prob_path, tran_prob_path, nmt_prob_path,
                tran_aux_paths, tran_subaux_paths, tran_thes_path, hint_path):
     self.input_path = input_path
     self.output_path = output_path
@@ -54,6 +54,7 @@ class AppendWordnetJPNBatch:
     self.phrase_prob_path = phrase_prob_path
     self.rev_prob_path = rev_prob_path
     self.tran_prob_path = tran_prob_path
+    self.nmt_prob_path = nmt_prob_path
     self.tran_aux_paths = tran_aux_paths
     self.tran_subaux_paths = tran_subaux_paths
     self.tran_thes_path = tran_thes_path
@@ -241,10 +242,32 @@ class AppendWordnetJPNBatch:
         logger.info("Reading trans: words={}".format(num_words))
     tran_prob_dbm.Close().OrDie()
     logger.info("Reading tran index done: records={}".format(len(tran_index)))
+    if self.nmt_prob_path:
+      logger.info("Reading NMT probs: path={}".format(self.nmt_prob_path))
+      num_probs = 0
+      with open(self.nmt_prob_path) as input_file:
+        for line in input_file:
+          fields = line.strip().split("\t")
+          if len(fields) < 3: continue
+          word = fields[0]
+          if word not in synset_index: continue
+          tran_probs = tran_index.get(word) or {}
+          for i in range(1, len(fields), 2):
+            tran = fields[i]
+            prob = float(fields[i + 1]) * 0.3
+            if prob > 0.02:
+              tran_probs[tran] = (tran_probs.get(tran) or 0) + prob
+          if tran_probs:
+            tran_index[word] = tran_probs
+          num_probs += 1
+          if num_probs % 10000 == 0:
+            logger.info("Reading NMT probs: hints={}".format(num_probs))
+      logger.info("Reading NMT probs done: records={}".format(len(tran_index)))
     return tran_index
 
   def AppendTranslations(self, wnjpn_trans, feedback_trans,
-                         aux_trans, subaux_trans, tran_thes, hints, synset_index, tran_index):
+                         aux_trans, subaux_trans, tran_thes, hints,
+                         synset_index, tran_index):
     start_time = time.time()
     logger.info("Appending translations: input_path={}, output_path={}".format(
       self.input_path, self.output_path))
@@ -743,6 +766,7 @@ def main():
   phrase_prob_path = tkrzw_dict.GetCommandFlag(args, "--phrase_prob", 1) or ""
   rev_prob_path = tkrzw_dict.GetCommandFlag(args, "--rev_prob", 1) or ""
   tran_prob_path = tkrzw_dict.GetCommandFlag(args, "--tran_prob", 1) or ""
+  nmt_prob_path = tkrzw_dict.GetCommandFlag(args, "--nmt_prob", 1) or ""
   tran_aux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or "").split(",")
   tran_subaux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_subaux", 1) or "").split(",")
   tran_thes_path = tkrzw_dict.GetCommandFlag(args, "--tran_thes", 1) or ""
@@ -753,7 +777,7 @@ def main():
     raise RuntimeError("unknown arguments: {}".format(str(args)))
   AppendWordnetJPNBatch(
     input_path, output_path, wnjpn_path, feedback_path,
-    phrase_prob_path, rev_prob_path, tran_prob_path,
+    phrase_prob_path, rev_prob_path, tran_prob_path, nmt_prob_path,
     tran_aux_paths, tran_subaux_paths, tran_thes_path, hint_path).Run()
 
 
