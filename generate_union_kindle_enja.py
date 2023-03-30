@@ -724,7 +724,7 @@ class GenerateUnionEPUBBatch:
       P('<div>{}</div>', ", ".join(translations[:6]))
     if self.example_only:
       if examples:
-        for example in examples[:6]:
+        for example in examples[:5]:
           self.MakeMainEntryExampleItem(P, example, entry)
     else:
       for item in items:
