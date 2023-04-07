@@ -46,7 +46,7 @@ logger = tkrzw_dict.GetLogger()
 class AppendWordnetJPNBatch:
   def __init__(self, input_path, output_path, wnjpn_path, feedback_path,
                phrase_prob_path, rev_prob_path, tran_prob_path, nmt_prob_path,
-               tran_aux_paths, tran_subaux_paths, tran_thes_path, hint_path):
+               tran_aux_paths, tran_subaux_paths, tran_thes_path, hint_path, synonym_path):
     self.input_path = input_path
     self.output_path = output_path
     self.wnjpn_path = wnjpn_path
@@ -59,6 +59,7 @@ class AppendWordnetJPNBatch:
     self.tran_subaux_paths = tran_subaux_paths
     self.tran_thes_path = tran_thes_path
     self.hint_path = hint_path
+    self.synonym_path = synonym_path
 
   def Run(self):
     tokenizer = tkrzw_tokenizer.Tokenizer()
@@ -72,11 +73,12 @@ class AppendWordnetJPNBatch:
       feedback_trans = None
     aux_trans, subaux_trans, tran_thes = self.ReadAuxTranslations()
     hints = self.ReadHints()
+    extra_synonyms = self.ReadSynonyms()
     synset_index = self.ReadSynsetIndex()
     tran_index = {}
     tran_index = self.ReadTranIndex(synset_index)
     self.AppendTranslations(
-      wnjpn_trans, feedback_trans, aux_trans, subaux_trans, tran_thes, hints,
+      wnjpn_trans, feedback_trans, aux_trans, subaux_trans, tran_thes, hints, extra_synonyms,
       synset_index, tran_index)
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
@@ -191,6 +193,26 @@ class AppendWordnetJPNBatch:
         num_hints, time.time() - start_time))
     return hints
 
+  def ReadSynonyms(self):
+    if not self.synonym_path: return
+    synonyms = {}
+    start_time = time.time()
+    logger.info("Reading synonyms: path={}".format(self.synonym_path))
+    num_records = 0
+    with open(self.synonym_path) as input_file:
+      for line in input_file:
+        fields = line.strip().split("\t")
+        if len(fields) < 2: continue
+        word = fields[0]
+        synonyms[word] = fields[1:]
+        num_records += 1
+        if num_records % 10000 == 0:
+          logger.info("Reading synonyms: records={}".format(num_records))
+    logger.info(
+      "Reading synonyms done: records={}, elapsed_time={:.2f}s".format(
+        num_records, time.time() - start_time))
+    return synonyms
+
   def ReadSynsetIndex(self):
     logger.info("Reading synset index: input_path={}".format(self.input_path))
     synset_index = collections.defaultdict(set)
@@ -261,12 +283,12 @@ class AppendWordnetJPNBatch:
             tran_index[word] = tran_probs
           num_probs += 1
           if num_probs % 10000 == 0:
-            logger.info("Reading NMT probs: hints={}".format(num_probs))
+            logger.info("Reading NMT probs: records={}".format(num_probs))
       logger.info("Reading NMT probs done: records={}".format(len(tran_index)))
     return tran_index
 
   def AppendTranslations(self, wnjpn_trans, feedback_trans,
-                         aux_trans, subaux_trans, tran_thes, hints,
+                         aux_trans, subaux_trans, tran_thes, hints, extra_synonyms,
                          synset_index, tran_index):
     start_time = time.time()
     logger.info("Appending translations: input_path={}, output_path={}".format(
@@ -319,6 +341,8 @@ class AppendWordnetJPNBatch:
         spell_ratios[word] = prob / sum_prob
       all_tran_probs = tran_index.get(word) or {}
       for item in items:
+        word = item["word"]
+        word_extra_synonyms = extra_synonyms.get(word) or [] if extra_synonyms else []
         attrs = ["translation", "synonym", "antonym", "hypernym", "hyponym",
                  "similar", "derivative"]
         for attr in attrs:
@@ -326,10 +350,11 @@ class AppendWordnetJPNBatch:
           if rel_words:
             rel_words = self.SortRelatedWords(
               rel_words, all_tran_probs, tokenizer, phrase_prob_dbm, tran_prob_dbm,
-              synset_index, tran_index)
+              synset_index, tran_index, word_extra_synonyms)
             item[attr] = rel_words
       for item in items:
         word = item["word"]
+        word_extra_synonyms = extra_synonyms.get(word) or [] if extra_synonyms else []
         pos = item["pos"]
         synset = item["synset"]
         links = item.get("link") or {}
@@ -347,6 +372,10 @@ class AppendWordnetJPNBatch:
         derivative_ids = links.get("derivative") or []
         item_tran_pairs = wnjpn_trans.get(synset) or []
         item_aux_trans = list(aux_trans.get(word) or [])
+        for extra_synonym in word_extra_synonyms[:4]:
+          extra_trans = aux_trans.get(extra_synonym)
+          if extra_trans:
+            item_aux_trans.extend(extra_trans[:4])
         ext_item_aux_trans = list(item_aux_trans)
         ext_item_aux_trans.extend(subaux_trans.get(word) or [])
         self.NormalizeTranslationList(tokenizer, pos, item_aux_trans)
@@ -521,6 +550,18 @@ class AppendWordnetJPNBatch:
               hint_weight = 2 ** (1.0 / ((hi + 1) * 2))
               item_score *= hint_weight
               break
+        if word_extra_synonyms:
+          base_syn_score = 1.0
+          extra_syn_score = 0
+          for extra_synonym in word_extra_synonyms:
+            if extra_synonym in synonyms:
+              extra_syn_score = max(extra_syn_score, base_syn_score)
+            if extra_synonym in hypernyms:
+              extra_syn_score = max(extra_syn_score, base_syn_score * 0.6)
+            if extra_synonym in hyponyms:
+              extra_syn_score = max(extra_syn_score, base_syn_score * 0.4)
+            base_syn_score *= 0.95
+          item_score += extra_syn_score
         item["score"] = "{:.8f}".format(item_score).replace("0.", ".")
         if "link" in item:
           del item["link"]
@@ -633,7 +674,8 @@ class AppendWordnetJPNBatch:
     return text
 
   def SortRelatedWords(self, rel_words, seed_tran_probs,
-                       tokenizer, phrase_prob_dbm, tran_prob_dbm, synset_index, tran_index):
+                       tokenizer, phrase_prob_dbm, tran_prob_dbm, synset_index, tran_index,
+                       word_extra_synonyms):
     word_scores = []
     for rel_word in rel_words:
       prob_score = 0
@@ -654,9 +696,17 @@ class AppendWordnetJPNBatch:
                 tran_score = max(tran_score, seed_prob * rel_prob)
               elif norm_seed_tran == norm_rel_tran:
                 tran_score = max(tran_score, seed_prob * rel_prob * 0.5)
+      extra_score = 0
+      if word_extra_synonyms:
+        base_extra_score = 1.0
+        for extra_synonym in word_extra_synonyms:
+          if rel_word == extra_synonym:
+            extra_score = base_extra_score
+            break
+          base_extra_score *= 0.95
       rel_syn_num = max(len(synset_index.get(rel_word) or []), 1)
       uniq_score = 4 / (math.log(rel_syn_num) + 4)
-      score = prob_score + tran_score + uniq_score
+      score = prob_score + tran_score + extra_score + uniq_score
       word_scores.append((rel_word, score))
     word_scores = sorted(word_scores, key=lambda x: x[1], reverse=True)
     return [x[0] for x in word_scores]
@@ -771,6 +821,7 @@ def main():
   tran_subaux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_subaux", 1) or "").split(",")
   tran_thes_path = tkrzw_dict.GetCommandFlag(args, "--tran_thes", 1) or ""
   hint_path = tkrzw_dict.GetCommandFlag(args, "--hint", 1) or ""
+  synonym_path = tkrzw_dict.GetCommandFlag(args, "--synonym", 1) or ""
   if tkrzw_dict.GetCommandFlag(args, "--quiet", 0):
     logger.setLevel(logging.ERROR)
   if args:
@@ -778,7 +829,7 @@ def main():
   AppendWordnetJPNBatch(
     input_path, output_path, wnjpn_path, feedback_path,
     phrase_prob_path, rev_prob_path, tran_prob_path, nmt_prob_path,
-    tran_aux_paths, tran_subaux_paths, tran_thes_path, hint_path).Run()
+    tran_aux_paths, tran_subaux_paths, tran_thes_path, hint_path, synonym_path).Run()
 
 
 if __name__=="__main__":
