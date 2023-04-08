@@ -1956,6 +1956,7 @@ class BuildUnionDBBatch:
                    verb_words, adj_words, adv_words, extra_synonyms):
     word = word_entry["word"]
     norm_word = tkrzw_dict.NormalizeWord(word)
+    share = float(word_entry.get("share") or 1.0)
     scores = {}
     def Vote(rel_word, label, weight):
       values = scores.get(rel_word) or []
@@ -1965,13 +1966,6 @@ class BuildUnionDBBatch:
     if synonyms:
       for synonym in synonyms:
         Vote(synonym, "meta", 0.1)
-    word_extra_synonyms = extra_synonyms.get(word)
-    if word_extra_synonyms:
-      syn_score = 0.5
-      for synonym in word_extra_synonyms:
-        Vote(synonym, "meta", syn_score)
-        syn_score *= 0.95
-      word_entry["rephrase"] = word_extra_synonyms[:8]
     parents = set()
     children = set()
     for label, entry in entries:
@@ -2026,6 +2020,18 @@ class BuildUnionDBBatch:
                   weight *= rel_weight * base_weight
                   Vote(rel_word, label, weight)
             base_weight *= 0.95
+    word_extra_synonyms = extra_synonyms.get(word)
+    if word_extra_synonyms:
+      synonym_match_count = 0
+      for synonym in word_extra_synonyms[:6]:
+        if synonym in scores:
+          synonym_match_count += 1
+      if share >= 0.7 or synonym_match_count >= 3:
+        syn_score = 0.5
+        for synonym in word_extra_synonyms:
+          Vote(synonym, "meta", syn_score)
+          syn_score *= 0.98
+        word_entry["rephrase"] = word_extra_synonyms[:8]
     extra_word_base = extra_word_bases.get(word)
     if extra_word_base:
       parents.add(extra_word_base)

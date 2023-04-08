@@ -141,6 +141,15 @@ def FilterWordsWithinWidth(words, max_width, min_words):
   return out_words
 
 
+def RemoveListElements(seed, exclude):
+  exclude = set(exclude)
+  mod = []
+  for elem in seed:
+    if elem not in exclude:
+      mod.append(elem)
+  return mod
+
+
 def GetEntryPoses(entry):
   poses = []
   uniq_poses = set()
@@ -329,12 +338,13 @@ def PrintResult(entries, mode, query, searcher):
           idioms = FilterWordsWithinWidth(idioms, 70, 4)
           text = "[熟語] {}".format(", ".join(idioms))
           PrintWrappedText(text, 4)
-        rephrases = entry.get("rephrase")
+        rephrases = entry.get("rephrase") or []
         if rephrases:
           rephrases = FilterWordsWithinWidth(rephrases, 70, 4)
           text = "[換言] {}".format(", ".join(rephrases))
           PrintWrappedText(text, 4)
-        related = entry.get("related")
+        related = entry.get("related") or []
+        related = RemoveListElements(related, rephrases)
         if related:
           related = FilterWordsWithinWidth(related, 70, 4)
           text = "[関連] {}".format(", ".join(related))
@@ -1026,23 +1036,29 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
                 script_name, urllib.parse.quote(parent_word), parent_word, text)
               P('</span>')
               P('</div>')
-      rel_name_labels = (("child", "派生"), ("idiom", "熟語"), ("rephrase", "換言"),
-                         ("related", "関連"), ("cooccurrence", "共起"))
-      for rel_name, rel_label in rel_name_labels:
-        related = entry.get(rel_name)
-        if related:
-          P('<div class="attr attr_{}">', rel_name)
-          P('<span class="attr_label focal2" tabindex="-1" role="tooltip">{}</span>', rel_label)
-          P('<span class="text">')
-          fields = []
-          related = FilterWordsWithinWidth(related, 80, 4)
-          for subword in related:
-            subword_url = "{}?q={}".format(script_name, urllib.parse.quote(subword))
-            fields.append('<a href="{}" class="subword" lang="en">{}</a>'.format(
-              esc(subword_url), esc(subword)))
-          print(", ".join(fields), end="")
-          P('</span>')
-          P('</div>')
+      children = entry.get("child") or []
+      idioms = entry.get("idiom") or []
+      rephrases = entry.get("rephrase") or []
+      relwords = entry.get("related") or []
+      relwords = RemoveListElements(relwords, rephrases)
+      coocs = entry.get("cooccurrence") or []
+      rel_name_labels = (("child", "派生", children), ("idiom", "熟語", idioms),
+                         ("rephrase", "換言", rephrases), ("related", "関連", relwords),
+                         ("cooccurrence", "共起", coocs))
+      for rel_name, rel_label, related in rel_name_labels:
+        if not related: continue
+        P('<div class="attr attr_{}">', rel_name)
+        P('<span class="attr_label focal2" tabindex="-1" role="tooltip">{}</span>', rel_label)
+        P('<span class="text">')
+        fields = []
+        related = FilterWordsWithinWidth(related, 80, 4)
+        for subword in related:
+          subword_url = "{}?q={}".format(script_name, urllib.parse.quote(subword))
+          fields.append('<a href="{}" class="subword" lang="en">{}</a>'.format(
+            esc(subword_url), esc(subword)))
+        print(", ".join(fields), end="")
+        P('</span>')
+        P('</div>')
     if details:
       etym_fields = []
       if etym_prefix:
