@@ -329,6 +329,11 @@ def PrintResult(entries, mode, query, searcher):
           idioms = FilterWordsWithinWidth(idioms, 70, 4)
           text = "[熟語] {}".format(", ".join(idioms))
           PrintWrappedText(text, 4)
+        rephrases = entry.get("rephrase")
+        if rephrases:
+          rephrases = FilterWordsWithinWidth(rephrases, 70, 4)
+          text = "[換言] {}".format(", ".join(rephrases))
+          PrintWrappedText(text, 4)
         related = entry.get("related")
         if related:
           related = FilterWordsWithinWidth(related, 70, 4)
@@ -1021,7 +1026,7 @@ def PrintResultCGI(script_name, entries, query, searcher, details):
                 script_name, urllib.parse.quote(parent_word), parent_word, text)
               P('</span>')
               P('</div>')
-      rel_name_labels = (("child", "派生"), ("idiom", "熟語"),
+      rel_name_labels = (("child", "派生"), ("idiom", "熟語"), ("rephrase", "換言"),
                          ("related", "関連"), ("cooccurrence", "共起"))
       for rel_name, rel_label in rel_name_labels:
         related = entry.get(rel_name)
