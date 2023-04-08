@@ -2027,10 +2027,10 @@ class BuildUnionDBBatch:
         if synonym in scores:
           synonym_match_count += 1
       if share >= 0.7 or synonym_match_count >= 3:
-        syn_score = 0.5
+        syn_score = 1.0
         for synonym in word_extra_synonyms:
           Vote(synonym, "meta", syn_score)
-          syn_score *= 0.98
+          syn_score *= 0.95
         word_entry["rephrase"] = word_extra_synonyms[:8]
     extra_word_base = extra_word_bases.get(word)
     if extra_word_base:
