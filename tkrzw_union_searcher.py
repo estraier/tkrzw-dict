@@ -209,7 +209,7 @@ class UnionSearcher:
       max_rel_words = max(int(max_rel_words), 4)
       max_trans = max(int(max_trans), 2)
       rel_words = []
-      for i, rel_name in enumerate(("related", "parent", "child")):
+      for i, rel_name in enumerate(("related", "rephrase", "parent", "child")):
         tmp_rel_words = entry.get(rel_name)
         if tmp_rel_words:
           for j, rel_word in enumerate(tmp_rel_words):
@@ -217,10 +217,15 @@ class UnionSearcher:
       if rel_words:
         rel_words = sorted(rel_words, key=lambda x: x[1])
         rel_words = [x[0] for x in rel_words]
-        for rel_word in rel_words[:max_rel_words]:
+        num_checks = 0
+        for rel_word in rel_words:
+          if num_checks >= max_rel_words: break
           if len(checked_words) >= capacity: break
           if rel_word in checked_words: continue
-          for child in self.SearchExact(rel_word, capacity - len(checked_words)):
+          children = self.SearchExact(rel_word, capacity - len(checked_words))
+          if not children: continue
+          num_checks += 1
+          for child in children:
             if len(checked_words) >= capacity: break
             word = child["word"]
             if word in checked_words: continue
@@ -283,11 +288,18 @@ class UnionSearcher:
     score = 1.0
     rel_words = entry.get("related")
     if rel_words:
-      for rel_word in rel_words[:20]:
+      for rel_word in rel_words[:16]:
         rel_word = tkrzw_dict.NormalizeWord(rel_word)
         if rel_word not in features:
           score *= SCORE_DECAY
           features[rel_word] = score
+    rephrases = entry.get("rephrase")
+    if rephrases:
+      for rephrase in rephrases[:4]:
+        rephrase = tkrzw_dict.NormalizeWord(rephrase)
+        if rephrase not in features:
+          score *= SCORE_DECAY
+          features[rephrase] = score
     score = max(score, 0.4)
     trans = entry.get("translation")
     if trans:
