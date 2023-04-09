@@ -2023,10 +2023,10 @@ class BuildUnionDBBatch:
     word_extra_synonyms = extra_synonyms.get(word)
     if word_extra_synonyms:
       synonym_match_count = 0
-      for synonym in word_extra_synonyms[:6]:
+      for synonym in word_extra_synonyms[:8]:
         if synonym in scores:
           synonym_match_count += 1
-      if share >= 0.7 or synonym_match_count >= 3:
+      if share >= 0.6 or synonym_match_count >= 2:
         syn_score = 1.0
         for synonym in word_extra_synonyms:
           Vote(synonym, "meta", syn_score)
