@@ -553,6 +553,8 @@ class BuildUnionDBBatch:
     for label, word_dict in word_dicts:
       for key in word_dict.keys():
         if key.find("\t") >= 0: continue
+        if not regex.search(r"\p{Latin}", key): continue
+        if regex.fullmatch(r"^\d+(st|nd|rd)?", key): continue
         keys.add(key)
     logger.info("Extracting keys done: num_keys={}, elapsed_time={:.2f}s".format(
       len(keys), time.time() - start_time))
