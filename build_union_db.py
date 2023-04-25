@@ -2033,7 +2033,13 @@ class BuildUnionDBBatch:
         for synonym in word_extra_synonyms:
           Vote(synonym, "meta", syn_score)
           syn_score *= 0.95
-        word_entry["rephrase"] = word_extra_synonyms[:8]
+        vetted_synonyms = []
+        total_synonym_length = 0
+        for synonym in word_extra_synonyms[:8]:
+          if total_synonym_length >= 80: break
+          vetted_synonyms.append(synonym)
+          total_synonym_length += len(synonym)
+        word_entry["rephrase"] = vetted_synonyms
     extra_word_base = extra_word_bases.get(word)
     if extra_word_base:
       parents.add(extra_word_base)
