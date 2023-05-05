@@ -394,11 +394,11 @@ class AppendWordnetJPNBatch:
         links = item.get("link") or {}
         phrase_prob = float(item.get("prob") or 0.0)
         spell_ratio = spell_ratios[word]
-        synonyms = item.get("synonym") or []
-        hypernyms = item.get("hypernym") or []
-        hyponyms = item.get("hyponym") or []
-        similars = item.get("similar") or []
-        derivatives = item.get("derivative") or []
+        synonyms = self.DeduplicateSynonyms(word, item.get("synonym") or [])
+        hypernyms = self.DeduplicateSynonyms(word, item.get("hypernym") or [])
+        hyponyms = self.DeduplicateSynonyms(word, item.get("hyponym") or [])
+        similars = self.DeduplicateSynonyms(word, item.get("similar") or [])
+        derivatives = self.DeduplicateSynonyms(word, item.get("derivative") or [])
         synonym_ids = [synset]
         hypernym_ids = links.get("hypernym") or []
         hyponym_ids = links.get("hyponym") or []
@@ -665,6 +665,27 @@ class AppendWordnetJPNBatch:
                  ", items={}, bare={}, rescued={}").format(
       num_orig_trans, num_match_trans, num_voted_trans, num_borrowed_trans,
       num_items, num_items_bare, num_items_rescued))
+
+  def DeduplicateSynonyms(self, word, synonyms):
+    result = []
+    predecessors = [word.split(" ")]
+    for synonym in synonyms:
+      if regex.fullmatch(r"[A-Z]{2,}", synonym): continue
+      tokens = synonym.split(" ")
+      is_dup = False
+      for predecessor in predecessors:
+        if len(predecessor) == 1:
+          if predecessor[0] in tokens:
+            is_dup = True
+        if len(tokens) == 1:
+          if tokens[0] in predecessor:
+            is_dup = True
+        if is_dup: break
+      if is_dup: continue
+      result.append(synonym)
+      if len(predecessors) < 5:
+        predecessors.append(tokens)
+    return result
 
   def AreSimilarWords(self, word_a, word_b):
     word_a = word_a.lower()
