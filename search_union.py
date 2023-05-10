@@ -1168,7 +1168,7 @@ def PrintResultCGIList(script_name, entries, query):
         break
       if text:
         text = CutTextByWidth(text, 70)
-        P('<span class="list_gross">{}</span>', text)
+        P('<span class="list_gloss">{}</span>', text)
     P('</span>')
     P('</article>')
   P('</section>')
@@ -1448,7 +1448,7 @@ a.star_word {{ display: inline-block; min-width: 10ex; padding: 0ex 0.5ex;
 .list_text {{ font-size: 95%; margin-left: 0.4ex; }}
 .list_tran {{ font-size: 95%; color: #333333; }}
 .list_tran:hover {{ color: #0011ee; }}
-.list_gross {{ color: #444444; font-size: 95%; }}
+.list_gloss {{ color: #444444; font-size: 95%; }}
 .annot_meta {{ background: #eeeeee; }}
 .annot_meta h2 {{ font-size: 100%; }}
 .annot_meta p {{ padding-left: 0.5ex; }}

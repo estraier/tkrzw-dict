@@ -1,15 +1,15 @@
 #! /usr/bin/python3
 # -*- coding: utf-8 -*-
 #--------------------------------------------------------------------------------------------------
-# Script to parse English Wiktionary XML stream and make a Japanese-English grossary file
+# Script to parse English Wiktionary XML stream and make a Japanese-English glossary file
 #
 # Usage:
-#   make_wiktionary_gross_jaen.py [--quiet]
+#   make_wiktionary_gloss_jaen.py [--quiet]
 #   (It reads the standard input and prints the result on the standard output.)
 #
 # Example:
 #   $ bzcat enwiktionary-latest-pages-articles.xml.bz2 |
-#     ./make_wikipedia_gross_jaen.py > wiktionary-gross-jaen.tsv
+#     ./make_wikipedia_gloss_jaen.py > wiktionary-gloss-jaen.tsv
 #
 # Copyright 2020 Google LLC
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file

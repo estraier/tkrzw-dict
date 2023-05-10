@@ -4,7 +4,7 @@
 # Script to build a union database by merging TSV dictionaries
 #
 # Usage:
-#   build_union_db.py [--output str] [--core str] [--gross str] [--top str] [--slim str]
+#   build_union_db.py [--output str] [--core str] [--gloss str] [--top str] [--slim str]
 #     [--phrase_prob str] [--tran_prob str] [--tran_aux str] [--tran_aux_last str]
 #     [--rev_prob str] [--cooc_prob str] [--aoa str] [--keyword str] [--min_prob str]
 #     [--quiet] inputs...
@@ -258,7 +258,7 @@ force_parents = {
 
 
 class BuildUnionDBBatch:
-  def __init__(self, input_confs, output_path, core_labels, full_def_labels, gross_labels,
+  def __init__(self, input_confs, output_path, core_labels, full_def_labels, gloss_labels,
                surfeit_labels, top_labels, slim_labels, tran_list_labels, supplement_labels,
                phrase_prob_path, tran_prob_path, nmt_prob_path,
                tran_aux_paths, tran_aux_last_paths,
@@ -268,7 +268,7 @@ class BuildUnionDBBatch:
     self.output_path = output_path
     self.core_labels = core_labels
     self.full_def_labels = full_def_labels
-    self.gross_labels = gross_labels
+    self.gloss_labels = gloss_labels
     self.surfeit_labels = surfeit_labels
     self.top_labels = top_labels
     self.slim_labels = slim_labels
@@ -907,7 +907,7 @@ class BuildUnionDBBatch:
               tran = NormalizeTran(tran)
               if len(tran) >= 2:
                 out_trans.add(tran)
-        if label in self.gross_labels:
+        if label in self.gloss_labels:
           text = regex.sub(r"\(.*?\)", "", text)
           text = regex.sub(r"（.*?）", "", text)
           for tran in regex.split(r"[,、。]", text):
@@ -1727,7 +1727,7 @@ class BuildUnionDBBatch:
       sections = item["text"].split(" [-] ")
       text = sections[0]
       text = regex.sub(r"。 *(また|または|又は)、.*?。", r"。", text)
-      if (label in self.gross_labels and
+      if (label in self.gloss_labels and
           regex.search(r"[\p{Han}\p{Hiragana}\p{Katakana}ー]", text)):
         weight = body_weight
         body_weight *= 0.9
@@ -2512,7 +2512,7 @@ class BuildUnionDBBatch:
       label = item["label"]
       pos = item["pos"]
       poses.add(pos)
-      if label in self.gross_labels or label in self.supplement_labels: continue
+      if label in self.gloss_labels or label in self.supplement_labels: continue
       is_first = label not in uniq_labels
       uniq_labels.add(label)
       text = item["text"]
@@ -3455,7 +3455,7 @@ def main():
   core_labels = set((tkrzw_dict.GetCommandFlag(args, "--core", 1) or "xa,wn").split(","))
   full_def_labels = set((tkrzw_dict.GetCommandFlag(
     args, "--full_def", 1) or "ox,wn,we").split(","))
-  gross_labels = set((tkrzw_dict.GetCommandFlag(args, "--gross", 1) or "wj").split(","))
+  gloss_labels = set((tkrzw_dict.GetCommandFlag(args, "--gloss", 1) or "wj").split(","))
   top_labels = set((tkrzw_dict.GetCommandFlag(args, "--top", 1) or "we,lx,xa").split(","))
   slim_labels = set((tkrzw_dict.GetCommandFlag(args, "--slim", 1) or "ox,we,wj").split(","))
   surfeit_labels = set((tkrzw_dict.GetCommandFlag(args, "--surfeit", 1) or "we").split(","))
@@ -3493,7 +3493,7 @@ def main():
     if len(input_conf) != 2:
       raise RuntimeError("invalid input: " + input)
     input_confs.append(input_conf)
-  BuildUnionDBBatch(input_confs, output_path, core_labels, full_def_labels, gross_labels,
+  BuildUnionDBBatch(input_confs, output_path, core_labels, full_def_labels, gloss_labels,
                     surfeit_labels, top_labels, slim_labels, tran_list_labels, supplement_labels,
                     phrase_prob_path, tran_prob_path, nmt_prob_path,
                     tran_aux_paths, tran_aux_last_paths,

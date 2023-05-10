@@ -67,14 +67,14 @@ class ExtractWordNetTSVBatch:
       output.append("word={}".format(word))
       for item in items:
         pos = item["pos"]
-        gross = item["gross"]
-        gross = re.sub(r'; "(.*?)"', r" [-] e.g.: \1", gross)
+        gloss = item["gloss"]
+        gloss = re.sub(r'; "(.*?)"', r" [-] e.g.: \1", gloss)
         for attribute in attributes:
           values = item.get(attribute)
           if values:
-            gross += " [-] [{}]: {}".format(attribute, ", ".join(values[:8]))
-        gross += " [-] [synset]: {}".format(item["synset"])
-        output.append("{}={}".format(pos, gross))
+            gloss += " [-] [{}]: {}".format(attribute, ", ".join(values[:8]))
+        gloss += " [-] [synset]: {}".format(item["synset"])
+        output.append("{}={}".format(pos, gloss))
       print("\t".join(output))
 
 

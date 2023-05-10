@@ -1,13 +1,13 @@
 #! /usr/bin/python3
 # -*- coding: utf-8 -*-
 #--------------------------------------------------------------------------------------------------
-# Script to parse the Japense-English grossary file to make a translation TSV file
+# Script to parse the Japense-English glossary file to make a translation TSV file
 #
 # Usage:
 #   make_wiktionary_tran_jaen.py
 #
 # Example:
-#   $ cat wiktionary-gross-jaen.tsv |
+#   $ cat wiktionary-gloss-jaen.tsv |
 #     ./make_wiktionary_tran_jaen.py > wiktionary-tran-jaen.tsv
 #
 # Copyright 2020 Google LLC

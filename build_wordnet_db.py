@@ -66,11 +66,11 @@ class BuildWordNetDBBatch:
         for line in input_file:
           if line.startswith(" "): continue
           line = line.strip()
-          gross_parts = line.split(" | ")
-          if len(gross_parts) != 2: continue
-          gross = gross_parts[1].strip()
-          if not gross: continue
-          fields = gross_parts[0].split(" ")
+          gloss_parts = line.split(" | ")
+          if len(gloss_parts) != 2: continue
+          gloss = gloss_parts[1].strip()
+          if not gloss: continue
+          fields = gloss_parts[0].split(" ")
           if len(fields) < 6: continue
           synset_id = fields[0] + "-" + input_pos
           pos = self.GetPOSType(fields[2])
@@ -93,7 +93,7 @@ class BuildWordNetDBBatch:
             if ptr_type not in IGNORED_POINTERS:
               ptrs.append((ptr_type, ptr_dest))
             field_index += 4
-          synsets[synset_id] = (words, pos, gross, ptrs)
+          synsets[synset_id] = (words, pos, gloss, ptrs)
           if len(synsets) % 10000 == 0:
             logger.info("Reading synsets: synsets={}, word_entries={}".format(
               len(synsets), num_word_entries))
@@ -138,14 +138,14 @@ class BuildWordNetDBBatch:
     words = collections.defaultdict(list)
     num_synsets = 0
     for synset_id, synset in synsets.items():
-      syn_words, pos, gross, ptrs = synset
+      syn_words, pos, gloss, ptrs = synset
       for word in syn_words:
         key = word.lower()
         item = {}
         item["synset"] = synset_id
         item["word"] = word
         item["pos"] = pos
-        item["gross"] = gross
+        item["gloss"] = gloss
         if len(words) > 1:
           synonyms = []
           for syn_word in syn_words:

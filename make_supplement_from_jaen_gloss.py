@@ -1,15 +1,15 @@
 #! /usr/bin/python3
 # -*- coding: utf-8 -*-
 #--------------------------------------------------------------------------------------------------
-# Script to parse the Japense-English grossary file to make a supplement TSV file
+# Script to parse the Japense-English glossary file to make a supplement TSV file
 #
 # Usage:
-#   make_supplement_from_jaen_gross.py [--phrase_prob str] [--tran_prob str]
+#   make_supplement_from_jaen_gloss.py [--phrase_prob str] [--tran_prob str]
 #   (It reads the standard input and prints the result on the standard output.)
 #
 # Example:
-#   $ cat wiktionary-gross-jaen.tsv edict2-gross.txt |
-#     ./make_supplement_from_jaen_gross.py > supplement.tsv
+#   $ cat wiktionary-gloss-jaen.tsv edict2-gloss.txt |
+#     ./make_supplement_from_jaen_gloss.py > supplement.tsv
 #
 # Copyright 2020 Google LLC
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
@@ -76,7 +76,7 @@ def Run(phrase_prob_path, rev_prob_path,
           fields = line.strip().split("\t")
           if len(fields) < 1: continue
           yomis.add(fields[0])
-  logger.info("Processing the gross.")
+  logger.info("Processing the gloss.")
   tokenizer = tkrzw_tokenizer.Tokenizer()
   word_dict = collections.defaultdict(list)
   alt_source = None
@@ -85,7 +85,7 @@ def Run(phrase_prob_path, rev_prob_path,
   for line in sys.stdin:
     num_lines += 1
     if num_lines % 10000 == 0:
-      logger.info("Processing the gross: {} lines: {} items".format(
+      logger.info("Processing the gloss: {} lines: {} items".format(
         num_lines, len(word_dict)))
     fields = line.strip().split("\t")
     if len(fields) != 3: continue

@@ -78,7 +78,7 @@ STYLE_TEXT = """html,body { margin: 0; padding: 0; background: #fff; color: #000
   text-align: left; text-justify: none; direction: ltr; }
 span.word { font-weight: bold; }
 span.pron { font-size: 90%; color: #444; }
-span.gross { font-size: 90%; color: #444; }
+span.gloss { font-size: 90%; color: #444; }
 """
 NAVIGATION_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
@@ -374,7 +374,7 @@ class GenerateUnionEPUBBatch:
         if item["label"] != "wn": continue
         texts = item["text"].split(" [-] ")
         synset_id = ""
-        gross = texts[0]
+        gloss = texts[0]
         synonyms = []
         tran_match = False
         for text in texts[1:]:
@@ -395,7 +395,7 @@ class GenerateUnionEPUBBatch:
               if syn_tran == tran:
                 tran_match = True
         if synset_id and tran_match:
-          synsets.append((synset_id, gross, synonyms))
+          synsets.append((synset_id, gloss, synonyms))
       if synsets:
         dict_score += 0.1
       score = word_prob_score + rank_score + tran_prob_score + dict_score
@@ -751,12 +751,12 @@ class GenerateUnionEPUBBatch:
       uniq_trans.add(norm_tran)
       self.num_items += 1
       hit_syn = False
-      for syn_id, syn_gross, syn_words in synsets:
+      for syn_id, syn_gloss, syn_words in synsets:
         if syn_id in uniq_synsets: continue
         uniq_synsets.add(syn_id)
         hit_syn = True
         P('<div>{}', ", ".join([tran] + syn_words), end="")
-        P(' <span class="gross">- {}</span>', syn_gross, end="")
+        P(' <span class="gloss">- {}</span>', syn_gloss, end="")
         P('</div>')
         for synonym in syn_words:
           norm_syn = tkrzw_dict.NormalizeWord(synonym)

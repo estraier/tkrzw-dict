@@ -64,9 +64,9 @@ def PrintResultWord(key, entry, show_details):
       if not show_details:
         translations = translations[:5]
       PrintWrappedText(format(", ".join(translations)), 4, True)
-    gross = item.get("gross")
-    if gross:
-      PrintWrappedText(gross, 4, False)
+    gloss = item.get("gloss")
+    if gloss:
+      PrintWrappedText(gloss, 4, False)
     if show_details:
       attrs = ("synonym", "hypernym", "hyponym", "antonym", "similar", "derivative")
       for attr in attrs:
@@ -138,9 +138,9 @@ def PrintResultWordCGI(key, entry, show_details):
           esc(urllib.parse.quote(tran)), esc(tran)))
       print(', '.join(esc_trans), end='')
       print('</div>')
-    gross = item.get("gross")
-    if gross:
-      print('<div class="gross">{}</div>'.format(esc(gross)))
+    gloss = item.get("gloss")
+    if gloss:
+      print('<div class="gloss">{}</div>'.format(esc(gloss)))
     if show_details:
       attrs = ("synonym", "hypernym", "hyponym", "antonym", "similar", "derivative")
     else:
@@ -188,7 +188,7 @@ h3 {{ font-size: 105%; margin: 1ex 0ex 0ex 1ex; }}
 .query_form,.entry,.note,.license {{ border: 1px solid #dddddd; border-radius: 0.5ex;
   margin: 1ex 0ex; padding: 0.8ex 1ex 1.3ex 1ex; background: #ffffff; position: relative; }}
 .pos {{ margin-left: 0.5ex; font-size: 90%; color: #666666; font-weight: normal; }}
-.translation,.gross {{ margin-left: 5ex; }}
+.translation,.gloss {{ margin-left: 5ex; }}
 .relword {{ margin-left: 7ex; font-size: 95%; }}
 .relword a {{ color: #444444; }}
 .rellabel {{ color: #888888; }}
