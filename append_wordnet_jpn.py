@@ -9,7 +9,7 @@
 #     [--tran_aux str] [--tran_subaux str] [--tran_thes str] [--quiet]
 #
 # Example:
-#   ./append_wordnet_jpn.py --input wordnet.tkh --output wordnet-body.tkh \
+#   ./append_wordnet_jpn.py --input wordnet.tkh --output wordnet-tran.tkh \
 #     --wnjpn wnjpn-ok.tab --tran_aux wiktionary-tran.tsv
 #
 # Copyright 2020 Google LLC
@@ -908,7 +908,7 @@ class AppendWordnetJPNBatch:
 def main():
   args = sys.argv[1:]
   input_path = tkrzw_dict.GetCommandFlag(args, "--input", 1) or "wordnet.thk"
-  output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "wordnet-body.tkh"
+  output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "wordnet-tran.tkh"
   wnjpn_path = tkrzw_dict.GetCommandFlag(args, "--wnjpn", 1) or "wnjpn-ok.tab"
   wnmt_paths = tkrzw_dict.GetCommandFlag(args, "--wnmt", 1) or ""
   feedback_path = tkrzw_dict.GetCommandFlag(args, "--feedback", 1) or ""
