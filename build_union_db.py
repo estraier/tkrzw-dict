@@ -1360,12 +1360,14 @@ class BuildUnionDBBatch:
           items = word_entry.get("item") or []
           tran_key = word + "\t" + label + "\t" + pos
           sections = []
+          num_examples = 0
           for section in text.split(" [-] "):
             if not sections:
               sections.append(section)
               continue
             eg_match = regex.search(r"^e\.g\.: (.*)", section)
             if eg_match:
+              if num_examples >= 1: continue
               eg_text = eg_match.group(1).lower()
               eg_words = regex.findall("[-\p{Latin}]+", eg_text)
               hit = False
@@ -1380,6 +1382,7 @@ class BuildUnionDBBatch:
                   hit = True
                   break
               if not hit: continue
+              num_examples += 1
             sections.append(section)
           text = " [-] ".join(sections)
           tran_texts = entry_tran_texts.get(tran_key)
