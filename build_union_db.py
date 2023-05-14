@@ -1370,9 +1370,12 @@ class BuildUnionDBBatch:
               eg_words = regex.findall("[-\p{Latin}]+", eg_text)
               hit = False
               for surface in surfaces:
-                if surface in eg_text:
-                  hit = True
-                  break
+                pos = eg_text.find(surface)
+                if pos >= 0:
+                  epos = pos + len(surface)
+                  if ((pos == 0 or not eg_text[pos-1].isalnum()) and
+                      (epos == len(eg_text) or not eg_text[epos].isalnum())):
+                    hit = True
                 if surface in eg_words:
                   hit = True
                   break
