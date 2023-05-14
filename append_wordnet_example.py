@@ -126,9 +126,10 @@ class AppendWordnetExampleBatch:
         if rec_synset != synset: continue
         synset_examples.append(rec_example)
         MakeSentenceKey(rec_example)
+      synset_examples = sorted(synset_examples, key=lambda x: abs(60 - len(x)))
       new_examples = []
       for example in synset_examples:
-        if num_examples >= 2: continue
+        if num_examples >= 1: continue
         norm_example = example.lower()
         key = MakeSentenceKey(example)
         is_dup = False
