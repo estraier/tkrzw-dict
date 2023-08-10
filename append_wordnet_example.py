@@ -111,6 +111,11 @@ class AppendWordnetExampleBatch:
       gloss_main = gloss_fields[0].strip().lower()
       old_examples.append(gloss_main)
       old_keys.append(MakeSentenceKey(gloss_main))
+      norm_gloss_main = regex.sub(r"\(.*?\)", "", gloss_main)
+      norm_gloss_main = regex.sub(r"\s+", r" ", norm_gloss_main).strip()
+      if norm_gloss_main != gloss_main:
+        old_examples.append(norm_gloss_main)
+        old_keys.append(MakeSentenceKey(norm_gloss_main))
       for example in gloss_fields[1:]:
         example = example.strip()
         match = regex.fullmatch(r'"(.*)"', example)
@@ -120,13 +125,20 @@ class AppendWordnetExampleBatch:
         old_examples.append(example)
         old_keys.append(MakeSentenceKey(example))
       synset_examples = []
+      rank_cost = 0
+      base_length = 60
       for rec_synset, rec_example in examples.get(word) or []:
         if rec_synset != synset: continue
-        synset_examples.append(rec_example)
-        MakeSentenceKey(rec_example)
-      synset_examples = sorted(synset_examples, key=lambda x: abs(60 - len(x)))
+        if len(rec_example) > base_length:
+          cost = len(rec_example) - 60
+        else:
+          cost = (60 - len(rec_example)) / 2
+        cost += rank_cost
+        synset_examples.append((cost, rec_example))
+        rank_cost += 15
+      synset_examples = sorted(synset_examples)
       new_examples = []
-      for example in synset_examples:
+      for cost, example in synset_examples:
         norm_example = example.lower()
         key = MakeSentenceKey(example)
         is_dup = False

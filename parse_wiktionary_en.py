@@ -703,6 +703,9 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         if text.find("{{quote") >= 0: continue
         text = self.MakePlainText(text)
         if text.startswith("cf."): continue
+        if tran_mode:
+          if not regex.search(r"[\p{Hiragana}\p{Katakana}\p{Han}]", text): continue
+          text = regex.sub(r"Japanese:", "", text).strip()
         eff_text = regex.sub(r"\(.*?\)", "", text).strip()
         if not regex.search(r"(\p{Latin}{2,})|([\p{Han}\p{Hiragana}|\p{Katakana}ー])", eff_text):
           continue
@@ -739,9 +742,9 @@ class XMLHandler(xml.sax.handler.ContentHandler):
                 (antonyms, "antonym"), (derivatives, "derivative"), (relations, "relation")):
       if rel[0]:
         output.append("{}={}".format(rel[1], ", ".join(rel[0])))
-    if tran_mode:
-      output.append("mode=translation")
     if output:
+      if tran_mode:
+        output.append("mode=translation")
       print("word={}\t{}".format(title, "\t".join(output)))
 
   def ConcatNestLines(self, text):
