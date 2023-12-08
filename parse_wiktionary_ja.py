@@ -234,6 +234,8 @@ class XMLHandler(xml.sax.handler.ContentHandler):
       if mode == "pronunciation":
         for line in lines:
           if regex.search(r"\{\{ipa[0-9]?\|([^}|]+)(\|[^}|]+)*\}\}", line, regex.IGNORECASE):
+            if regex.search(r"\|lang=en\|", line):
+              line = regex.sub(r"\|lang=en\|", r"|", line)
             value = regex.sub(r".*\{\{ipa[0-9]?\|([^}|]+)(\|[^}|]+)*\}\}.*", r"\1",
                               line, flags=regex.IGNORECASE)
             value = self.TrimPronunciation(value, True)
@@ -546,6 +548,8 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         if regex.search(r"([\p{Latin}0-9]{2,}|[\p{Han}\p{Hiragana}\p{Katakana}])", eff_text):
           output.append("{}={}".format(mode, current_text))
     pronunciation_ipa = pronunciation_ipa_us or pronunciation_ipa_misc
+    if regex.search(r"[=:|/,]", pronunciation_ipa):
+      pronunciation_ipa = None
     if pronunciation_ipa:
       output.append("pronunciation_ipa={}".format(pronunciation_ipa))
     pronunciation_sampa = pronunciation_sampa_us or pronunciation_sampa_misc
