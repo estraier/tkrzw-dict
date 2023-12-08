@@ -523,7 +523,7 @@ class GenerateUnionEPUBBatch:
         new_items.append((tran, score, tran_prob, synsets))
       if word in keywords:
         count_ok_keyword += 1
-      elif max_tran_prob >= 0.1:
+      elif max_tran_prob >= 0.2:
         count_ok_tran_only += 1
       elif word_prob >= 0.00001:
         count_ok_word_only += 1
