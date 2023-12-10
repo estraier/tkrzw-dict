@@ -529,13 +529,20 @@ class GenerateUnionEPUBBatch:
     poses = set()
     sub_poses = set()
     is_vetted_verb = False
-    for item in entry["item"][:10]:
-      if item["label"] in self.supplement_labels:
-        sub_poses.add(item["pos"])
+    verb_labels = set()
+    for item in entry["item"]:
+      label = item["label"]
+      pos = item["pos"]
+      if label in self.supplement_labels:
+        sub_poses.add(pos)
       else:
-        poses.add(item["pos"])
-      if item["label"] in self.vetted_labels and item["pos"] == "verb":
-        is_vetted_verb = True
+        poses.add(pos)
+      if pos == "verb":
+        if label in self.vetted_labels:
+          is_vetted_verb = True
+        verb_labels.add(label)
+    if len(verb_labels) >= 2:
+      is_vetted_verb = True
     if not poses:
       poses = sub_poses
     infl_groups = collections.defaultdict(list)
