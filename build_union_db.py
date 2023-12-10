@@ -263,7 +263,7 @@ class BuildUnionDBBatch:
                phrase_prob_path, tran_prob_path, nmt_prob_path,
                tran_aux_paths, tran_aux_last_paths,
                rev_prob_path, cooc_prob_path, aoa_paths,
-               keyword_path, hint_path, synonym_path, min_prob_map):
+               keyword_path, hint_path, synonym_path, pronunciation_path, min_prob_map):
     self.input_confs = input_confs
     self.output_path = output_path
     self.core_labels = core_labels
@@ -285,6 +285,7 @@ class BuildUnionDBBatch:
     self.keyword_path = keyword_path
     self.hint_path = hint_path
     self.synonym_path = synonym_path
+    self.pronunciation_path = pronunciation_path
     self.min_prob_map = min_prob_map
     self.tokenizer = tkrzw_tokenizer.Tokenizer()
 
@@ -321,8 +322,11 @@ class BuildUnionDBBatch:
     extra_synonyms = {}
     if self.synonym_path:
       self.ReadSynonyms(self.synonym_path, extra_synonyms)
+    extra_pronunciations = {}
+    if self.pronunciation_path:
+      self.ReadPronunciations(self.pronunciation_path, extra_pronunciations)
     self.SaveWords(word_dicts, aux_trans, aux_last_trans, aoa_words,
-                   keywords, hints, extra_synonyms)
+                   keywords, hints, extra_synonyms, extra_pronunciations)
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
   def NormalizeText(self, text):
@@ -528,8 +532,24 @@ class BuildUnionDBBatch:
     logger.info("Reading a synonym file: num_entries={}, elapsed_time={:.2f}s".format(
       num_entries, time.time() - start_time))
 
+  def ReadPronunciations(self, input_path, pronunciations):
+    start_time = time.time()
+    logger.info("Reading a pronunciation file: input_path={}".format(input_path))
+    num_entries = 0
+    with open(input_path) as input_file:
+      for line in input_file:
+        fields = line.strip().split("\t")
+        if len(fields) != 2: continue
+        word, pronunciation = fields
+        pronunciations[word] = pronunciation
+        num_entries += 1
+        if num_entries % 10000 == 0:
+          logger.info("Reading a pronunciation file: num_entries={}".format(num_entries))
+    logger.info("Reading a pronunciation file: num_entries={}, elapsed_time={:.2f}s".format(
+      num_entries, time.time() - start_time))
+
   def SaveWords(self, word_dicts, aux_trans, aux_last_trans, aoa_words,
-                keywords, hints, extra_synonyms):
+                keywords, hints, extra_synonyms, extra_pronunciations):
     logger.info("Preparing DBMs")
     phrase_prob_dbm = None
     if self.phrase_prob_path:
@@ -786,6 +806,7 @@ class BuildUnionDBBatch:
                           live_words, rev_live_words, pivot_live_words,
                           phrase_prob_dbm, tran_prob_dbm, cooc_prob_dbm, extra_word_bases,
                           verb_words, adj_words, adv_words, extra_synonyms)
+        self.SetPronunciations(word_entry, extra_pronunciations)
         if phrase_prob_dbm and cooc_prob_dbm:
           self.SetCoocurrences(word_entry, entries, word_dicts, phrase_prob_dbm, cooc_prob_dbm)
       num_entries += 1
@@ -2249,6 +2270,14 @@ class BuildUnionDBBatch:
         max_elems = int(min(max(math.log2(len(word_entry["item"])), 2), 6) * 4)
         word_entry["idiom"] = final_idioms[:max_elems]
 
+  def SetPronunciations(self, word_entry, extra_pronunciations):
+    word = word_entry["word"]
+    if "pronunciation" not in word_entry:
+      extra_pron = extra_pronunciations.get(word)
+      if extra_pron:
+        word_entry["pronunciation"] = extra_pron
+        print("EXPRON", word, extra_pron)
+
   def SetCoocurrences(self, word_entry, entries, word_dicts, phrase_prob_dbm, cooc_prob_dbm):
     word = word_entry["word"]
     norm_word = tkrzw_dict.NormalizeWord(word)
@@ -3482,6 +3511,7 @@ def main():
   keyword_path = tkrzw_dict.GetCommandFlag(args, "--keyword", 1) or ""
   hint_path = tkrzw_dict.GetCommandFlag(args, "--hint", 1) or ""
   synonym_path = tkrzw_dict.GetCommandFlag(args, "--synonym", 1) or ""
+  pronunciation_path = tkrzw_dict.GetCommandFlag(args, "--pronunciation", 1) or ""
   min_prob_exprs = tkrzw_dict.GetCommandFlag(args, "--min_prob", 1) or ""
   min_prob_map = {}
   for min_prob_expr in min_prob_exprs.split(","):
@@ -3507,7 +3537,7 @@ def main():
                     phrase_prob_path, tran_prob_path, nmt_prob_path,
                     tran_aux_paths, tran_aux_last_paths,
                     rev_prob_path, cooc_prob_path, aoa_paths,
-                    keyword_path, hint_path, synonym_path, min_prob_map).Run()
+                    keyword_path, hint_path, synonym_path, pronunciation_path, min_prob_map).Run()
 
 
 if __name__=="__main__":
