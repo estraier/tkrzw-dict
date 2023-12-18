@@ -28,9 +28,12 @@ import tkrzw
 def main():
   args = []
   opt_word = False
+  opt_tran = False
   for arg in sys.argv[1:]:
     if arg == "--word":
       opt_word = True
+    elif arg == "--tran":
+      opt_tran = True
     elif arg.startswith("-"):
       raise ValueError("invalid arguments: " + arg)
     else:
@@ -60,18 +63,21 @@ def main():
       pronunciation = regex.sub(r"\((.*?)\)", r"\1", pronunciation)
       pronunciation = regex.sub(r"[ˈ.ˌ]", r"", pronunciation)
       if not pronunciation: continue
-      outputs.append((-score, word, pronunciation))
+      translation = ", ".join((entry.get("translation") or [])[:3])
+      outputs.append((-score, word, pronunciation, translation))
     it.Next()
   dbm.Close().OrDie()
   outputs = sorted(outputs)
   uniq_pronunciations = set()
-  for score, word, pronunciation in outputs:
+  for score, word, pronunciation, translation in outputs:
     fields = []
     if opt_word:
       fields.append(word)
     elif pronunciation in uniq_pronunciations:
       continue
     fields.append(pronunciation)
+    if opt_tran:
+      fields.append(translation)
     uniq_pronunciations.add(pronunciation)
     print("\t".join(fields))
 
