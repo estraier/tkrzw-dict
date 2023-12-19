@@ -29,11 +29,14 @@ def main():
   args = []
   opt_word = False
   opt_tran = False
+  opt_norm = False
   for arg in sys.argv[1:]:
     if arg == "--word":
       opt_word = True
     elif arg == "--tran":
       opt_tran = True
+    elif arg == "--norm":
+      opt_norm = True
     elif arg.startswith("-"):
       raise ValueError("invalid arguments: " + arg)
     else:
@@ -60,9 +63,10 @@ def main():
       score = prob * len(labels)
       pronunciation = entry.get("pronunciation")
       if not pronunciation: continue
-      pronunciation = regex.sub(r"\((.*?)\)", r"\1", pronunciation)
-      pronunciation = regex.sub(r"[ˈ.ˌ]", r"", pronunciation)
-      if not pronunciation: continue
+      if opt_norm:
+        pronunciation = regex.sub(r"\((.*?)\)", r"\1", pronunciation)
+        pronunciation = regex.sub(r"[ˈ.ˌ]", r"", pronunciation)
+        if not pronunciation: continue
       translation = ", ".join((entry.get("translation") or [])[:3])
       outputs.append((-score, word, pronunciation, translation))
     it.Next()
