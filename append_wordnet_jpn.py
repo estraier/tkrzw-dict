@@ -606,6 +606,7 @@ class AppendWordnetJPNBatch:
           for tran in sorted_item_trans:
             tran = regex.sub(r"^を.*", "", tran)
             tran = regex.sub(r"・", "", tran)
+            if len(tran) > 16: continue
             if not tran or tran in uniq_item_trans: continue
             uniq_item_trans.add(tran)
             final_item_trans.append(tran)
