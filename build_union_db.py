@@ -1681,6 +1681,10 @@ class BuildUnionDBBatch:
           prob *= 0.7
         elif len(norm_trg) < 2:
           prob *= 0.9
+        elif len(norm_trg) > 12:
+          prob *= 0.5
+        elif len(norm_trg) > 8:
+          prob *= 0.8
         prob **= 0.8
         tran_probs[norm_trg] = max(tran_probs.get(norm_trg) or 0.0, prob)
         stem_trg = regex.sub(
@@ -1708,6 +1712,8 @@ class BuildUnionDBBatch:
       aux_weight = 1.0
       extra_records = []
       for aux_tran, count in count_aux_trans.items():
+        if len(aux_tran) > 16 and count < 3: continue
+        if word.count(' ') < 1 and len(aux_tran) > 12 and count < 2: continue
         aux_score = (0.01 ** (1 / (count + 1))) * aux_weight
         prob = (tran_probs.get(aux_tran) or 0) + aux_score
         tran_probs[aux_tran] = prob
@@ -1865,6 +1871,7 @@ class BuildUnionDBBatch:
     sorted_translations = []
     for tran, score in bonus_translations:
       norm_tran = tkrzw_dict.NormalizeWord(tran)
+      if len(norm_tran) > 16: continue
       if norm_tran not in scored_translations:
         bonus = 0.0
         for dict_tran, prob in tran_probs.items():
@@ -1962,6 +1969,8 @@ class BuildUnionDBBatch:
         final_translations.append(tran)
     sorted_aux_trans = sorted(count_aux_trans.items(), key=lambda x: -x[1])
     for aux_tran, count in sorted_aux_trans:
+      if len(aux_tran) > 16 and count < 3: continue
+      if word.count(' ') < 1 and len(aux_tran) > 12 and count < 2: continue
       aux_tran = regex.sub(r"^を.*", "", aux_tran)
       aux_tran = regex.sub(r"・", "", aux_tran)
       aux_tran = self.tokenizer.NormalizeJaWordStyle(aux_tran)
@@ -2276,7 +2285,6 @@ class BuildUnionDBBatch:
       extra_pron = extra_pronunciations.get(word)
       if extra_pron:
         word_entry["pronunciation"] = extra_pron
-        print("EXPRON", word, extra_pron)
 
   def SetCoocurrences(self, word_entry, entries, word_dicts, phrase_prob_dbm, cooc_prob_dbm):
     word = word_entry["word"]
