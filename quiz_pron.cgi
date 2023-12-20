@@ -37,7 +37,7 @@ NUM_QUESTIONS = 10
 LEVEL_BASE_RANGE = 1500
 LEVEL_GAMMA = 1.6666
 MAX_RECORDS = 30000
-STOP_WORDS = {"bes", "mores"}
+STOP_WORDS = {"bes", "mores", "di"}
 
 RESULT_HTML_HEADER = """<?xml version="1.0" encoding="UTF-8"?>
 <html xmlns="http://www.w3.org/1999/xhtml" lang="ja">
