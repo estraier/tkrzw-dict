@@ -245,7 +245,7 @@ QUIZ_HTML_BODY = """<h1><a href="{}">英単語発音記号クイズ</a></h1>
 <div id="intro">
 <p>IPA発音記号を見て、それに該当する英単語を当てるクイズです。</p>
 <p>例えば <code>/ˈæ.nɪ.meɪ.tə.bəl/</code> と表示されたら、「<code>animatable</code>」と入力してください。「回答」ボタンを押すか、Enterキーを押すと回答が送信されます。</p>
-<p>10問の問題が出題されます。全てに正答するまでの経過時間が100秒以内なら合格です。</p>
+<p>10問の問題が出題されます。全てに正答するまでの経過時間が60秒以内なら合格です。</p>
 <p>レベルは1から5まであります。高いレベルでは「communicable」「paralyzed」「kabuki」「Beethoven」のような派生後や外来語や固有名詞も含むので柔軟な思考と広い知識が求められます。</p>
 <p>答えは必ず単語です。複数語のフレーズは含まれません。大文字と小文字は区別しません。同じ発音の語が複数該当する場合、どれを入力しても正解になります。</p>
 <form id="start_form" onsubmit="start_quiz(); return false">
@@ -390,7 +390,7 @@ def ShowResult(uid, script_url):
   for answer in answers:
     total_time += answer[3]
   total_time /= 1000
-  if total_time <= 100:
+  if total_time <= 60:
     P('<div class="pass_label">[合格]</div>')
   else:
     P('<div class="fail_label">[不合格]</div>')
