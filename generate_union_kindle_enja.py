@@ -424,7 +424,7 @@ class GenerateUnionEPUBBatch:
         if particle_suffix:
           return True
     translations = entry.get("translation")
-    if translations and not self.example_only:
+    if translations and len(labels) >= 2 and not self.example_only:
       if "verb" in poses or "adjective" in poses or "adverb" in poses:
         return True
       if regex.fullmatch("[a-z]+", word) and "we" in labels:
@@ -627,7 +627,7 @@ class GenerateUnionEPUBBatch:
       is_good = False
       phrase_word = phrase["w"]
       phrase_prob = float(phrase.get("p") or 0)
-      if phrase_word.find(" ") < 0 or phrase_prob > 0.001 or phrase.get("i"):
+      if phrase_word.find(" ") < 0 or phrase_prob > 0.01:
         phrases.append(phrase)
     self.num_words += 1
     P('<idx:entry>')
@@ -957,10 +957,10 @@ def main():
     args, "--trustable", 1) or "xa").split(","))
   supplement_labels = set((tkrzw_dict.GetCommandFlag(args, "--supplement", 1) or "xs").split(","))
   title = tkrzw_dict.GetCommandFlag(args, "--title", 1) or "Union English-Japanese Dictionary"
-  min_prob_normal = float(tkrzw_dict.GetCommandFlag(args, "--min_prob_normal", 1) or 0.0000003)
-  min_prob_capital = float(tkrzw_dict.GetCommandFlag(args, "--min_prob_multi", 1) or 0.000003)
-  min_prob_multi = float(tkrzw_dict.GetCommandFlag(args, "--min_prob_capital", 1) or 0.000003)
-  sufficient_prob = float(tkrzw_dict.GetCommandFlag(args, "--sufficient_prob", 1) or 0.00003)
+  min_prob_normal = float(tkrzw_dict.GetCommandFlag(args, "--min_prob_normal", 1) or 0.0000004)
+  min_prob_capital = float(tkrzw_dict.GetCommandFlag(args, "--min_prob_multi", 1) or 0.000004)
+  min_prob_multi = float(tkrzw_dict.GetCommandFlag(args, "--min_prob_capital", 1) or 0.000004)
+  sufficient_prob = float(tkrzw_dict.GetCommandFlag(args, "--sufficient_prob", 1) or 0.00004)
   shrink = tkrzw_dict.GetCommandFlag(args, "--shrink", 0)
   example_only = tkrzw_dict.GetCommandFlag(args, "--example_only", 0)
   if not input_path:
