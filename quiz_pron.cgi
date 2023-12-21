@@ -411,7 +411,7 @@ def ShowResult(uid, script_url):
     P('<td class="time">{:.3f}秒</td>'.format(elapsed / 1000))
     P('</tr>')
   P('</table>')
-  tweet_msg = "#英単語発音記号クイズ: {}さんは、{}の語彙を{:.0f}秒でクリアできました。".format(
+  tweet_msg = "#英単語発音記号クイズ: {}さんは、{}の語彙を{:.0f}秒で回答できました。".format(
     user_name, level_label, total_time)
   P('<p>結果をつぶやく: ', end="")
   P('<a href="https://twitter.com/share" class="twitter-share-button" data-text="{}" data-count="none">Tweet</a>', tweet_msg, end="")
