@@ -4,7 +4,7 @@
 # Script to extract pronunciations from the union dictionary
 #
 # Usage:
-#   extract_union_pronunciations.py [--word] input_db
+#   extract_union_pronunciations.py [--word] [--tran] [--norm] input_db
 #
 # Example
 #   ./extract_union_pronunciations.py union-body.tkh
@@ -57,10 +57,16 @@ def main():
     for entry in entries:
       word = entry["word"]
       prob = float(entry.get("probability") or 0)
+      share = entry.get("share")
+      if share:
+        prob *= float(share)
       labels = set()
       for item in entry["item"]:
         labels.add(item["label"])
-      score = prob * len(labels)
+      label_score = math.log2(len(labels) + 1)
+      aoa = float((entry.get("aoa") or entry.get("aoa_concept") or entry.get("aoa_base")) or 20)
+      aoa_score = (25 - min(aoa, 20.0)) / 10.0
+      score = prob * label_score * aoa_score
       pronunciation = entry.get("pronunciation")
       if not pronunciation: continue
       if opt_norm:
