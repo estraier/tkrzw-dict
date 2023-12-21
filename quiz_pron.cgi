@@ -31,6 +31,7 @@ import urllib
 
 
 PRON_TABLE_PATH = "union-pron-table.tsv"
+PRON_AUX_PATH = "pronunciation-ipa.tsv"
 DICT_URL = "https://dbmx.net/dict/search_union.cgi"
 RESULT_DIR = "quiz-pron-result"
 NUM_QUESTIONS = 10
@@ -296,6 +297,7 @@ def ReadQuestions(level):
       indices.append(index)
   pron_dict = collections.defaultdict(list)
   pron_list = []
+  word_trans_dict = {}
   with open(PRON_TABLE_PATH) as input_file:
     for line in input_file:
       if len(pron_list) >= MAX_RECORDS: break
@@ -306,6 +308,7 @@ def ReadQuestions(level):
       if word in STOP_WORDS: continue
       pron_dict[pron].append((word, trans))
       pron_list.append(pron)
+      word_trans_dict[word] = trans
   prons = []
   uniq_prons = set()
   for index in indices:
@@ -314,6 +317,25 @@ def ReadQuestions(level):
       pron = pron_list[index + 1]
     prons.append(pron)
     uniq_prons.add(pron)
+  if PRON_AUX_PATH:
+    with open(PRON_AUX_PATH) as input_file:
+      num_lines = 0
+      for line in input_file:
+        if num_lines >= MAX_RECORDS: break
+        fields = line.strip().split("\t")
+        if len(fields) != 2: continue
+        word, pron = fields
+        old_recs = pron_dict.get(pron)
+        if old_recs:
+          hit = False
+          for old_word, old_rec in old_recs:
+            if old_word == word:
+              hit = True
+          if not hit:
+            trans = word_trans_dict.get(word)
+            if trans:
+              old_recs.append((word, trans))
+        num_lines += 1
   questions = []
   for pron in prons:
     questions.append((pron, pron_dict[pron]))
