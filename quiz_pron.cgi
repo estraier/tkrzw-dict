@@ -58,7 +58,11 @@ a:hover { color: #002299; text-decoration: underline; }
 .pass_label { color: #008811; font-size: 150%; padding: 0.5ex 1ex; }
 .fail_label { color: #881100; font-size: 150%; padding: 0.5ex 1ex; }
 table { border-collapse: collapse; }
-th,td { text-align: left; width: 21ex; border: solid 1px #dddddd; padding: 0 1ex; }
+th,td { text-align: left; border: solid 1px #dddddd; padding: 0 1ex; }
+td.pron { width: 20ex; }
+td.word { width: 20ex; }
+td.trans { width: 32ex; }
+td.time { width: 15ex; }
 ]]></style>
 <script type="text/javascript"><![CDATA[
 "use strict";
