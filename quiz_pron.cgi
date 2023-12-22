@@ -43,7 +43,7 @@ STOP_WORDS = {"bes", "mores", "di", "ei"}
 RESULT_HTML_HEADER = """<?xml version="1.0" encoding="UTF-8"?>
 <html xmlns="http://www.w3.org/1999/xhtml" lang="ja">
 <head>
-<title>英単語発音記号クイズ</title>
+<title>英単語発音記号検定</title>
 <meta name="robots" content="noindex,nofollow,noarchive"/>
 <style type="text/css"><![CDATA[
 html,body,article,p,pre,code,li,dt,dd,td,th,div { font-size: 12pt; }
@@ -88,7 +88,7 @@ RESULT_HTML_FOOTER = """</article>
 QUIZ_HTML_HEADER = """<?xml version="1.0" encoding="UTF-8"?>
 <html xmlns="http://www.w3.org/1999/xhtml" lang="ja">
 <head>
-<title>英単語発音記号クイズ</title>
+<title>英単語発音記号検定</title>
 <meta name="robots" content="noindex,nofollow,noarchive"/>
 <style type="text/css"><![CDATA[
 html,body,article,p,pre,code,li,dt,dd,td,th,div { font-size: 12pt; }
@@ -187,6 +187,7 @@ function answer_quiz() {
   for (let item of question[1]) {
     if (item[0].toLowerCase() == quiz_answer) {
       match_item = item;
+      break;
     }
   }
   if (!match_item) {
@@ -246,9 +247,9 @@ function finish_quiz() {
 <body>
 <article>
 """
-QUIZ_HTML_BODY = """<h1><a href="{}">英単語発音記号クイズ</a></h1>
+QUIZ_HTML_BODY = """<h1><a href="{}">英単語発音記号検定</a></h1>
 <div id="intro">
-<p>IPA発音記号を見て、それに該当する英単語を当てるクイズです。</p>
+<p>IPA発音記号の読解量を測る検定です。発音記号を見て、それに該当する英単語を当てるクイズに答えてください。</p>
 <p>例えば <code>/ˈæ.nɪ.meɪ.tə.bəl/</code> と表示されたら、「<code>animatable</code>」と入力してください。「回答」ボタンを押すか、Enterキーを押すと回答が送信されます。</p>
 <p>10問の問題が出題されます。全てに正答するまでの経過時間が60秒以内なら合格です。</p>
 <p>レベルは1から5まであります。高いレベルでは「communicable」「paralyzed」「kabuki」「Beethoven」のような派生後や外来語や固有名詞も含むので柔軟な思考と広い知識が求められます。</p>
@@ -416,7 +417,8 @@ def ShowResult(uid, script_url):
   for answer in answers:
     total_time += answer[3]
   total_time /= 1000
-  if total_time <= 60:
+  passed = total_time <= 60
+  if passed:
     P('<div class="pass_label">[合格]</div>')
   else:
     P('<div class="fail_label">[不合格]</div>')
@@ -437,8 +439,12 @@ def ShowResult(uid, script_url):
     P('<td class="time">{:.3f}秒</td>'.format(elapsed / 1000))
     P('</tr>')
   P('</table>')
-  tweet_msg = "#英単語発音記号クイズ: {}さんは、{}の語彙を{:.0f}秒で回答できました。".format(
-    user_name, level_label, total_time)
+  tweet_msg = "#発音記号検定: {}さんは、レベル{}の語彙を{:.0f}秒で回答".format(
+    user_name, level, total_time)
+  if passed:
+    tweet_msg += "したので、{}の発音記号読解能力を持つと認められます。".format(level_label)
+  else:
+    tweet_msg += "しましたが、規定時間に間に合いませんでした。"
   P('<p>結果をつぶやく: ', end="")
   P('<a href="https://twitter.com/share" class="twitter-share-button" data-text="{}" data-count="none">Tweet</a>', tweet_msg, end="")
   P('<script>!function(d,s,id){{var js,fjs=d.getElementsByTagName(s)[0];if(!d.getElementById(id)){{js=d.createElement(s);js.id=id;js.src="//platform.twitter.com/widgets.js";fjs.parentNode.insertBefore(js,fjs);}}}}(document,"script","twitter-wjs");</script>', end="")
