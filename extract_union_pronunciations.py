@@ -4,7 +4,7 @@
 # Script to extract pronunciations from the union dictionary
 #
 # Usage:
-#   extract_union_pronunciations.py [--word] [--tran] [--norm] input_db
+#   extract_union_pronunciations.py [--word] [--tran] [--norm] [--single] input_db
 #
 # Example
 #   ./extract_union_pronunciations.py union-body.tkh
@@ -30,6 +30,7 @@ def main():
   opt_word = False
   opt_tran = False
   opt_norm = False
+  opt_single = False
   for arg in sys.argv[1:]:
     if arg == "--word":
       opt_word = True
@@ -37,6 +38,8 @@ def main():
       opt_tran = True
     elif arg == "--norm":
       opt_norm = True
+    elif arg == "--single":
+      opt_single = True
     elif arg.startswith("-"):
       raise ValueError("invalid arguments: " + arg)
     else:
@@ -56,6 +59,7 @@ def main():
     entries = json.loads(data)
     for entry in entries:
       word = entry["word"]
+      if opt_single and word.find(" ") >= 0: continue
       prob = float(entry.get("probability") or 0)
       share = entry.get("share")
       if share:
