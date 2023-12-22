@@ -150,7 +150,8 @@ function start_quiz() {
   let xhr = new XMLHttpRequest();
   xhr.onload = function() {
     if (this.status == 200) {
-      questions = JSON.parse(this.responseText);
+      const data = JSON.parse(this.responseText);
+      questions = data["questions"];
       answers = [];
       render_quiz();
     } else {
@@ -373,7 +374,10 @@ def ReadQuestions(level):
       uniq_words.add(word)
       uniq_recs.append((word, trans))
     questions.append((pron, uniq_recs))
-  return questions
+  data = {
+    "questions": questions,
+  }
+  return data
   
 
 def SendMessage(code, message):
@@ -389,8 +393,8 @@ def GenerateQuestions(level):
   print("Access-Control-Allow-Origin: *")
   print()
   level = min(5, max(1, int(level)))
-  questions = ReadQuestions(level)
-  serialized = json.dumps(questions, separators=(",", ":"), ensure_ascii=False)
+  data = ReadQuestions(level)
+  serialized = json.dumps(data, separators=(",", ":"), ensure_ascii=False)
   print(serialized)
 
 
