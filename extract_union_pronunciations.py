@@ -73,10 +73,12 @@ def main():
       score = prob * label_score * aoa_score
       pronunciation = entry.get("pronunciation")
       if not pronunciation: continue
+      pronunciation = regex.sub(r"^\[([^\]]+)\]$", r"\1", pronunciation)
+      pronunciation = regex.sub(r"\[(.*?)\]", r"(\1)", pronunciation)
       if opt_norm:
         pronunciation = regex.sub(r"\((.*?)\)", r"\1", pronunciation)
         pronunciation = regex.sub(r"[ˈ.ˌ]", r"", pronunciation)
-        if not pronunciation: continue
+      if not pronunciation: continue
       translation = ", ".join((entry.get("translation") or [])[:3])
       outputs.append((-score, word, pronunciation, translation))
     it.Next()
