@@ -297,6 +297,7 @@ def ReadQuestions(level):
     if index not in uniq_indices:
       indices.append(index)
   pron_dict = collections.defaultdict(list)
+  norm_pron_dict = collections.defaultdict(list)
   pron_list = []
   word_trans_dict = {}
   with open(PRON_TABLE_PATH) as input_file:
@@ -308,6 +309,14 @@ def ReadQuestions(level):
       if not regex.search(r"^[A-Za-z][a-z]+$", word): continue
       if word in STOP_WORDS: continue
       pron_dict[pron].append((word, trans))
+      norm_pron1 = regex.sub(r"\(.*\)", r"", pron)
+      norm_pron1 = regex.sub(r"[.ˌ]", r"", norm_pron1)
+      if norm_pron1 != pron:
+        norm_pron_dict[norm_pron1].append((word, trans))
+      norm_pron2 = regex.sub(r"\((.*)\)", r"\1", pron)
+      norm_pron2 = regex.sub(r"[.ˌ]", r"", norm_pron2)
+      if norm_pron2 != pron and norm_pron2 != norm_pron1:
+        norm_pron_dict[norm_pron2].append((word, trans))
       pron_list.append(pron)
       word_trans_dict[word] = trans
   prons = []
@@ -326,20 +335,44 @@ def ReadQuestions(level):
         fields = line.strip().split("\t")
         if len(fields) != 2: continue
         word, pron = fields
-        old_recs = pron_dict.get(pron)
-        if old_recs:
-          hit = False
-          for old_word, old_rec in old_recs:
-            if old_word == word:
-              hit = True
-          if not hit:
-            trans = word_trans_dict.get(word)
-            if trans:
-              old_recs.append((word, trans))
+        trans = word_trans_dict.get(word)
+        if trans:
+          norm_pron1 = regex.sub(r"\(.*\)", r"", pron)
+          norm_pron1 = regex.sub(r"[.ˌ]", r"", norm_pron1)
+          norm_pron2 = regex.sub(r"\((.*)\)", r"\1", pron)
+          norm_pron2 = regex.sub(r"[.ˌ]", r"", norm_pron2)
+          for tmp_pron in [pron, norm_pron1, norm_pron2]:
+            if tmp_pron in uniq_prons:
+              norm_pron_dict[tmp_pron].append((word, trans))
         num_lines += 1
   questions = []
   for pron in prons:
-    questions.append((pron, pron_dict[pron]))
+    recs = list(pron_dict[pron])
+    norm_pron1 = regex.sub(r"\(.*\)", r"", pron)
+    norm_pron1 = regex.sub(r"[.ˌ]", r"", norm_pron1)
+    norm_pron2 = regex.sub(r"\((.*)\)", r"\1", pron)
+    norm_pron2 = regex.sub(r"[.ˌ]", r"", norm_pron2)
+    if norm_pron1 != pron:
+      norm_recs = pron_dict.get(norm_pron1)
+      if norm_recs:
+        recs.extend(norm_recs)
+      norm_recs = norm_pron_dict.get(norm_pron1)
+      if norm_recs:
+        recs.extend(norm_recs)
+    if norm_pron2 != pron:
+      norm_recs = pron_dict.get(norm_pron2)
+      if norm_recs:
+        recs.extend(norm_recs)
+      norm_recs = norm_pron_dict.get(norm_pron2)
+      if norm_recs:
+        recs.extend(norm_recs)
+    uniq_recs = []
+    uniq_words = set()
+    for word, trans in recs:
+      if word in uniq_words: continue
+      uniq_words.add(word)
+      uniq_recs.append((word, trans))
+    questions.append((pron, uniq_recs))
   return questions
   
 
