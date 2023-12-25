@@ -32,6 +32,7 @@ import urllib
 
 PRON_TABLE_PATH = "union-pron-table.tsv"
 PRON_AUX_PATH = "pronunciation-ipa.tsv"
+PRON_USGB_PATH = "pronunciation-ipa-usgb.tsv"
 DICT_URL = "https://dbmx.net/dict/search_union.cgi"
 RESULT_DIR = "quiz-pron-result"
 NUM_QUESTIONS = 10
@@ -53,6 +54,7 @@ article { display: inline-block; width: 100ex; overflow: hidden; border: 1px sol
   margin: 2ex 1ex; padding: 3ex 3ex; background: #ffffff; text-align: left; line-height: 1.6; color: #111111; }
 h1,h2,h3,h4,h5,h6 { color: #000000; margin: 0; text-indent: 0; }
 h1 { text-align: center; margin: 0.5ex 0 1.5ex 0; }
+h2 small { font-weight: normal; font-size: 90%; }
 p { text-indent: 0; }
 a { color: #000000; text-decoration: none; }
 a:hover { color: #002299; text-decoration: underline; }
@@ -67,11 +69,15 @@ td.time { width: 15ex; }
 ]]></style>
 <script type="text/javascript"><![CDATA[
 "use strict";
-function voice_text(text) {
+function voice_text(text, locale) {
   if (!SpeechSynthesisUtterance) return;
   window.speechSynthesis.cancel();
   let utter = new SpeechSynthesisUtterance(text);
-  utter.lang = "en-US";
+  if (locale == "gb") {
+    utter.lang = "en-GB";
+  }  else {
+    utter.lang = "en-US";
+  }
   window.speechSynthesis.speak(utter);
 }
 ]]></script>
@@ -135,18 +141,21 @@ let user_name = "";
 let questions = null;
 let answers = null;
 let quiz_level = 0;
+let quiz_locale = "";
 let quiz_index = 0;
 let quiz_time = 0;
 function start_quiz() {
   user_name = document.getElementById("intro_name").value.trim();
   quiz_level = parseInt(document.getElementById("intro_level").value)
+  quiz_locale = document.getElementById("intro_locale").value.trim();
   quiz_index = 0;
   set_message("");
   if (user_name.length < 1) {
     set_message("ユーザ名を入力してください。", "#ff1100");
     return;
   }
-  let gen_url = self_url + "?gen=" + quiz_level;
+  let gen_url = self_url + "?gen=" + quiz_level + "&loc=" + quiz_locale;
+  console.log(gen_url);
   let xhr = new XMLHttpRequest();
   xhr.onload = function() {
     if (this.status == 200) {
@@ -198,7 +207,7 @@ function answer_quiz() {
   set_message("正解: " + match_item[0] + " (" + match_item[1] + ")", "#009911");
   const answer = [question[0], match_item[0], match_item[1], time];
   answers.push(answer);
-  voice_text(match_item[0]);
+  voice_text(match_item[0], quiz_locale);
   quiz_index++;
   if (quiz_index < questions.length) {
     setTimeout(render_quiz, 1000);
@@ -210,20 +219,25 @@ function stop_quiz() {
   const pron = questions[quiz_index][0];
   const item = questions[quiz_index][1][0];
   set_message("/" + pron + "/ の解答例は...: " + item[0] + " (" + item[1] + ")", "#bb3300");
-  voice_text(item[0]);
+  voice_text(item[0], quiz_locale);
   document.getElementById("quiz").style.display = "none";
 }
-function voice_text(text) {
+function voice_text(text, locale) {
   if (!SpeechSynthesisUtterance) return;
   window.speechSynthesis.cancel();
   let utter = new SpeechSynthesisUtterance(text);
-  utter.lang = "en-US";
+  if (locale == "gb") {
+    utter.lang = "en-GB";
+  }  else {
+    utter.lang = "en-US";
+  }
   window.speechSynthesis.speak(utter);
 }
 function finish_quiz() {
   const save_data = {
     "user": user_name,
     "level": quiz_level,
+    "locale": quiz_locale,
     "answers": answers,
   };
   let xhr = new XMLHttpRequest();
@@ -264,6 +278,10 @@ QUIZ_HTML_BODY = """<h1><a href="{}">英単語発音記号検定</a></h1>
 <option value="4">レベル4: 留学生並</option>
 <option value="5">レベル5: ネイティブ並</option>
 </select>
+<select id="intro_locale">
+<option value="us">アメリカ式</option>
+<option value="gb">イギリス式</option>
+</select>
 <button type="button" onclick="start_quiz()">クイズを始める</button>
 </form>
 </div>
@@ -288,7 +306,7 @@ QUIZ_HTML_FOOTER = """</article>
 """
 
 
-def ReadQuestions(level):
+def ReadQuestions(level, locale):
   min_rank = int(((level - 1) ** LEVEL_GAMMA) * LEVEL_BASE_RANGE)
   max_rank = int((level ** LEVEL_GAMMA) * LEVEL_BASE_RANGE)
   indices = []
@@ -297,6 +315,19 @@ def ReadQuestions(level):
     index = random.randrange(min_rank, max_rank)
     if index not in uniq_indices:
       indices.append(index)
+  us_word_dict = collections.defaultdict(list)
+  gb_word_dict = collections.defaultdict(list)
+  if PRON_USGB_PATH:
+    num_lines = 0
+    with open(PRON_USGB_PATH) as input_file:
+      for line in input_file:
+        if len(us_word_dict) >= MAX_RECORDS: break
+        fields = line.strip().split("\t")
+        if len(fields) != 3: continue
+        word, pron_us, pron_gb = fields
+        if not regex.search(r"^[A-Za-z][a-z]+$", word): continue
+        us_word_dict[word].append(pron_us)
+        gb_word_dict[word].append(pron_gb)
   pron_dict = collections.defaultdict(list)
   norm_pron_dict = collections.defaultdict(list)
   pron_list = []
@@ -309,6 +340,14 @@ def ReadQuestions(level):
       word, pron, trans = fields
       if not regex.search(r"^[A-Za-z][a-z]+$", word): continue
       if word in STOP_WORDS: continue
+      if locale == "gb":
+        pron_gbs = gb_word_dict.get(word)
+        if pron_gbs:
+          for pron_gb in pron_gbs:
+            if pron_gb != pron:
+              us_word_dict[word].append(pron)
+              pron = pron_gb
+              break
       pron_dict[pron].append((word, trans))
       norm_pron1 = regex.sub(r"\(.*\)", r"", pron)
       norm_pron1 = regex.sub(r"[.ˌ]", r"", norm_pron1)
@@ -346,6 +385,18 @@ def ReadQuestions(level):
             if tmp_pron in uniq_prons:
               norm_pron_dict[tmp_pron].append((word, trans))
         num_lines += 1
+  for sub_dict in [us_word_dict, gb_word_dict]:
+    for word, sub_prons in sub_dict.items():
+      trans = word_trans_dict.get(word)
+      if trans:
+        for pron in sub_prons:
+          norm_pron1 = regex.sub(r"\(.*\)", r"", pron)
+          norm_pron1 = regex.sub(r"[.ˌ]", r"", norm_pron1)
+          norm_pron2 = regex.sub(r"\((.*)\)", r"\1", pron)
+          norm_pron2 = regex.sub(r"[.ˌ]", r"", norm_pron2)
+          for tmp_pron in [pron, norm_pron1, norm_pron2]:
+            if tmp_pron in uniq_prons:
+              norm_pron_dict[tmp_pron].append((word, trans))
   questions = []
   for pron in prons:
     recs = list(pron_dict[pron])
@@ -388,12 +439,12 @@ def SendMessage(code, message):
   print(message)
 
 
-def GenerateQuestions(level):
+def GenerateQuestions(level, locale):
   print("Content-Type: application/json")
   print("Access-Control-Allow-Origin: *")
   print()
   level = min(5, max(1, int(level)))
-  data = ReadQuestions(level)
+  data = ReadQuestions(level, locale)
   serialized = json.dumps(data, separators=(",", ":"), ensure_ascii=False)
   print(serialized)
 
@@ -439,8 +490,9 @@ def ShowResult(uid, script_url):
     return
   user_name = result.get("user")
   level = result.get("level")
+  locale = result.get("locale")
   answers = result.get("answers")
-  if not user_name or not level or not answers:
+  if not user_name or not level or not locale or not answers:
     SendMessage(400, "Broken data")
   print("Content-Type: application/xhtml+xml")
   print("Cache-Control: public")
@@ -449,7 +501,11 @@ def ShowResult(uid, script_url):
   P('<h1><a href="{}">英単語発音記号クイズ</a></h1>', script_url)
   P('<p>ユーザ名: <b>{}</b></p>', user_name)
   level_label = ["中学生並", "高校生並", "大学生並", "留学生並", "ネイティブ並"][level - 1]
-  P('<h2>レベル{}: {}</h2>', level, level_label)  
+  if locale == "gb":
+    locale_label = "イギリス式"
+  else:
+    locale_label = "アメリカ式"
+  P('<h2>レベル{}: {} <small>（{}）</small></h2>', level, level_label, locale_label)
   total_time = 0.0
   for answer in answers:
     total_time += answer[3]
@@ -470,7 +526,7 @@ def ShowResult(uid, script_url):
   for answer in answers:
     pron, word, trans, elapsed = answer
     P('<tr>')
-    P('<td class="pron"><a onclick="voice_text(\'{}\')">/{}/</a></td>'.format(word, pron))
+    P('<td class="pron"><a onclick="voice_text(\'{}\', \'{}\')">/{}/</a></td>'.format(word, locale, pron))
     P('<td class="word"><a href="{}?q={}">{}</a></td>'.format(DICT_URL, word, word))
     P('<td class="trans">{}</td>'.format(trans))
     P('<td class="time">{:.3f}秒</td>'.format(elapsed / 1000))
@@ -550,10 +606,11 @@ def main():
     else:
       params[key] = value.value
   generate_level = regex.sub(r"[^0-9]", "", params.get("gen") or "")[:2]
+  locale = regex.sub(r"[^a-z]", "", params.get("loc") or "")[:2]
   show_id = regex.sub("r[a-z0-9]", "", (params.get("z") or "")[:64])
   save_result = params.get("save") or ""
   if generate_level:
-    GenerateQuestions(generate_level)
+    GenerateQuestions(generate_level, locale)
   elif show_id:
     ShowResult(show_id, script_url)
   elif save_result:
