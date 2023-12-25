@@ -350,11 +350,11 @@ def ReadQuestions(level, locale):
               break
       pron_dict[pron].append((word, trans))
       norm_pron1 = regex.sub(r"\(.*\)", r"", pron)
-      norm_pron1 = regex.sub(r"[.ˌ]", r"", norm_pron1)
+      norm_pron1 = regex.sub(r"[.ˈˌ]", r"", norm_pron1)
       if norm_pron1 != pron:
         norm_pron_dict[norm_pron1].append((word, trans))
       norm_pron2 = regex.sub(r"\((.*)\)", r"\1", pron)
-      norm_pron2 = regex.sub(r"[.ˌ]", r"", norm_pron2)
+      norm_pron2 = regex.sub(r"[.ˈˌ]", r"", norm_pron2)
       if norm_pron2 != pron and norm_pron2 != norm_pron1:
         norm_pron_dict[norm_pron2].append((word, trans))
       pron_list.append(pron)
@@ -378,9 +378,9 @@ def ReadQuestions(level, locale):
         trans = word_trans_dict.get(word)
         if trans:
           norm_pron1 = regex.sub(r"\(.*\)", r"", pron)
-          norm_pron1 = regex.sub(r"[.ˌ]", r"", norm_pron1)
+          norm_pron1 = regex.sub(r"[.ˈˌ]", r"", norm_pron1)
           norm_pron2 = regex.sub(r"\((.*)\)", r"\1", pron)
-          norm_pron2 = regex.sub(r"[.ˌ]", r"", norm_pron2)
+          norm_pron2 = regex.sub(r"[.ˈˌ]", r"", norm_pron2)
           for tmp_pron in [pron, norm_pron1, norm_pron2]:
             if tmp_pron in uniq_prons:
               norm_pron_dict[tmp_pron].append((word, trans))
@@ -391,9 +391,9 @@ def ReadQuestions(level, locale):
       if trans:
         for pron in sub_prons:
           norm_pron1 = regex.sub(r"\(.*\)", r"", pron)
-          norm_pron1 = regex.sub(r"[.ˌ]", r"", norm_pron1)
+          norm_pron1 = regex.sub(r"[.ˈˌ]", r"", norm_pron1)
           norm_pron2 = regex.sub(r"\((.*)\)", r"\1", pron)
-          norm_pron2 = regex.sub(r"[.ˌ]", r"", norm_pron2)
+          norm_pron2 = regex.sub(r"[.ˈˌ]", r"", norm_pron2)
           for tmp_pron in [pron, norm_pron1, norm_pron2]:
             if tmp_pron in uniq_prons:
               norm_pron_dict[tmp_pron].append((word, trans))
@@ -401,9 +401,9 @@ def ReadQuestions(level, locale):
   for pron in prons:
     recs = list(pron_dict[pron])
     norm_pron1 = regex.sub(r"\(.*\)", r"", pron)
-    norm_pron1 = regex.sub(r"[.ˌ]", r"", norm_pron1)
+    norm_pron1 = regex.sub(r"[.ˈˌ]", r"", norm_pron1)
     norm_pron2 = regex.sub(r"\((.*)\)", r"\1", pron)
-    norm_pron2 = regex.sub(r"[.ˌ]", r"", norm_pron2)
+    norm_pron2 = regex.sub(r"[.ˈˌ]", r"", norm_pron2)
     if norm_pron1 != pron:
       norm_recs = pron_dict.get(norm_pron1)
       if norm_recs:
