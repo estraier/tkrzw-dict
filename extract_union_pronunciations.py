@@ -75,6 +75,7 @@ def main():
       if not pronunciation: continue
       pronunciation = regex.sub(r"^\[([^\]]+)\]$", r"\1", pronunciation)
       pronunciation = regex.sub(r"\[(.*?)\]", r"(\1)", pronunciation)
+      pronunciation = regex.sub(r":", r"ː", pronunciation)
       if opt_norm:
         pronunciation = regex.sub(r"\((.*?)\)", r"\1", pronunciation)
         pronunciation = regex.sub(r"[ˈ.ˌ]", r"", pronunciation)
