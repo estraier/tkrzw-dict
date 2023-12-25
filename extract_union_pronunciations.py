@@ -4,7 +4,7 @@
 # Script to extract pronunciations from the union dictionary
 #
 # Usage:
-#   extract_union_pronunciations.py [--word] [--tran] [--norm] [--single] input_db
+#   extract_union_pronunciations.py [--word] [--tran] [--norm] [--single] [--hint] input_db
 #
 # Example
 #   ./extract_union_pronunciations.py union-body.tkh
@@ -19,11 +19,13 @@
 # and limitations under the License.
 #--------------------------------------------------------------------------------------------------
 
+import collections
 import json
 import math
 import regex
 import sys
 import tkrzw
+
 
 def main():
   args = []
@@ -31,6 +33,7 @@ def main():
   opt_tran = False
   opt_norm = False
   opt_single = False
+  opt_hint = False
   for arg in sys.argv[1:]:
     if arg == "--word":
       opt_word = True
@@ -40,6 +43,8 @@ def main():
       opt_norm = True
     elif arg == "--single":
       opt_single = True
+    elif arg == "--hint":
+      opt_hint = True
     elif arg.startswith("-"):
       raise ValueError("invalid arguments: " + arg)
     else:
@@ -75,7 +80,9 @@ def main():
       if not pronunciation: continue
       pronunciation = regex.sub(r"^\[([^\]]+)\]$", r"\1", pronunciation)
       pronunciation = regex.sub(r"\[(.*?)\]", r"(\1)", pronunciation)
+      pronunciation = regex.sub(r"⟨(.*?)⟩", r"\1", pronunciation)
       pronunciation = regex.sub(r":", r"ː", pronunciation)
+      pronunciation = regex.sub(r"·", r"", pronunciation)
       if opt_norm:
         pronunciation = regex.sub(r"\((.*?)\)", r"\1", pronunciation)
         pronunciation = regex.sub(r"[ˈ.ˌ]", r"", pronunciation)
@@ -85,18 +92,43 @@ def main():
     it.Next()
   dbm.Close().OrDie()
   outputs = sorted(outputs)
-  uniq_pronunciations = set()
-  for score, word, pronunciation, translation in outputs:
-    fields = []
-    if opt_word:
-      fields.append(word)
-    elif pronunciation in uniq_pronunciations:
-      continue
-    fields.append(pronunciation)
-    if opt_tran:
-      fields.append(translation)
-    uniq_pronunciations.add(pronunciation)
-    print("\t".join(fields))
+  if opt_hint:
+    symbol_counts = collections.defaultdict(int)
+    symbol_words = {}
+    for score, word, pronunciation, translation in outputs:
+      if word in ["the"]: continue
+      pronunciation = regex.sub(r"\(.*?\)", r"", pronunciation)
+      for symbol in pronunciation:
+        symbol_counts[symbol] += 1
+        rec = (word, pronunciation)
+        old_recs = symbol_words.get(symbol)
+        if old_recs:
+          if len(old_recs) < 10:
+            old_recs.append(rec)
+        else:
+          symbol_words[symbol] = [rec]
+    symbol_counts = sorted(symbol_counts.items(), key=lambda x: (-x[1], x[0]))
+    for symbol, count in symbol_counts:
+      if count < 10: continue
+      recs = symbol_words[symbol]
+      fields = [symbol]
+      for word, pron in recs:
+        fields.append(word)
+        fields.append(pron)
+      print("\t".join(fields))
+  else:
+    uniq_pronunciations = set()
+    for score, word, pronunciation, translation in outputs:
+      fields = []
+      if opt_word:
+        fields.append(word)
+      elif pronunciation in uniq_pronunciations:
+        continue
+      fields.append(pronunciation)
+      if opt_tran:
+        fields.append(translation)
+      uniq_pronunciations.add(pronunciation)
+      print("\t".join(fields))
 
 
 if __name__=="__main__":
