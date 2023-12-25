@@ -117,12 +117,410 @@ a:hover { color: #002299; text-decoration: underline; }
 #quiz_pron { padding: 0 0.1ex 0 0.2ex; font-size: 125%; color: #000000; }
 #quiz_answer { font-size: 125%; }
 #quiz_submit { font-size: 110%; }
+#quiz_hint { font-size: 110%; }
 #quiz_stop { font-size: 110%; }
 #result { display: none; }
 #result_link { font-size: 110%; color: #001199; }
+#hint { display: none; margin: 3ex 0ex 0.2ex 0ex; }
+#hint table { border-collapse: collapse; table-layout: fixed; }
+#hint table td { border: 1px solid #dddddd; border-collapse: collapse; padding: 0.1ex 0.3ex; }
+#hint .pron { color: #aaaaaa; font-family: monospace; }
+#hint .pron b { color: #000000; font-weight: bold; padding: 0 0.3ex; }
+#hint .label { color: #333333; font-size: 95%; width: 23ex; white-space: nowrap; overflow: hidden; }
+#hint .examples { color: #333333; width: 70ex; white-space: nowrap; overflow: hidden; }
+#hint .examples span { cursor: pointer; }
 ]]></style>
 <script type="text/javascript"><![CDATA[
 "use strict";
+const symbol_labels = {
+  "p": "無声両唇破裂音",
+  "b": "有声両唇破裂音",
+  "t": "無声歯茎破裂音",
+  "d": "有声歯茎破裂音",
+  "ʈ": "無声そり舌破裂音",
+  "ɖ": "有声そり舌破裂音",
+  "c": "無声硬口蓋破裂音",
+  "ɟ": "有声硬口蓋破裂音",
+  "k": "無声軟口蓋破裂音",
+  "ɡ": "有声軟口蓋破裂音",
+  "q": "無声口蓋垂破裂音",
+  "ɢ": "有声口蓋垂破裂音",
+  "ʔ": "声門破裂音",
+  "m": "有声両唇鼻音",
+  "ɱ": "有声唇歯鼻音",
+  "n": "歯茎鼻音",
+  "ɳ": "有声反り舌鼻音",
+  "ɲ": "有声硬口蓋鼻音",
+  "ŋ": "有声軟口蓋鼻音",
+  "ɴ": "有声口蓋垂鼻音",
+  "ʙ": "有声両唇震え音",
+  "r": "有声歯或は歯茎震え音",
+  "ʀ": "有声口蓋垂震え音",
+  "ɾ": "歯茎はじき音",
+  "ɽ": "有声反り舌弾き音",
+  "ɸ": "無声両唇摩擦音",
+  "β": "有声両唇摩擦音",
+  "f": "無声唇歯摩擦音",
+  "v": "有声唇歯摩擦音",
+  "θ": "無声歯摩擦音",
+  "ð": "有声歯摩擦音",
+  "s": "無声歯茎摩擦音",
+  "z": "有声歯茎摩擦音",
+  "ʃ": "無声後部歯茎摩擦音",
+  "ʒ": "有声後部歯茎摩擦音",
+  "ʂ": "無声反り舌摩擦音",
+  "ʐ": "有声反り舌摩擦音",
+  "ç": "無声硬口蓋摩擦音",
+  "ʝ": "有声硬口蓋摩擦音",
+  "x": "無声軟口蓋摩擦音",
+  "ɣ": "有声軟口蓋摩擦音",
+  "χ": "無声口蓋垂摩擦音",
+  "ʁ": "有声口蓋垂摩擦音",
+  "ħ": "無声咽頭摩擦音",
+  "ʕ": "有声咽頭摩擦音或は接近音",
+  "h": "無声声門摩擦音",
+  "ɦ": "有声声門摩擦音",
+  "ɬ": "無声歯茎側面摩擦音",
+  "ɮ": "有声歯或は歯茎側面摩擦音",
+  "ʋ": "有声唇歯接近音",
+  "ɹ": "有声歯或は歯茎接近音",
+  "ɻ": "有声反り舌接近音",
+  "j": "有声硬口蓋接近音",
+  "ɰ": "有声軟口蓋接近音",
+  "l": "有声歯或は歯茎側面接近音",
+  "ɭ": "有声反り舌側面接近音",
+  "ʎ": "有声硬口蓋側面接近音",
+  "ʟ": "有声軟口蓋側面接近音",
+  "ƥ": "無声両唇入破音",
+  "ɓ": "有声両唇入破音",
+  "ƭ": "無声歯或は歯茎入破音",
+  "ɗ": "有声歯或は歯茎入破音",
+  "ƈ": "無声硬口蓋入破音",
+  "ʄ": "有声硬口蓋入破音",
+  "ƙ": "無声軟口蓋入破音",
+  "ɠ": "有声軟口蓋入破音",
+  "ʠ": "無声口蓋垂入破音",
+  "ʛ": "有声口蓋垂入破音",
+  "ʍ": "無声両唇軟口蓋摩擦音",
+  "w": "有声両唇軟口蓋接近音",
+  "ɥ": "有声両唇硬口蓋接近音",
+  "ʜ": "無声喉頭蓋摩擦音",
+  "ʡ": "喉頭蓋破裂音",
+  "ʢ": "有声喉頭蓋摩擦音或は接近音",
+  "ɧ": "無声後部歯茎・軟口蓋摩擦音",
+  "ʘ": "両唇吸着音",
+  "ǀ": "歯吸着音",
+  "ǃ": "(後部)歯茎吸着音",
+  "ǂ": "硬口蓋歯茎吸着音",
+  "ǁ": "歯茎側面吸着音",
+  "ɺ": "有声歯茎側面弾き音",
+  "ɕ": "無声歯茎硬口蓋摩擦音",
+  "ʑ": "有声歯茎硬口蓋摩擦音",
+  "ⱱ": "有声唇歯弾き音",
+  "ʇ": "歯吸着音",
+  "ʗ": "後部歯茎吸着音",
+  "ʖ": "歯茎側面吸着音",
+  "ʆ": "無声歯茎硬口蓋摩擦音",
+  "ʓ": "有声歯茎硬口蓋摩擦音",
+  "ɼ": "有声歯茎摩擦ふるえ音",
+  "ˢ": "",
+  "ƫ": "硬口蓋化無声歯或は歯茎破裂音",
+  "ɫ": "軟口蓋化有声歯或は歯茎側面接近音",
+  "g": "有声軟口蓋破裂音",
+  "ʦ": "無声歯茎破擦音",
+  "ʣ": "有声歯茎破擦音",
+  "ʧ": "無声後部歯茎破擦音",
+  "ʤ": "有声後部歯茎破擦音",
+  "ʨ": "無声歯茎硬口蓋破擦音",
+  "ʥ": "有声歯茎硬口蓋破擦音",
+  "ᶿ": "無声歯摩擦音を伴う開放",
+  "ᵊ": "中段中舌母音を伴う開放",
+  "ᶑ": "そり舌入破音",
+  "ƻ": "有声歯茎破擦音",
+  "ʞ": "軟口蓋吸着音",
+  "ˣ": "無声軟口蓋摩擦音を伴う開放",
+  "ƞ": "成節の鼻音",
+  "ƛ": "無声歯或は歯茎側面破擦音",
+  "λ": "有声歯或は歯茎側面破擦音",
+  "ž": "有声後部歯茎摩擦音",
+  "š": "無声後部歯茎摩擦音",
+  "ǰ": "有声後部歯茎破擦音",
+  "č": "無声後部歯茎破擦音",
+  "i": "狭前舌非円唇母音",
+  "e": "半狭前舌非円唇母音",
+  "ɛ": "半開前舌非円唇母音",
+  "a": "開前舌非円唇母音",
+  "ɑ": "開後舌非円唇母音",
+  "ɔ": "半開後舌円唇母音",
+  "o": "半狭後舌円唇母音",
+  "u": "狭後舌円唇母音",
+  "y": "狭前舌円唇母音",
+  "ø": "半狭前舌円唇母音",
+  "œ": "半開前舌円唇母音",
+  "ɶ": "開前舌円唇母音",
+  "ɒ": "開後舌円唇母音",
+  "ʌ": "半開後舌非円唇母音",
+  "ɤ": "半狭後舌非円唇母音",
+  "ɯ": "狭後舌非円唇母音",
+  "ɨ": "狭中舌非円唇母音",
+  "ʉ": "狭中舌円唇母音",
+  "ɪ": "準狭準前舌非円唇母音",
+  "ʏ": "準狭準前舌円唇母音",
+  "ʊ": "準狭準後舌円唇母音",
+  "ə": "中段中舌母音",
+  "ɵ": "半狭中舌円唇母音",
+  "ɐ": "準開中舌母音",
+  "æ": "準開前舌非円唇母音",
+  "ɜ": "半開中舌非円唇母音",
+  "ɚ": "R音性中段中舌母音",
+  "ı": "",
+  "ɞ": "半開中舌円唇母音",
+  "ʚ": "",
+  "ɘ": "半狭中舌非円唇母音",
+  "ɷ": "準狭準後舌円唇母音",
+  "ɩ": "準狭準前舌非円唇母音",
+  "ʼ": "放出音",
+  "̥": "無声音",
+  "̊": "無声音",
+  "̬": "有声音",
+  "ʰ": "帯気音",
+  "̤": "息もれ声",
+  "̰": "きしみ声",
+  "̼": "舌唇音",
+  "̪": "歯音",
+  "̺": "舌尖音",
+  "̻": "舌端音",
+  "̹": "円唇性強",
+  "̜": "円唇性弱",
+  "̟": "前寄り",
+  "̠": "後ろ寄り",
+  "̈": "中舌寄り",
+  "̽": "中段中舌寄り",
+  "̘": "舌根前進",
+  "̙": "舌根後退",
+  "˞": "R音性",
+  "ʷ": "円唇化",
+  "ʲ": "硬口蓋化",
+  "ˠ": "軟口蓋化",
+  "ˤ": "咽頭化",
+  "̃": "鼻音化",
+  "ⁿ": "鼻腔開放",
+  "ˡ": "側面開放",
+  "̚": "無開放",
+  "̴": "軟口蓋化或は咽頭化",
+  "̝": "	上寄り",
+  "̞": "	下寄り",
+  "̩": "音節主音",
+  "̯": "音節副音",
+  "͡": "破擦音或は二重調音",
+  "̢": "R音性",
+  "〓": "開放・破裂",
+  ",": "休止",
+  "ʻ": "弱い気音",
+  "̇": "硬口蓋化・中舌化",
+  "˗": "後ろ寄りの変種",
+  "˖": "前寄りの変種",
+  "ʸ": "高前舌円唇化・硬口蓋化",
+  "̣": "狭い変種・摩擦音",
+  "̡": "硬口蓋化",
+  "̫": "円唇化",
+  "ˈ": "第一強勢",
+  "ˌ": "第二強勢",
+  "ː": "長音",
+  "ˑ": "半長音",
+  "̆": "超短音",
+  ".": "音節の切れ目",
+  "|": "小さな纏り",
+  "‖": "大きな纏り",
+  "‿": "連結",
+  "↗": "全体的上昇",
+  "↘": "全体的下降",
+};
+const symbol_examples = {
+  ".": ["also", "ˈɔl.soʊ", "after", "ˈæf.tɚ", "only", "ˈoʊn.li", "into", "ˈɪn.tu"],
+  "ˈ": ["a", "ˈeɪ", "that", "ˈðæt", "can", "ˈkæn", "being", "ˈbiɪŋ"],
+  "ɪ": ["a", "ˈeɪ", "in", "ɪn", "with", "wɪθ", "I", "aɪ̯"],
+  "ə": ["about", "əˈbaʊt", "there", "ðɛə", "year", "jɪə", "people", "ˈpipəl"],
+  "n": ["and", "ænd", "in", "ɪn", "on", "ɒn", "not", "nɒt"],
+  "t": ["to", "tu", "that", "ˈðæt", "it", "ɪt", "at", "æt"],
+  "l": ["all", "ɔl", "also", "ˈɔl.soʊ", "will", "wɪl", "like", "laɪ̯k"],
+  "s": ["this", "ðɪs", "use", "juːs", "say", "seɪ", "also", "ˈɔl.soʊ"],
+  "ɹ": ["for", "fɔɹ", "from", "fɹʌm", "or", "ɔɹ", "are", "ɑɹ"],
+  "k": ["can", "ˈkæn", "make", "meɪk", "like", "laɪ̯k", "include", "ɪnˈkluːd"],
+  "i": ["be", "bi", "he", "hi", "being", "ˈbiɪŋ", "we", "wi"],
+  "d": ["and", "ænd", "do", "du", "include", "ɪnˈkluːd", "would", "wʊd"],
+  "ʊ": ["about", "əˈbaʊt", "also", "ˈɔl.soʊ", "out", "aʊt", "go", "ɡoʊ"],
+  "m": ["from", "fɹʌm", "make", "meɪk", "time", "taɪm", "more", "mɔː"],
+  "ɛ": ["when", "ʍɛn", "there", "ðɛə", "get", "ɡɛt", "their", "ðɛɚ"],
+  "o": ["also", "ˈɔl.soʊ", "go", "ɡoʊ", "know", "noʊ", "so", "soʊ"],
+  "p": ["up", "ʌp", "people", "ˈpipəl", "people", "ˈpipəl", "provide", "pɹəˈvaɪd"],
+  "æ": ["and", "ænd", "that", "ˈðæt", "have", "hæv", "as", "æz"],
+  "ː": ["you", "jʉː", "use", "juːs", "more", "mɔː", "include", "ɪnˈkluːd"],
+  "ˌ": ["information", "ˌɪn.fɚˈmeɪ.ʃən", "application", "ˌæplɪˈkeɪʃən", "operation", "ˌɒp.əˈɹeɪ.ʃən", "program", "ˈpɹoʊˌɡɹæm"],
+  "a": ["I", "aɪ̯", "by", "baɪ", "about", "əˈbaʊt", "out", "aʊt"],
+  "b": ["be", "bi", "by", "baɪ", "but", "bʌt", "being", "ˈbiɪŋ"],
+  "e": ["a", "ˈeɪ", "they", "ðeɪ", "say", "seɪ", "make", "meɪk"],
+  "f": ["for", "fɔɹ", "from", "fɹʌm", "if", "ɪf", "after", "ˈæf.tɚ"],
+  "ɑ": ["are", "ɑɹ", "our", "ɑː", "want", "wɑnt", "article", "ˈɑːtɪkəl"],
+  "ʃ": ["which", "wɪt͡ʃ", "such", "sʌt͡ʃ", "she", "ʃi", "show", "ʃoʊ"],
+  "ʌ": ["of", "ʌv", "from", "fɹʌm", "but", "bʌt", "one", "wʌn"],
+  "z": ["as", "æz", "his", "ˈhɪz", "these", "ðiz", "because", "biˈkɔz"],
+  "r": ["configuration", "kənˌfɪɡ.jəˈreɪ.ʃən", "trust", "trʌst", "numbering", "ˈnʌmbəriŋ", "articled", "ˈɑrtɪkəld"],
+  "u": ["to", "tu", "do", "du", "use", "juːs", "include", "ɪnˈkluːd"],
+  "v": ["of", "ʌv", "have", "hæv", "over", "ˈoʊ.vɚ", "provide", "pɹəˈvaɪd"],
+  "ɒ": ["on", "ɒn", "not", "nɒt", "off", "ɒf", "follow", "ˈfɒləʊ"],
+  "ɡ": ["get", "ɡɛt", "go", "ɡoʊ", "give", "ɡɪv", "good", "ɡʊd"],
+  "ɔ": ["for", "fɔɹ", "or", "ɔɹ", "all", "ɔl", "also", "ˈɔl.soʊ"],
+  "ʒ": ["just", "d͡ʒʌst", "page", "peɪd͡ʒ", "change", "t͡ʃeɪnd͡ʒ", "image", "ˈɪmɪd͡ʒ"],
+  "ɚ": ["their", "ðɛɚ", "after", "ˈæf.tɚ", "other", "ˈʌðɚ", "over", "ˈoʊ.vɚ"],
+  "h": ["have", "hæv", "he", "hi", "his", "ˈhɪz", "who", "huː"],
+  "j": ["you", "jʉː", "use", "juːs", "your", "jɔɹ", "year", "jɪə"],
+  "ŋ": ["being", "ˈbiɪŋ", "think", "θɪŋk", "during", "ˈdjʊə.ɹɪŋ", "thing", "θɪŋ"],
+  "w": ["with", "wɪθ", "which", "wɪt͡ʃ", "we", "wi", "one", "wʌn"],
+  "ɨ": ["estimate", "ˈɛstɨmɨt", "estimate", "ˈɛstɨmɨt", "deposit", "dɨˈpɑzɪt", "apparently", "əˈpæɹ.ɨnt.li"],
+  "": ["out of", "ˈaʊt əv", "up to", "ˈʌp tə", "as well as", "əz ˈwɛl æz", "as well as", "əz ˈwɛl æz"],
+  "θ": ["with", "wɪθ", "think", "θɪŋk", "through", "θɹu", "both", "boʊθ"],
+  "͡": ["which", "wɪt͡ʃ", "such", "sʌt͡ʃ", "just", "d͡ʒʌst", "each", "it͡ʃ"],
+  "̯": ["I", "aɪ̯", "like", "laɪ̯k", "day", "deɪ̯", "here", "hɪɚ̯"],
+  "g": ["goss", "gɑs", "servicing", "ˈsɜːvɪsɪŋg", "guideline", "ˈgaɪd.laɪn", "signaling", "ˈsɪg.nəl.ɪŋ"],
+  "ɝ": ["first", "fɝst", "world", "wɝld", "return", "ɹɪˈtɝn", "turn", "tɝn"],
+  "ɜ": ["her", "ɜɹ", "work", "wɜːk", "service", "ˈsɜːvɪs", "person", "ˈpɜːsən"],
+  "̩": ["model", "ˈmɑdl̩", "possible", "ˈpɒsɪbl̩", "local", "ˈləʊkl̩", "region", "ˈɹiːd͡ʒn̩"],
+  "ð": ["that", "ˈðæt", "this", "ðɪs", "they", "ðeɪ", "there", "ðɛə"],
+  "ʤ": ["majors", "ˈmeɪ.ʤəɹz", "jointly", "ˈʤɔɪntli", "mg", "ɛmˈʤi", "eligibility", "ɛlɪˈʤɪbɨlɪti"],
+  "̬": ["capability", "ˌkeɪ.pəˈbɪl.ə.t̬i", "veteran", "ˈvɛ.t̬ə.ɹən", "routeing", "ˈɹuː.t̬ɪŋɡ", "fundamentally", "ˈfʌndəˈmɛn.t̬li"],
+  "ʰ": ["characterization", "kʰær.ək.təˈɹaɪˌzeɪʃən", "European Parliament", "jʊɹəˈpʰiən ˈpɑɹl.əmənt", "VPN", "ˌviː.pʰiːˈɛn", "PlayStation", "ˈpʰleɪˌsteɪ.ʃən"],
+  "ʧ": ["structured", "ˈstrʌkʧərd", "picturing", "ˈpɪk.ʧə.ɹɪŋ", "matched", "ˈmæʧt", "HD", "ˈeɪʧ-ˈdi"],
+  "ɾ": ["city", "ˈsɪɾi", "better", "ˈbɛɾɚ", "metal", "ˈmɛɾəɫ", "item", "ˈaɪ̯ɾəm"],
+  "ɫ": ["still", "stɪɫ", "light", "ɫɐɪ̯ʔ", "metal", "ˈmɛɾəɫ", "fuel", "ˈfjuwəɫ"],
+  "ɵ": ["electrolyte", "ɨˈlɛk.tɹɵˌlaɪt", "metropolitan", "mɛtɹɵˈpɑlɨtən", "electrolytic", "ɨˌlɛk.tɹɵˈlɪ.tɪk", "intonation", "ɪntɵˈneɪʃən"],
+  "y": ["UTC", "yu ˈtiː siː", "in Tokyo", "ɪn ˈtoʊ.kyoʊ", "Suzuki", "sy.ˈzyː.ki", "Suzuki", "sy.ˈzyː.ki"],
+  "ɐ": ["no", "nɐʉ", "light", "ɫɐɪ̯ʔ", "bike", "bɐɪk", "slight", "sl̥ɐɪʔ"],
+  "̃": ["am", "ẽə̃ːm", "identity", "aɪˈdɛɾ̃əɾi", "counter", "ˈkaʊ.ɾ̃ɚ", "dismantle", "dɪsˈmæ̃nɾɫ̩"],
+  "-": ["jurisdiction", "d͡ʒʊɹɪz-", "HD", "ˈeɪʧ-ˈdi", "Seattle", "-ɾɫ", "CLI", "sɪˈɛl.aɪ ˈsiː-ɛl-aɪ"],
+  "ʉ": ["you", "jʉː", "no", "nɐʉ", "enthusiast", "ɪnˈθʉu̯.ziˌəst", "modular", "ˈmɑdʒʉlɑr"],
+  "'": ["structural", "'stɻʌk.tʃhə.ɹəl", "divided", "dɪ'vaɪdɪd", "Roman Catholic", "ˈɹoʊ.mən 'kæθ.ə.lɪk", "FCC", "ˌɛf.siː'siː"],
+  "x": ["I say", "x.seɪ", "Reich", "ɹaɪx", "loch", "lɑx", "Ahmed", "ˈɑːx.mɛd"],
+  "‿": ["IMF", "aɪ‿ɛm‿ɛf", "IMF", "aɪ‿ɛm‿ɛf", "NMR", "ɛn‿ˌɛm‿ˈɑɹ", "NMR", "ɛn‿ˌɛm‿ˈɑɹ"],
+  "c": ["benchmark", "ˈbɛnchmɑɹk", "CSR", "ciɛs.ɑr", "practicality", "ˌpɹæc.tɪˈkæl.ɪ.ti", "inadequacy", "ɪnˈædəkwəc.i"],
+  "`": ["Almaty", "ɑːl`mɑːtɨ", "CT scan", "`siː`tiː skɹæn", "CT scan", "`siː`tiː skɹæn", "Atami", "ɑˈtɑːmi```"],
+  "ɕ": ["Shizuoka", "ɕizɯoka", "Shinjuku", "ɕindʑukɯ", "Kagoshima", "kagoɕima", "Singapore English", "siŋaˈpɔ.iŋˈɡliɕ"],
+  "ʁ": ["heartbroken", "ˈhɑɹt.bʁoʊken", "Brahms", "ˈbʁɑːms", "Augsburg", "ˈaʊgzbuʁk", "Darmstadt", "ˈdaʁmʃtat"],
+  "ɯ": ["Fukuoka", "ɸukɯoka", "Shizuoka", "ɕizɯoka", "Shinjuku", "ɕindʑukɯ", "Tohoku", "toːhokɯꜜ"],
+  "ä": ["phase out", "feɪ̯z äʊ̯t", "endoscopic", "ɛn.doʊˈskäp.ɨk", "microscopical", "maɪ.kɹəˈskäp.ɪ.kəl", "thrice", "θɾ̪̊äɪs"],
+  "ǝ": ["visualize", "ˈvɪʒ.wǝ.laɪz", "American Indian", "əˈmɛɹɪkən ˈɪndiǝn", "derailment", "dɪˈɹeɪ̯l.mǝnt", "Jordan curve", "ˈʤoɹ.dǝn ˈkɝv"],
+  "ʔ": ["light", "ɫɐɪ̯ʔ", "slight", "sl̥ɐɪʔ", "app", "ʔæʔp̚", "app", "ʔæʔp̚"],
+  "ɘ": ["colour", "ˈkhʌ.lɘ", "rifled", "ˈɹaɪ.fɘld", "anodize", "ˈæn.ɘ.daɪz", "smokeless", "ˈsmʊklɘs"],
+  "ʍ": ["when", "ʍɛn", "what", "ʍʌt", "where", "ʍɛɚ", "while", "ʍaɪl"],
+  "̪": ["thread", "θɾ̪̊ɛd", "thrill", "θɾ̪̊ɪɫ", "Gujarat", "ɡʊ.dʒə.ˈɾaːt̪", "thrice", "θɾ̪̊äɪs"],
+  "œ": ["President Taylor", "ˈprɛzɪdɨnt ˈteɪlœr", "mesoderm", "ˈmiːzoʊ.dœɹm", "Meuse", "ˈmœz", "Gauguin", "goʊˈgœːŋ"],
+  "|": ["IDE", "aɪ.di.iː|ˈaɪdiː", "PFI", "ˈpiː ɛf aɪ | ˈpiːfɚwaɪ", "pure O", "|pjʊɹ.oʊ|", "pure O", "|pjʊɹ.oʊ|"],
+  "ʑ": ["Shinjuku", "ɕindʑukɯ", "Gifu", "d͡ʑi.ɸu", "Jeju", "dʑɛ.dzu", "Japanese style", "d͡ʑæpˈænˌiːz ‿ staɪ̯l"],
+  "ø": ["Montmartre", "mɔ̃.maʁtʁø", "Villeneuve", "vilˈnøːv", "dominos", "ˈdømɨ.noʊz", "Monsieur", "ˈmɑ̃sjø"],
+  "ḷ": ["biologically", "bɑɪ.əˈlɑdʒ.ɪ.kḷi", "crumpled", "ˈkɹʌmpḷd", "National Science Foundation", "ˈnæʃ.ən.ḷ ˈsaɪ.əns ˈfaʊn.deɪ.ʃən", "dismantled", "dɪsˈmæntḷd"],
+  "∫": ["UHF", "ˈju.ˌɛɪ.ˌɛt∫", "VHS", "vi ˈeɪt∫ ˈɛs", "English version", "ɪŋ.ɡlɪʃ ˈvːɹ̩∫ən", "Los Islands", "ˈlɒs ˈaɪ.lənd∫"],
+  ";": ["PMS", "ˌpi.eˌmɛs; piːˈɛmɛs", "ACS", "ˈe͡ɪsiːˈɛs; ˈe͡ɪ.siː.ˈɛs; ˈe͡ɪ.siː.ˈɛz", "ACS", "ˈe͡ɪsiːˈɛs; ˈe͡ɪ.siː.ˈɛs; ˈe͡ɪ.siː.ˈɛz", "BMI", "ˈbiˌɛmˈaɪ; ˈbiˌɛmˈɑɪ"],
+  "ʳ": ["floored", "flɔːʳd", "Bachelor of Science", "ˈbætʃələʳ əv ˈsaɪəns", "spyware", "ˈspaɪ.weəʳ", "Labour and Welfare", "ˈleɪbəʳ ænd ˈwelfɛəʳ"],
+  "ɲ": ["California coffee", "kælɪˈfoɹ.ɲɨ kɒfi", "ligne", "ˈlɪŋ.ɲɑ", "Bretagne", "bʁə.tɑɲ", "Emilia-Romagna", "ɛˈmiː.li‿a‿roˈmaɲɲa"],
+  "̈": ["attribute", "ˈæt.ɹɪ̈ˌbjut", "United States", "juˌnaɪtɪ̈d ˈsteɪts", "priority", "pɹaɪˈɔɹɪ̈ti", "orange", "ˈɑɹ.ɪ̈nd͡ʒ"],
+  "̥": ["slight", "sl̥ɐɪʔ", "tomato", "thə̥ˈmeɪɾoʊ", "culprit", "ˈkhʌɫpɹ̥ɪt", "cryptography", "kɹ̥ɪpˈthɒɡɹəfiː"],
+  "ō": ["Tokyo Stock Exchange", "ˈtō.keɪ.ō ˈstɑːk ɪksˈt͡ʃeɪndʒ", "Tokyo Stock Exchange", "ˈtō.keɪ.ō ˈstɑːk ɪksˈt͡ʃeɪndʒ", "Robespierre", "ˈɹō.bɛs.pɪəɹ", "monosilane", "ˌmänōˈsīˌlān"],
+  "ɻ": ["structural", "'stɻʌk.tʃhə.ɹəl", "unilateral", "ˌjʉː.nəˈɫæɾ.ɚ.ɻɫ̩", "scorched", "skɔɻtʃt", "cartoonish", "kɑːɻˈtuːn.iʃ"],
+  "ʲ": ["Kyoto man", "ˈkʲoːto ˈman", "Vladimir Lenin", "ˈvlɑ.dʲi.mʲɪr ˈlʲe.nʲɪn", "Vladimir Lenin", "ˈvlɑ.dʲi.mʲɪr ˈlʲe.nʲɪn", "Vladimir Lenin", "ˈvlɑ.dʲi.mʲɪr ˈlʲe.nʲɪn"],
+  "ç": ["Heinrich", "ˈhaɪnɹɪç", "2H", "tu'eɪç", "Dietrich", "ˈdiː.tɹɪç", "French sole", "ˈfɹɛnç soʊl"],
+  "̞": ["Ehime", "eˈhiːme̞", "Dentsu", "de̞n.tsɯ", "Ney", "ne̞j", "tokusatsu", "ˈto̞.ku.sat.su"],
+  "ɦ": ["uh-huh", "ʌ˨ˈɦʌ˦", "sledgehammer", "ˈslɛdʒɦɑm.ɚ", "Sindh", "sɪnd̪ɦ", "Akihabara", "ɑkiˈɦɑbɑɾɑ"],
+  "̆": ["creolization", "ˌkɹiːəʊ̆laɪˈzeɪʃə̆n", "creolization", "ˌkɹiːəʊ̆laɪˈzeɪʃə̆n", "necrophile", "ˈnɛkɹəʊ̆faɪl", "augustly", "ˈɔː.ɡə̆st.li"],
+  "ʂ": ["Prakash", "ˈprəkɑʂ", "Song dynasty", "ʰsɔŋ.tʂʰau.ˈdi.nə.stiʰ", "Chinese chess", "t͡ʂʰai̯ˈneːs ˈxɛs", "Changsha", "t͡ʃʰɑŋˈʂʰɑ"],
+  "ʈ": ["Maharashtra", "ˌməˈhəːɹɑːʃʈɹə", "Ministry of Education", "ˈmɪnɪs.ʈɹi ˌɒv ɛdʊ.ˈkeɪ.ʃən", "Maratha", "mə.ˈɾaː.ʈhə", "Chang'an", "ʈʂʰɑŋˈɑŋ"],
+  "̮": ["National Security Council", "ˈnæʃənəl ˌsɪkjʊˈɹɪt̮i ˈkaʊnsl", "infragravity", "ɪnfɹəˈɡɹævɪt̮i", "antiballet", "ænt̮ibæˈlɛt", "chartable", "ˈʧɑːrt̮ə.bəl"],
+  "N": ["Na", "Nɑ", "NP", "N.P.", "Russian characters", "No result", "INF", "I.ɛN.ɛF"],
+  "ʷ": ["Susquehanna River", "sʌskʷɨhænə ɹɪvəɹ", "aequorin", "ɛˈkʷoʊ.ɹn", "kwacha", "ˈkʷɑːt͡ʃə", "quasispecies", "ˈkʷeɪzɪˌspiːʃiːz"],
+  "ʏ": ["Rasmussen", "ˈɹæːs.mʏːs.ən", "Deutschland", "ˈdɔʏtʃ.lant", "Münster", "ˈmʏnstɐ", "Saarbrücken", "ˈzaːɐ̯ˈbrʏkɛn"],
+  "ɸ": ["Fukuoka", "ɸukɯoka", "Gifu", "d͡ʑi.ɸu", "futanari", "ˈɸɯ̹.ˈta.na.ɾi", "Fukushima Prefecture", "pɹɪˈfɛk.t͡ʃɹ̩ ɸɯkɯˈɕːima"],
+  "́": ["thioether", "ˈθaɪoʊ̯éːtʰɚ", "Fer", "ˈfɛ́ːr", "Muong", "ˈmwɔ́ʊ̯ŋ", "autopista", "ɑʊ.təˈpís.tɑ"],
+  "​": ["Japanese restaurant", "d͡ʑæp​.æˈniz ɹɪsˈtɒɹ.ɑːnt", "thermochemistry", "​​ˈθɹmoʊ.ˈkemɪs.tɹi", "thermochemistry", "​​ˈθɹmoʊ.ˈkemɪs.tɹi", "autobiographicalness", "ˌɑː.tə.baɪ̯.ʌɡ.rə.ˈfi.kəl​.nəs"],
+  "?": ["irreplaceable", "???", "irreplaceable", "???", "irreplaceable", "???", "Chinese virus", "Sorry I can't handle offensive words. How about Chinese?"],
+  "S": ["US Navy", "US ˈneɪvi", "Chinese virus", "Sorry I can't handle offensive words. How about Chinese?", "State of Japan", "Steɪt ʌv ˈʤæpæn", "SXSW", "S 'ɛks ɛs dʌbˌə.lju"],
+  "I": ["Chinese virus", "Sorry I can't handle offensive words. How about Chinese?", "INF", "I.ɛN.ɛF", "with America", "ˈwIð ˈæm.ɹɪ.kə", "cupsona", "WORD IS MISSPELLED OR UNKNOWN"],
+  "ʱ": ["Madhya Pradesh", "mə͜ʱdʱjə pɾəˈdeːʃ", "Madhya Pradesh", "mə͜ʱdʱjə pɾəˈdeːʃ", "Bharatiya", "bʱɑːr.tɪ.jə", "Mahatma Gandhi", "ˈmahatma ˈgan̪dʱi"],
+  "ī": ["Lijiang", "lǐjīāng", "monosilane", "ˌmänōˈsīˌlān", "hemodiafiltration", "ˌhī.mō.dī.ə.fɨl'trā.shən", "hemodiafiltration", "ˌhī.mō.dī.ə.fɨl'trā.shən"],
+  "ɣ": ["Zaragoza", "θæɹ.əˈɣoʊ.zə", "Borges", "ˈboɹ.ɣe.s", "Antofagasta", "ɑŋ.tu.fɑ.ˈɣɑs.tɑ", "Gelderland", "ˈɣɛl.dɛr.lɑnt"],
+  "ʎ": ["Liaoning", "ˈʎaʊnɪŋ", "Vuelta", "ˈbweʎ.ta", "Villarreal", "viˈʎe.ɾɛ.al", "William IV", "ˈwɪʎəm ˈði ˈfoɹθ"],
+};
+function show_hint() {
+  const question = questions[quiz_index];
+  const core_pron = question[0];
+  const core_word = question[1];
+  const hint_div = document.getElementById("hint");
+  hint_div.innerHTML = "";
+  hint_div.style.display = "block";
+  const table = document.createElement("table");
+  hint_div.appendChild(table);
+  for (let symbol of core_pron.split("")) {
+    const label = symbol_labels[symbol];
+    const examples = symbol_examples[symbol];
+    if (!label) continue;
+    const row = document.createElement("tr");
+    table.appendChild(row);
+    const col_symbol = document.createElement("td");
+    row.appendChild(col_symbol);
+    col_symbol.className = "pron";
+    col_symbol.appendChild(document.createTextNode("/"));
+    const b_symbol = document.createElement("b");
+    col_symbol.appendChild(b_symbol);
+    b_symbol.textContent = symbol;
+    col_symbol.appendChild(document.createTextNode("/"));
+    const col_label = document.createElement("td");
+    row.appendChild(col_label);
+    col_label.className = "label";
+    col_label.textContent = label;
+    if (examples) {
+      const col_examples = document.createElement("td");
+      row.appendChild(col_examples);
+      col_examples.className = "examples";
+      let index = 0
+      const shown_list = [];
+      while (index < examples.length) {
+        const word = examples[index];
+        const pron = examples[index + 1];
+        if (word != core_word) {
+          shown_list.push([word, pron]);
+        }
+        index += 2;
+      }
+      shuffle(shown_list);
+      index = 0;
+      while (index < shown_list.length && index < 3) {
+        const word = shown_list[index][0];
+        const pron = shown_list[index][1];
+        if (index > 0) {
+          col_examples.appendChild(document.createTextNode(", "));
+        }
+        const span_word = document.createElement("span");
+        col_examples.appendChild(span_word);
+        span_word.textContent = word;
+        span_word.onclick = function() { voice_text(word, quiz_locale); };
+        col_examples.appendChild(document.createTextNode(" "));
+        const span_pron = document.createElement("span");
+        col_examples.appendChild(span_pron);
+        span_pron.appendChild(document.createTextNode("/"));
+        const b_pron = document.createElement("b");
+        span_pron.appendChild(b_pron);
+        span_pron.onclick = function() { voice_text(word, quiz_locale); };
+        b_pron.textContent = pron;
+        span_pron.appendChild(document.createTextNode("/"));
+        index++;
+      }
+    }
+  }
+}
+function shuffle(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+}
 function set_message(text, color) {
   const message_p = document.getElementById("message");
   const message_text = message_p.childNodes[0];
@@ -155,7 +553,6 @@ function start_quiz() {
     return;
   }
   let gen_url = self_url + "?gen=" + quiz_level + "&loc=" + quiz_locale;
-  console.log(gen_url);
   let xhr = new XMLHttpRequest();
   xhr.onload = function() {
     if (this.status == 200) {
@@ -184,6 +581,7 @@ function render_quiz() {
   set_message("", "");
   document.getElementById("quiz_answer").value = "";
   document.getElementById("quiz_answer").focus();
+  document.getElementById("hint").style.display = "none";
 }
 function answer_quiz() {
   const time = new Date().getTime() - quiz_time;
@@ -292,10 +690,12 @@ QUIZ_HTML_BODY = """<h1><a href="{}">英単語発音記号検定</a></h1>
 <div id="answerline">
 <input type="text" id="quiz_answer" size="24" value=""/>
 <input type="submit" id="quiz_submit" value="回答"/>
-<button type="button" id="quiz_stop" value="降参" onclick="stop_quiz()">降参</button>
+<button type="button" id="quiz_hint" onclick="show_hint()">手掛</button>
+<button type="button" id="quiz_stop" onclick="stop_quiz()">降参</button>
 </div>
 </form>
 </div>
+<div id="hint">_</div>
 <p id="message">_</p>
 <p id="result"><a id="result_link">⇨ 結果を見る</a></p>
 """
@@ -350,11 +750,11 @@ def ReadQuestions(level, locale):
               break
       pron_dict[pron].append((word, trans))
       norm_pron1 = regex.sub(r"\(.*\)", r"", pron)
-      norm_pron1 = regex.sub(r"[.ˈˌ]", r"", norm_pron1)
+      norm_pron1 = regex.sub(r"[.ˈˌ‿]", r"", norm_pron1)
       if norm_pron1 != pron:
         norm_pron_dict[norm_pron1].append((word, trans))
       norm_pron2 = regex.sub(r"\((.*)\)", r"\1", pron)
-      norm_pron2 = regex.sub(r"[.ˈˌ]", r"", norm_pron2)
+      norm_pron2 = regex.sub(r"[.ˈˌ‿]", r"", norm_pron2)
       if norm_pron2 != pron and norm_pron2 != norm_pron1:
         norm_pron_dict[norm_pron2].append((word, trans))
       pron_list.append(pron)
@@ -378,9 +778,9 @@ def ReadQuestions(level, locale):
         trans = word_trans_dict.get(word)
         if trans:
           norm_pron1 = regex.sub(r"\(.*\)", r"", pron)
-          norm_pron1 = regex.sub(r"[.ˈˌ]", r"", norm_pron1)
+          norm_pron1 = regex.sub(r"[.ˈˌ‿]", r"", norm_pron1)
           norm_pron2 = regex.sub(r"\((.*)\)", r"\1", pron)
-          norm_pron2 = regex.sub(r"[.ˈˌ]", r"", norm_pron2)
+          norm_pron2 = regex.sub(r"[.ˈˌ‿]", r"", norm_pron2)
           for tmp_pron in [pron, norm_pron1, norm_pron2]:
             if tmp_pron in uniq_prons:
               norm_pron_dict[tmp_pron].append((word, trans))
@@ -391,9 +791,9 @@ def ReadQuestions(level, locale):
       if trans:
         for pron in sub_prons:
           norm_pron1 = regex.sub(r"\(.*\)", r"", pron)
-          norm_pron1 = regex.sub(r"[.ˈˌ]", r"", norm_pron1)
+          norm_pron1 = regex.sub(r"[.ˈˌ‿]", r"", norm_pron1)
           norm_pron2 = regex.sub(r"\((.*)\)", r"\1", pron)
-          norm_pron2 = regex.sub(r"[.ˈˌ]", r"", norm_pron2)
+          norm_pron2 = regex.sub(r"[.ˈˌ‿]", r"", norm_pron2)
           for tmp_pron in [pron, norm_pron1, norm_pron2]:
             if tmp_pron in uniq_prons:
               norm_pron_dict[tmp_pron].append((word, trans))
@@ -401,9 +801,9 @@ def ReadQuestions(level, locale):
   for pron in prons:
     recs = list(pron_dict[pron])
     norm_pron1 = regex.sub(r"\(.*\)", r"", pron)
-    norm_pron1 = regex.sub(r"[.ˈˌ]", r"", norm_pron1)
+    norm_pron1 = regex.sub(r"[.ˈˌ‿]", r"", norm_pron1)
     norm_pron2 = regex.sub(r"\((.*)\)", r"\1", pron)
-    norm_pron2 = regex.sub(r"[.ˈˌ]", r"", norm_pron2)
+    norm_pron2 = regex.sub(r"[.ˈˌ‿]", r"", norm_pron2)
     if norm_pron1 != pron:
       norm_recs = pron_dict.get(norm_pron1)
       if norm_recs:
