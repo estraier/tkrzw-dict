@@ -262,7 +262,7 @@ class XMLHandler(xml.sax.handler.ContentHandler):
         value = regex.sub(r"[\[\]]", "", value)
         value = value.strip()
         if value:
-          if line.find("|US") >= 0 or line.find("|GA") >= 0:
+          if line.find("|US") >= 0:
             if not ipa_us:
               ipa_us = value
           else:
