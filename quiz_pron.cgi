@@ -16,6 +16,7 @@
 
 import cgi
 import collections
+import datetime
 import html
 import json
 import os
@@ -58,6 +59,8 @@ h2 small { font-weight: normal; font-size: 90%; }
 p { text-indent: 0; }
 a { color: #000000; text-decoration: none; }
 a:hover { color: #002299; text-decoration: underline; }
+.meta_line { text-align: right; margin: 0.2ex 0; padding: 0 1ex; }
+.meta_line b { font-size: 110%; }
 .pass_label { color: #008811; font-size: 150%; padding: 0.5ex 1ex; }
 .fail_label { color: #881100; font-size: 150%; padding: 0.5ex 1ex; }
 table { border-collapse: collapse; }
@@ -661,8 +664,9 @@ QUIZ_HTML_BODY = """<h1><a href="{}">英単語発音記号検定</a></h1>
 <p>IPA発音記号の読解量を測る検定です。発音記号を見て、それに該当する英単語を当てるクイズに答えてください。</p>
 <p>例えば <code>/ˈæ.nɪ.meɪ.tə.bəl/</code> と表示されたら、「<code>animatable</code>」と入力してください。「回答」ボタンを押すか、Enterキーを押すと回答が送信されます。</p>
 <p>10問の問題が出題されます。全てに正答するまでの経過時間が60秒以内なら合格です。</p>
-<p>レベルは1から5まであります。高いレベルでは「communicable」「paralyzed」「kabuki」「Beethoven」のような派生後や外来語や固有名詞も含むので柔軟な思考と広い知識が求められます。</p>
+<p>レベルは1から5まであります。基本的な発音記号を覚えるにはレベル1だけやれば十分です。</p>
 <p>答えは必ず単語です。複数語のフレーズは含まれません。大文字と小文字は区別しません。同じ発音の語が複数該当する場合、どれを入力しても正解になります。正解すると、その語が読み上げられます。</p>
+<p>「手掛」ボタンを押すと、それぞれの発音記号の名前と他の単語の使用例が表示されます。それらの単語か発音記号をクリックするとその語が読み上げられます。「降参」ボタンを押すと、正答が見られますが、検定はそこで終了になります。</p>
 <form id="start_form" onsubmit="start_quiz(); return false">
 あなたの名前:<input type="text" id="intro_name" size="16" value=""/>
 <select id="intro_level">
@@ -885,6 +889,7 @@ def ShowResult(uid, script_url):
     SendMessage(404, "Bad data")
     return
   user_name = result.get("user")
+  unix_time = result.get("time") or 0
   level = result.get("level")
   locale = result.get("locale")
   answers = result.get("answers")
@@ -894,8 +899,11 @@ def ShowResult(uid, script_url):
   print("Cache-Control: public")
   print()
   print(RESULT_HTML_HEADER, end="")
-  P('<h1><a href="{}">英単語発音記号クイズ</a></h1>', script_url)
-  P('<p>ユーザ名: <b>{}</b></p>', user_name)
+  P('<h1><a href="{}">英単語発音記号検定</a></h1>', script_url)
+  P('<p class="meta_line"><b>{}</b> 殿</p>', user_name)
+  jst_time = datetime.datetime.fromtimestamp(unix_time, datetime.timezone(datetime.timedelta(hours=9)))
+  jst_date = regex.sub(r"^(\d+)-(\d+)-(\d+) .*", r"\1年\2月\3日", str(jst_time)).strip()
+  P('<p class="meta_line">{}</p>', jst_date)
   level_label = ["中学生並", "高校生並", "大学生並", "留学生並", "ネイティブ並"][level - 1]
   if locale == "gb":
     locale_label = "イギリス式"
