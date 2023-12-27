@@ -122,8 +122,10 @@ a:hover { color: #002299; text-decoration: underline; }
 #quiz_submit { font-size: 110%; }
 #quiz_hint { font-size: 110%; }
 #quiz_stop { font-size: 110%; }
-#result { display: none; }
+#result_line { display: none; }
 #result_link { font-size: 110%; color: #001199; }
+#redo_line { display: none; }
+#redo_link { font-size: 110%; color: #001199; }
 #hint { display: none; margin: 3ex 0ex 0.2ex 0ex; }
 #hint table { border-collapse: collapse; table-layout: fixed; }
 #hint table td { border: 1px solid #dddddd; border-collapse: collapse; padding: 0.1ex 0.3ex; }
@@ -623,6 +625,7 @@ function stop_quiz() {
   };
   pron_line.style.cursor = "pointer";
   show_hint();
+  document.getElementById("redo_line").style.display = "block";
 }
 function voice_text(text, locale) {
   if (!SpeechSynthesisUtterance) return;
@@ -650,7 +653,7 @@ function finish_quiz() {
       set_message("全問終了。お連れ様でした。", "#009911");
       const result_url = self_url + "?z=" + this.responseText;
       document.getElementById("result_link").href = result_url;
-      document.getElementById("result").style.display = "block";
+      document.getElementById("result_line").style.display = "block";
     } else {
       set_message("保存エラー:" + this.status, "#ff1100");
     }
@@ -702,7 +705,8 @@ QUIZ_HTML_BODY = """<h1><a href="{}">英単語発音記号検定</a></h1>
 </div>
 <div id="hint">_</div>
 <p id="message">_</p>
-<p id="result"><a id="result_link">⇨ 結果を見る</a></p>
+<p id="result_line"><a id="result_link">⇨ 結果を見る</a></p>
+<p id="redo_line"><a id="redo_link" href="{}">⇨ 再挑戦する</a></p>
 """
 
 QUIZ_HTML_FOOTER = """</article>
@@ -992,7 +996,7 @@ def GenerateUserInterface(script_url):
   print("Cache-Control: no-cache")
   print()
   print(QUIZ_HTML_HEADER, end="")
-  print(QUIZ_HTML_BODY.format(script_url, script_url), end="")
+  print(QUIZ_HTML_BODY.format(script_url, script_url, script_url), end="")
   print(QUIZ_HTML_FOOTER, end="")
 
   
