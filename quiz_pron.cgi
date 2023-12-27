@@ -666,7 +666,7 @@ function finish_quiz() {
 """
 QUIZ_HTML_BODY = """<h1><a href="{}">英単語発音記号検定</a></h1>
 <div id="intro">
-<p>IPA発音記号の読解量を測る検定です。発音記号を見て、それに該当する英単語を当てるクイズに答えてください。</p>
+<p>IPA発音記号の読解力を測る検定です。発音記号を見て、それに該当する英単語を当てる問題に答えてください。</p>
 <p>例えば <code>/ˈæ.nɪ.meɪ.tə.bəl/</code> と表示されたら、「<code>animatable</code>」と入力してください。「回答」ボタンを押すか、Enterキーを押すと回答が送信されます。</p>
 <p>10問の問題が出題されます。全てに正答するまでの経過時間が60秒以内なら合格です。</p>
 <p>レベルは1から5まであります。基本的な発音記号を覚えるにはレベル1だけやれば十分です。</p>
@@ -685,7 +685,7 @@ QUIZ_HTML_BODY = """<h1><a href="{}">英単語発音記号検定</a></h1>
 <option value="us">アメリカ式</option>
 <option value="gb">イギリス式</option>
 </select>
-<button type="button" onclick="start_quiz()">クイズを始める</button>
+<button type="button" onclick="start_quiz()">検定開始</button>
 </form>
 </div>
 <div id="quiz">
