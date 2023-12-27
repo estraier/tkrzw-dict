@@ -543,6 +543,37 @@ let quiz_level = 0;
 let quiz_locale = "";
 let quiz_index = 0;
 let quiz_time = 0;
+let storage_key_config = "union_pron_quiz_config";
+function start_up() {
+  load_config();
+}
+function save_config() {
+  if (!localStorage) return;
+  const config = {
+    "user": user_name,
+    "level": quiz_level,
+    "locale": quiz_locale,
+  };
+  localStorage.setItem(storage_key_config, JSON.stringify(config));
+}
+function load_config() {
+  if (!localStorage) return;
+  const config_json = localStorage.getItem(storage_key_config);
+  if (!config_json) return;
+  const config = JSON.parse(config_json);
+  const config_user = config["user"];
+  if (config_user) {
+    document.getElementById("intro_name").value = config_user;
+  }
+  const config_level = config["level"];
+  if (config_level) {
+    document.getElementById("intro_level").value = config_level;
+  }
+  const config_locale = config["locale"];
+  if (config_locale) {
+    document.getElementById("intro_locale").value = config_locale;
+  }
+}
 function start_quiz() {
   user_name = document.getElementById("intro_name").value.trim();
   quiz_level = parseInt(document.getElementById("intro_level").value)
@@ -567,6 +598,7 @@ function start_quiz() {
   }
   xhr.open("GET", gen_url, true);
   xhr.send();
+  save_config();
 }
 function render_quiz() {
   const question = questions[quiz_index];
@@ -664,7 +696,7 @@ function finish_quiz() {
 }
 ]]></script>
 </head>
-<body>
+<body onload="start_up()">
 <article>
 """
 QUIZ_HTML_BODY = """<h1><a href="{}">英単語発音記号検定</a></h1>
