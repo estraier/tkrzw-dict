@@ -613,11 +613,16 @@ function answer_quiz() {
   }
 }
 function stop_quiz() {
-  const pron = questions[quiz_index][0];
   const item = questions[quiz_index][1][0];
-  set_message("/" + pron + "/ の解答例は...: " + item[0] + " (" + item[1] + ")", "#bb3300");
+  set_message("解答例: " + item[0] + " (" + item[1] + ")", "#bb3300");
   voice_text(item[0], quiz_locale);
-  document.getElementById("quiz").style.display = "none";
+  document.getElementById("answer_line").style.display = "none";
+  const pron_line = document.getElementById("pron_line");
+  pron_line.onclick = function() {
+    voice_text(item[0]);
+  };
+  pron_line.style.cursor = "pointer";
+  show_hint();
 }
 function voice_text(text, locale) {
   if (!SpeechSynthesisUtterance) return;
@@ -687,7 +692,7 @@ QUIZ_HTML_BODY = """<h1><a href="{}">英単語発音記号検定</a></h1>
 <form id="quiz_form" onsubmit="answer_quiz(); return false">
 <h2 id="quiz_num">_</h2>
 <div id="pron_line">/<code id="quiz_pron">_</code>/</div>
-<div id="answerline">
+<div id="answer_line">
 <input type="text" id="quiz_answer" size="24" value=""/>
 <input type="submit" id="quiz_submit" value="回答"/>
 <button type="button" id="quiz_hint" onclick="show_hint()">手掛</button>
