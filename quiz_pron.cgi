@@ -111,9 +111,9 @@ p { text-indent: 0; }
 a { color: #000000; text-decoration: none; }
 a:hover { color: #002299; text-decoration: underline; }
 #message { display: none; }
-#intro input { font-size: 110%; }
-#intro select { font-size: 120%; }
-#intro button { font-size: 110%; }
+#intro input { font-size: 105%; }
+#intro select { font-size: 110%; }
+#intro button { font-size: 105%; }
 #quiz { display: none; }
 #quiz_num { text-align: right; font-size: 100%; color: #999999; }
 #pron_line { font-size: 120%; color: #999999; }
@@ -127,7 +127,7 @@ a:hover { color: #002299; text-decoration: underline; }
 #hint { display: none; margin: 3ex 0ex 0.2ex 0ex; }
 #hint table { border-collapse: collapse; table-layout: fixed; }
 #hint table td { border: 1px solid #dddddd; border-collapse: collapse; padding: 0.1ex 0.3ex; }
-#hint .pron { color: #aaaaaa; font-family: monospace; }
+#hint .pron { color: #aaaaaa; font-family: monospace; white-space: nowrap; }
 #hint .pron b { color: #000000; font-weight: bold; padding: 0 0.3ex; }
 #hint .label { color: #333333; font-size: 90%; width: 23ex; white-space: nowrap; overflow: hidden; }
 #hint .examples { color: #333333; width: 70ex; white-space: nowrap; overflow: hidden; }
