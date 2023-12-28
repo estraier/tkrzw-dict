@@ -598,8 +598,37 @@ class GenerateUnionEPUBBatch:
     sorted_yomi_dict = []
     for first, items in sorted(yomi_dict.items()):
       items = sorted(items)
-      items = [x[1:] for x in items]
-      sorted_yomi_dict.append((first, items))
+      dedup_items = []
+      i = 0
+      while i < len(items):
+        _, word_yomi, word, yomi_items = items[i]
+        if regex.search(r"\p{Hiragana}", word) and not regex.search(r"\p{Han}", word):
+          uniq_items = []
+          for yomi_item in yomi_items:
+            is_dup = False
+            j = i + 1
+            while j < len(items):
+              _, next_word_yomi, next_word, next_yomi_items = items[j]
+              if next_word_yomi != word_yomi: break
+              for next_yomi_item in next_yomi_items:
+                if yomi_item[0] == next_yomi_item[0]:
+                  is_dup = True
+                for yomi_item_synset in yomi_item[3]:
+                  for next_yomi_item_synset in next_yomi_item[3]:
+                    if yomi_item_synset[0] == next_yomi_item_synset[0]:
+                      is_dup = True
+                    if yomi_item[0] in next_yomi_item_synset[2]:
+                      is_dup = True
+                  if next_yomi_item[0] in yomi_item_synset[2]:
+                    is_dup = True
+              j += 1
+            if not is_dup:
+              uniq_items.append(yomi_item)
+          yomi_items = uniq_items
+        if yomi_items:
+          dedup_items.append((word_yomi, word, yomi_items))
+        i += 1
+      sorted_yomi_dict.append((first, dedup_items))
     return sorted_yomi_dict
 
   def ReadYomiMap(self, path, yomi_map, keywords):
