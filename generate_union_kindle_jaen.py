@@ -665,7 +665,12 @@ class GenerateUnionEPUBBatch:
       for line in input_file:
         fields = line.strip().split("\t")
         if len(fields) < 2: continue
-        kanji, yomis = fields[0], fields[1:]
+        kanji = fields[0]
+        yomis = []
+        for yomi in fields[1:]:
+          if not regex.fullmatch(r"[\p{Hiragana}ー]+", yomi) or len(yomi) > 30: continue
+          yomis.append(yomi)
+          if is_dubious: break
         yomi_map[kanji].extend(yomis)
         if has_keyword:
           keywords.add(kanji)
