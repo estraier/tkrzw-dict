@@ -294,7 +294,7 @@ class GenerateUnionEPUBBatch:
                best_labels, vetted_labels, preferable_labels, trustable_labels,
                supplement_labels, title,
                min_prob_normal, min_prob_capital, min_prob_multi, sufficient_prob,
-               shrink, example_only):
+               shrink, fallback, example_only):
     self.input_path = input_path
     self.output_path = output_path
     self.keyword_path = keyword_path
@@ -309,6 +309,7 @@ class GenerateUnionEPUBBatch:
     self.min_prob_multi = min_prob_multi
     self.sufficient_prob = sufficient_prob
     self.shrink = shrink
+    self.fallback = fallback
     self.example_only = example_only
     self.num_words = 0
     self.num_trans = 0
@@ -388,6 +389,8 @@ class GenerateUnionEPUBBatch:
       return False
     if regex.fullmatch(r"\d+(th)?", word):
       return False
+    if self.fallback:
+      return True
     prob = float(entry.get("probability") or "0")
     poses = set()
     labels = set()
@@ -723,13 +726,16 @@ class GenerateUnionEPUBBatch:
       for participle in GetParticiples(["verb_present_participle", "verb_past_participle"], True):
         P('<idx:orth value="{}"></idx:orth>', participle)
     P('</span>')
-    if pronunciation:
+    if pronunciation and not self.fallback:
       P('&#x2003;<span class="pron">/{}/</span>', pronunciation)
     P('</div>')
     if translations:
       self.num_trans += 1
       P('<div>{}</div>', ", ".join(translations[:6]))
-    if self.example_only:
+    if self.fallback:
+      if not translations:
+        P('<div>{}</div>', SanitizeText(items[0]["text"]))
+    elif self.example_only:
       if examples:
         for example in examples[:5]:
           self.MakeMainEntryExampleItem(P, example, entry)
@@ -962,6 +968,7 @@ def main():
   min_prob_multi = float(tkrzw_dict.GetCommandFlag(args, "--min_prob_capital", 1) or 0.000003)
   sufficient_prob = float(tkrzw_dict.GetCommandFlag(args, "--sufficient_prob", 1) or 0.00003)
   shrink = tkrzw_dict.GetCommandFlag(args, "--shrink", 0)
+  fallback = tkrzw_dict.GetCommandFlag(args, "--fallback", 0)
   example_only = tkrzw_dict.GetCommandFlag(args, "--example_only", 0)
   if not input_path:
     raise RuntimeError("an input path is required")
@@ -971,7 +978,7 @@ def main():
     input_path, output_path, keyword_path,
     best_labels, vetted_labels, preferable_labels, trustable_labels, supplement_labels,
     title, min_prob_normal, min_prob_capital, min_prob_multi, sufficient_prob,
-    shrink, example_only).Run()
+    shrink, fallback, example_only).Run()
 
 
 if __name__=="__main__":
