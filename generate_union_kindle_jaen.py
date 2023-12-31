@@ -233,13 +233,14 @@ class GenerateUnionEPUBBatch:
     self.AddAuxTrans(word_dict, tran_prob_dbm, aux_trans)
     yomi_map = collections.defaultdict(list)
     keywords = set()
+    dubious_yomi_map = collections.defaultdict(list)
     for yomi_path in self.yomi_paths:
       if not yomi_path: continue
-      self.ReadYomiMap(yomi_path, yomi_map, keywords)
+      self.ReadYomiMap(yomi_path, yomi_map, keywords, dubious_yomi_map)
     if phrase_prob_dbm and rev_prob_dbm:
       word_dict = self.FilterEntries(word_dict, phrase_prob_dbm, rev_prob_dbm, keywords)
     input_dbm.Close().OrDie()
-    yomi_dict = self.MakeYomiDict(word_dict, yomi_map)
+    yomi_dict = self.MakeYomiDict(word_dict, yomi_map, dubious_yomi_map)
     self.MakeMain(yomi_dict, conj_verbs, conj_adjs, rev_prob_dbm)
     self.MakeNavigation(yomi_dict)
     self.MakeOverview()
@@ -572,13 +573,18 @@ class GenerateUnionEPUBBatch:
       len(new_word_dict2), count_dup_affix))
     return new_word_dict2
 
-  def MakeYomiDict(self, word_dict, yomi_map):
+  def MakeYomiDict(self, word_dict, yomi_map, dubious_yomi_map):
     yomi_dict = collections.defaultdict(list)
     for word, items in word_dict.items():
       word_yomi = ""
       part_yomis = yomi_map.get(word)
+      dubious_part_yomis = dubious_yomi_map.get(word)
+      dubious_word_yomi = ""
       if part_yomis:
-        word_yomi = self.ChooseBestYomi(word, part_yomis, False)
+        if len(part_yomis) == 1 and dubious_part_yomis and part_yomis[0] in dubious_part_yomis:
+          dubious_word_yomi = part_yomis[0]
+        else:
+          word_yomi = self.ChooseBestYomi(word, part_yomis, False)
       if not word_yomi:
         trg_word = word
         stem, prefix, suffix = self.tokenizer.StripJaParticles(word)
@@ -587,7 +593,22 @@ class GenerateUnionEPUBBatch:
           if part_yomis:
             part_yomis = [prefix + x + suffix for x in part_yomis]
             trg_word = self.ChooseBestYomi(word, part_yomis, True)
-        word_yomi = self.tokenizer.GetJaYomi(trg_word)
+        match = regex.search(
+          "^([\p{Han}]{2,})(する|して|される|されて|にする|できる|できない|のない"
+          "を|に|が|へ|や|の|と|から|で|より|な)$", word)
+        if match:
+          stem = match.group(1)
+          suffix = match.group(2)
+          part_yomis = yomi_map.get(stem)
+          dubious_part_yomis = dubious_yomi_map.get(stem)
+          if part_yomis and (len(part_yomis) > 1 or not dubious_part_yomis or
+                             part_yomis[0] not in dubious_part_yomis):
+            part_yomis = [prefix + x + suffix for x in part_yomis]
+            trg_word = self.ChooseBestYomi(word, part_yomis, True)
+        if dubious_word_yomi and not regex.fullmatch(r"[\p{Hiragana}ー]+", trg_word):
+          word_yomi = dubious_word_yomi
+        else:
+          word_yomi = self.tokenizer.GetJaYomi(trg_word)
       if not word_yomi: continue
       word_yomi_key = MakeYomiKey(word_yomi)
       first = word_yomi_key[0]
@@ -631,11 +652,15 @@ class GenerateUnionEPUBBatch:
       sorted_yomi_dict.append((first, dedup_items))
     return sorted_yomi_dict
 
-  def ReadYomiMap(self, path, yomi_map, keywords):
+  def ReadYomiMap(self, path, yomi_map, keywords, dubious_yomi_map):
     has_keyword = False
+    is_dubious = False
     if path.startswith("+"):
       path = path[1:]
       has_keyword = True
+    if path.startswith("-"):
+      path = path[1:]
+      is_dubious = True
     with open(path) as input_file:
       for line in input_file:
         fields = line.strip().split("\t")
@@ -644,6 +669,8 @@ class GenerateUnionEPUBBatch:
         yomi_map[kanji].extend(yomis)
         if has_keyword:
           keywords.add(kanji)
+        if is_dubious:
+          dubious_yomi_map[kanji].extend(yomis)
 
   def ChooseBestYomi(self, word, yomis, sort_by_length):
     if len(yomis) == 1:
