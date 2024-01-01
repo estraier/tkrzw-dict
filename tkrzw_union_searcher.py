@@ -366,6 +366,31 @@ class UnionSearcher:
         seeds.extend(self.SearchExactReverse(word, capacity))
     return self.SearchRelatedWithSeeds(seeds, capacity)
 
+  _particles = {
+    "aback", "about", "above", "abroad", "across", "after", "against", "ahead", "along",
+    "amid", "among", "apart", "around", "as", "at", "away", "back", "before", "behind",
+    "below", "beneath", "between", "beside", "beyond", "by", "despite", "during", "down",
+    "except", "for", "forth", "from", "in", "inside", "into", "near", "of", "off", "on",
+    "onto", "out", "outside", "over", "per", "re", "since", "than", "through", "throughout",
+    "till", "to", "together", "toward", "under", "until", "up", "upon", "with", "within",
+    "without", "via",
+  }
+  def SearchPhrasalVerbs(self, text, capacity):
+    text = tkrzw_dict.NormalizeWord(text)
+    tokens = text.split(" ")
+    if len(tokens) < 3 or len(tokens) > 5:
+      return []
+    if tokens[-1] not in self._particles:
+      return []
+    result = []
+    num_tokens = len(tokens) - 2
+    while num_tokens >= 1:
+      phrase = " ".join(tokens[0:num_tokens]) + " " + tokens[-1]
+      for entry in self.SearchExact(phrase, capacity - len(result)):
+        result.append(entry)
+      num_tokens -= 1
+    return result
+
   def SearchPatternMatch(self, mode, text, capacity):
     self.OpenKeysFile()
     text = tkrzw_dict.NormalizeWord(text)

@@ -511,6 +511,8 @@ def main():
     else:
       result = searcher.SearchExact(query, capacity)
       if not result and search_mode == "auto":
+        result = searcher.SearchPhrasalVerbs(query, capacity)
+      if not result and search_mode == "auto":
         result = searcher.SearchPatternMatch("edit", query, capacity)
   elif search_mode == "prefix":
     if is_reverse:
@@ -2359,9 +2361,13 @@ def main_cgi():
           if is_reverse:
             edit_result = searcher.SearchPatternMatchReverse("edit", query, CGI_CAPACITY)
           else:
-            edit_result = searcher.SearchPatternMatch("edit", query, CGI_CAPACITY)
-          if edit_result:
-            result.extend(edit_result)
+            phrasal_result = searcher.SearchPhrasalVerbs(query, CGI_CAPACITY)
+            if phrasal_result:
+              result.extend(phrasal_result)
+            else:
+              edit_result = searcher.SearchPatternMatch("edit", query, CGI_CAPACITY)
+              if edit_result:
+                result.extend(edit_result)
     elif search_mode == "prefix":
       if is_reverse:
         result = searcher.SearchPatternMatchReverse("begin", query, CGI_CAPACITY)
@@ -2522,6 +2528,7 @@ def main_cgi():
         raise RuntimeError("unknown view mode: " + view_mode)
     else:
       infl_result = None
+      phrasal_result = None
       edit_result = None
       if search_mode == "auto" and extra_mode != "popup":
         if index_mode in ("auto", "normal"):
@@ -2535,10 +2542,13 @@ def main_cgi():
         if is_reverse:
           edit_result = searcher.SearchPatternMatchReverse("edit", query, CGI_CAPACITY)
         else:
+          phrasal_result = searcher.SearchPhrasalVerbs(query, CGI_CAPACITY)
           edit_result = searcher.SearchPatternMatch("edit", query, CGI_CAPACITY)
       subactions = []
       if infl_result:
         subactions.append("屈折検索")
+      if phrasal_result:
+        subactions.append("句動詞検索")
       if edit_result:
         subactions.append("曖昧検索")
       submessage = ""
@@ -2549,6 +2559,8 @@ def main_cgi():
       P('</section>')
       if infl_result:
         PrintResultCGIList(script_name, infl_result, "")
+      if phrasal_result:
+        PrintResultCGIList(script_name, phrasal_result, "")
       if edit_result:
         PrintResultCGIList(script_name, edit_result, "")
   elif index_mode == "annot":
