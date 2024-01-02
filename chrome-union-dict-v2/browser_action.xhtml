@@ -26,9 +26,54 @@ body {
     right: 0;
     z-index: 100;
     margin: 0ex;
-    padding: 0.8ex 1.2ex;
+    padding: 0.8ex 0.8ex 0.8ex 1.2ex;
     background: #eeeeee;
     text-align: right;
+    border-bottom-left-radius: 1ex;
+    opacity: 0.9;
+    transition: opacity 0.3s;
+}
+#config_form.config_form_timed {
+    opacity: 0.1;
+}
+#config_form.config_form_timed:hover {
+    opacity: 0.9;
+}
+#config_popup_size {
+    font-size: 95%;
+    opacity: 0.8;
+}
+#help_icon {
+    display: inline-block;
+    width: 2.5ex;
+    margin-left: 0.5ex;
+    text-align: center;
+    background: #ffffff;
+    border: solid 1px #dddddd;
+    border-radius: 1.2ex;
+    color: #888888;
+    opacity: 0.7;
+}
+#help_icon:hover {
+    opacity: 1.0;
+    color: #111111;
+}
+#help {
+    display: none;
+    position: absolute;
+    bottom: 1ex;
+    left: 1ex;
+    background: #ffffff;
+    max-width: 94%;
+    border: solid 2px #cccccc;
+    border-radius: 1ex;
+    padding: 1ex;
+    color: #111111;
+}
+#help h2, #help p {
+    font-size: 100%;
+    margin: 0;
+    padding: 0;
 }
 #search_frame {
     margin: 0ex;
@@ -44,14 +89,27 @@ body {
 <body>
 
 <form name="config_form" action="#" id="config_form">
-<div class="form_row">ポップアップ検索:
+<div class="form_row">ポップアップ:
+<select name="popup_size" id="config_popup_size">
+<option value="1">小</option>
+<option value="2">中</option>
+<option value="3">大</option>
+</select>
 <input type="radio" name="popup_enable" value="on" id="popup_enable_on"/><label for="popup_enable_on">有効</label>
 <input type="radio" name="popup_enable" value="off" id="popup_enable_off"/><label for="popup_enable_off">無効</label>
+<span id="help_icon">&#xFF1F;</span>
 </div>
 </form>
-
+<div id="help">
+<h2>概要</h2>
+<p>閲覧中のページで英語の語句を選択すると、その意味を英和辞書で調べてポップアップで表示します。ダブルクリックで単語が選択できますが、ドラッグで複数語を選択することもできます。</p>
+<p>日本語の語句を選択すると、和英辞書を調べて、該当する英語のフレーズのリストをポップアップで表示します。活用語はその語幹部分を選択してください。</p>
+<p>後で復習したい語句には、ポップアップの右上にある星マークをつけましょう。このパネルの星マークから一覧できるようになります。</p>
+<h2>ショートカット</h2>
+<p>Ctrl+Shift+L (⌘+Shift+L) = この辞書パネルを表示または隠蔽</p>
+<p>Ctrl+Shift+K (⌘+Shift+K) = ポップアップ無効時にポップアップ表示</p>
+</div>
 <iframe src="https://dbmx.net/dict/search_union.cgi" id="search_frame"></iframe>
-
 <script src="browser_action.js"></script>
 </body>
 </html>

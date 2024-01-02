@@ -13,9 +13,15 @@ function update_config() {
   });
 }
 
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request == "update_config") {
+    update_config();
+  }
+});
+
 chrome.runtime.onInstalled.addListener(function() {
   chrome.contextMenus.create({
-    "title": "Popup Dictionary",
+    "title": "ポップアップ英和辞書",
     "contexts": ["selection"],
     "id": "union_dict_popup"
  });
