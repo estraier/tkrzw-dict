@@ -2204,6 +2204,9 @@ def main_cgi():
   if extra_mode == "json":
     ProcessJSON(query, path_info)
     return
+  context_core = (params.get("xc") or "")[:128].strip()
+  context_prefix = (params.get("xp") or "")[:128].strip()
+  context_suffix = (params.get("xs") or "")[:128].strip()
   error_notes = []
   is_http_query = False
   is_html_query = False
@@ -2451,6 +2454,19 @@ def main_cgi():
                 words.add(lemma_word)
             if infl_result:
               PrintResultCGIList(script_name, infl_result, "")
+        if context_core or context_prefix or context_suffix:
+          if not context_core:
+            context_core = query
+          context_result = []
+          uniq_words = set([x["word"] for x in result])
+          for entry in searcher.SearchWithContext(
+            context_core, context_prefix, context_suffix, CGI_CAPACITY):
+            word = entry["word"]
+            if word in uniq_words: continue
+            uniq_words.add(word)
+            context_result.append(entry)
+          if context_result:
+            PrintResultCGIList(script_name, context_result, "")
       elif view_mode == "full":
         PrintResultCGI(script_name, result, query, searcher, True)
       elif view_mode == "simple":

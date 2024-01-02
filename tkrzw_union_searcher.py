@@ -391,6 +391,37 @@ class UnionSearcher:
       num_tokens -= 1
     return result
 
+  def SearchWithContext(self, core_phrase, prefix, suffix, capacity):
+    result = []
+    prefix_tokens = regex.sub(r"\s+", " ", prefix).split(" ")[-3:]
+    suffix_tokens = regex.sub(r"\s+", " ", suffix).split(" ")[:3]
+    prefix_length = 0
+    while prefix_length <= len(prefix_tokens):
+      prefix_context = core_phrase
+      if prefix_length > 0:
+        prefix_context = " ".join(prefix_tokens[-prefix_length:]) + " " + prefix_context
+      suffix_length = 0
+      while suffix_length <= len(suffix_tokens):
+        context_query = prefix_context
+        if suffix_length > 0:
+          context_query += " " + " ".join(suffix_tokens[:suffix_length])
+        if len(result) < capacity:
+          for entry in self.SearchExact(context_query, capacity - len(result)):
+            result.append(entry)
+        if len(result) < capacity:
+          for entry in self.SearchPhrasalVerbs(context_query, capacity - len(result)):
+            result.append(entry)
+        suffix_length += 1
+      prefix_length += 1
+    uniq_result = []
+    uniq_words = set()
+    for entry in result:
+      word = entry["word"]
+      if word in uniq_words: continue
+      uniq_words.add(word)
+      uniq_result.append(entry)
+    return uniq_result
+
   def SearchPatternMatch(self, mode, text, capacity):
     self.OpenKeysFile()
     text = tkrzw_dict.NormalizeWord(text)
