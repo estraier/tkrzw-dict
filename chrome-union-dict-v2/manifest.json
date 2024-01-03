@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "English-Japanese Union Dictionary",
   "description": "WordNetとWiktionaryの英和統合辞書。ポップアップでも検索できる。",
-  "version": "2.1",
+  "version": "2.2",
   "homepage_url": "https://dbmx.net/dict/",
   "background": {
     "service_worker": "background.js"
