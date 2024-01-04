@@ -2438,6 +2438,7 @@ def main_cgi():
           PrintResultCGI(script_name, result, query, searcher, False)
         else:
           PrintResultCGIList(script_name, result, query)
+        infl_result = []
         if not is_reverse and index_mode == "auto":
           lemmas = set()
           for lemma in searcher.SearchInflections(query):
@@ -2445,7 +2446,6 @@ def main_cgi():
             lemmas.add(lemma)
           if lemmas:
             words = set([x["word"] for x in result])
-            infl_result = []
             for lemma in lemmas:
               for entry in searcher.SearchExact(lemma, CGI_CAPACITY):
                 lemma_word = entry["word"]
@@ -2458,7 +2458,7 @@ def main_cgi():
           if not context_core:
             context_core = query
           context_result = []
-          uniq_words = set([x["word"] for x in result])
+          uniq_words = set([x["word"] for x in result] + [x["word"] for x in infl_result])
           for entry in searcher.SearchWithContext(
             context_core, context_prefix, context_suffix, CGI_CAPACITY):
             word = entry["word"]
