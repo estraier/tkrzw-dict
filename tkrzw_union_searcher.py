@@ -378,6 +378,9 @@ class UnionSearcher:
   _possessives = {
     "my", "our", "your", "his", "her", "its", "their",
   }
+  _objects = {
+    "me", "us", "you", "him", "her", "it", "them",
+  }
   def SearchSetPhrases(self, text, capacity):
     text = tkrzw_dict.NormalizeWord(text)
     tokens = text.split(" ")
@@ -389,11 +392,18 @@ class UnionSearcher:
         for entry in self.SearchExact(phrase, capacity - len(result)):
           result.append(entry)
         num_tokens -= 1
-    for i, token in enumerate(tokens):
-      if token in self._possessives or regex.search(r"^[A-Za-z]+'s$", token):
-        phrase = " ".join(tokens[:i] + ["one's"] + tokens[i + 1:])
-        for entry in self.SearchExact(phrase, capacity - len(result)):
-          result.append(entry)
+    if len(tokens) >= 2 and len(tokens) <= 5:
+      for i, token in enumerate(tokens):
+        if token in self._possessives or regex.search(r"^[A-Za-z]+'s$", token):
+          phrase = " ".join(tokens[:i] + ["one's"] + tokens[i + 1:])
+          for entry in self.SearchExact(phrase, capacity - len(result)):
+            result.append(entry)
+      for i, token in enumerate(tokens):
+        if token in self._objects:
+          for wild in ["someone", "something"]:
+            phrase = " ".join(tokens[:i] + [wild] + tokens[i + 1:])
+            for entry in self.SearchExact(phrase, capacity - len(result)):
+              result.append(entry)
     return result
 
   def SearchWithContext(self, core_phrase, prefix, suffix, capacity):
