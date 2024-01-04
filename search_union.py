@@ -511,7 +511,7 @@ def main():
     else:
       result = searcher.SearchExact(query, capacity)
       if not result and search_mode == "auto":
-        result = searcher.SearchPhrasalVerbs(query, capacity)
+        result = searcher.SearchSetPhrases(query, capacity)
       if not result and search_mode == "auto":
         result = searcher.SearchPatternMatch("edit", query, capacity)
   elif search_mode == "prefix":
@@ -2364,7 +2364,7 @@ def main_cgi():
           if is_reverse:
             edit_result = searcher.SearchPatternMatchReverse("edit", query, CGI_CAPACITY)
           else:
-            phrasal_result = searcher.SearchPhrasalVerbs(query, CGI_CAPACITY)
+            phrasal_result = searcher.SearchSetPhrases(query, CGI_CAPACITY)
             if phrasal_result:
               result.extend(phrasal_result)
             else:
@@ -2558,7 +2558,7 @@ def main_cgi():
         if is_reverse:
           edit_result = searcher.SearchPatternMatchReverse("edit", query, CGI_CAPACITY)
         else:
-          phrasal_result = searcher.SearchPhrasalVerbs(query, CGI_CAPACITY)
+          phrasal_result = searcher.SearchSetPhrases(query, CGI_CAPACITY)
           edit_result = searcher.SearchPatternMatch("edit", query, CGI_CAPACITY)
       subactions = []
       if infl_result:

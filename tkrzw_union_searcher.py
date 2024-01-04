@@ -375,20 +375,25 @@ class UnionSearcher:
     "till", "to", "together", "toward", "under", "until", "up", "upon", "with", "within",
     "without", "via",
   }
-  def SearchPhrasalVerbs(self, text, capacity):
+  _possessives = {
+    "my", "our", "your", "his", "her", "its", "their",
+  }
+  def SearchSetPhrases(self, text, capacity):
     text = tkrzw_dict.NormalizeWord(text)
     tokens = text.split(" ")
-    if len(tokens) < 3 or len(tokens) > 5:
-      return []
-    if tokens[-1] not in self._particles:
-      return []
     result = []
-    num_tokens = len(tokens) - 2
-    while num_tokens >= 1:
-      phrase = " ".join(tokens[0:num_tokens]) + " " + tokens[-1]
-      for entry in self.SearchExact(phrase, capacity - len(result)):
-        result.append(entry)
-      num_tokens -= 1
+    if len(tokens) >= 3 and len(tokens) <= 5 and tokens[-1] in self._particles:
+      num_tokens = len(tokens) - 2
+      while num_tokens >= 1:
+        phrase = " ".join(tokens[0:num_tokens]) + " " + tokens[-1]
+        for entry in self.SearchExact(phrase, capacity - len(result)):
+          result.append(entry)
+        num_tokens -= 1
+    for i, token in enumerate(tokens):
+      if token in self._possessives or regex.search(r"^[A-Za-z]+'s$", token):
+        phrase = " ".join(tokens[:i] + ["one's"] + tokens[i + 1:])
+        for entry in self.SearchExact(phrase, capacity - len(result)):
+          result.append(entry)
     return result
 
   def SearchWithContext(self, core_phrase, prefix, suffix, capacity):
@@ -416,7 +421,7 @@ class UnionSearcher:
             for entry in self.SearchExact(context_query, capacity - len(result)):
               result.append(entry)
           if len(result) < capacity:
-            for entry in self.SearchPhrasalVerbs(context_query, capacity - len(result)):
+            for entry in self.SearchSetPhrases(context_query, capacity - len(result)):
               result.append(entry)
           suffix_length += 1
         prefix_length += 1
