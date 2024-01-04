@@ -102,11 +102,21 @@ def Run(phrase_prob_path, rev_prob_path,
       tran = tran.strip()
       if pos == "verb":
         tran = regex.sub(r"^to ", "", tran)
+        match = regex.search(r" someone or something$", tran)
+        if match:
+          tran = tran[:match.span()[0]]
+        match = regex.search(r" (someone|something)$", tran)
+        if match:
+          tran = tran[:match.span()[0]]
       if pos == "noun":
         tran = regex.sub(r"^(a|an|the) ", "", tran)
+      tran = regex.sub(r"(^|\W)(someone|something)'s(\W|$)", r"\1one's\3", tran)
+      if tran.count(" ") > 0:
+        tran = regex.sub(r"(^|\W)(somebody)(\W|$)", r"\1someone\3", tran)
       tran = regex.sub("^[-~] ", "", tran)
       tran = regex.sub(" [-~]$", "", tran)
       if not regex.fullmatch(r"[-_\p{Latin}0-9'. ]+", tran): continue
+      if regex.search(r"someone", tran) and regex.search(r"something", tran): continue
       tokens = tran.split(" ")
       if len(tokens) < 1 or len(tokens) > 4: continue
       word_dict[tran].append((pos, word))
