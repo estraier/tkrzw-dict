@@ -406,6 +406,22 @@ class UnionSearcher:
               result.append(entry)
     return result
 
+  def SearchPartial(self, text, capacity):
+    text = tkrzw_dict.NormalizeWord(text)
+    tokens = text.split(" ")
+    result = []
+    if len(tokens) >= 2 and len(tokens) <= 6:
+      num_tokens = len(tokens) - 1
+      while num_tokens > 0 and num_tokens >= len(tokens) - 2:
+        i = 0
+        while i + num_tokens < len(tokens):
+          phrase = " ".join(tokens[i:i + num_tokens])
+          for entry in self.SearchExact(phrase, capacity - len(result)):
+            result.append(entry)
+          i += 1
+        num_tokens -= 1;
+    return result
+
   def SearchWithContext(self, core_phrase, prefix, suffix, capacity):
     result = []
     prefix_tokens = regex.sub(r"\s+", " ", prefix).split(" ")[-3:]
