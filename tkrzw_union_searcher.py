@@ -378,6 +378,9 @@ class UnionSearcher:
   _possessives = {
     "my", "our", "your", "his", "her", "its", "their",
   }
+  _reflexives = {
+    "myself", "ourselves", "yourself", "yourselves", "himself", "herself", "itself", "theirselves",
+  }
   _objects = {
     "me", "us", "you", "him", "her", "it", "them",
   }
@@ -396,6 +399,11 @@ class UnionSearcher:
       for i, token in enumerate(tokens):
         if token in self._possessives or regex.search(r"^[A-Za-z]+'s$", token):
           phrase = " ".join(tokens[:i] + ["one's"] + tokens[i + 1:])
+          for entry in self.SearchExact(phrase, capacity - len(result)):
+            result.append(entry)
+      for i, token in enumerate(tokens):
+        if token in self._reflexives:
+          phrase = " ".join(tokens[:i] + ["oneself"] + tokens[i + 1:])
           for entry in self.SearchExact(phrase, capacity - len(result)):
             result.append(entry)
       for i, token in enumerate(tokens):

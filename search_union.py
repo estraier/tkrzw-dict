@@ -2572,7 +2572,7 @@ def main_cgi():
       if infl_result:
         subactions.append("屈折検索")
       if phrasal_result:
-        subactions.append("句動詞検索")
+        subactions.append("定型句検索")
       if partial_result:
         subactions.append("部分検索")
       if edit_result:
