@@ -381,7 +381,7 @@ class UnionSearcher:
   _reflexives = {
     "myself", "ourselves", "yourself", "yourselves", "himself", "herself", "itself", "theirselves",
   }
-  _objects = {
+  _object_pronouns = {
     "me", "us", "you", "him", "her", "it", "them",
   }
   def SearchSetPhrases(self, text, capacity):
@@ -407,12 +407,24 @@ class UnionSearcher:
           for entry in self.SearchExact(phrase, capacity - len(result)):
             result.append(entry)
       for i, token in enumerate(tokens):
-        if token in self._objects:
+        if token in self._object_pronouns or token in self._reflexives:
           for wild in ["someone", "something"]:
             phrase = " ".join(tokens[:i] + [wild] + tokens[i + 1:])
             for entry in self.SearchExact(phrase, capacity - len(result)):
               result.append(entry)
-    return result
+    if len(token) >= 4 and token[1] in ["a", "an", "the"]:
+      for wild in ["someone", "something"]:
+        phrase = " ".join(tokens[:1] + [wild] + tokens[3:])
+        for entry in self.SearchExact(phrase, capacity - len(result)):
+          result.append(entry)
+    uniq_result = []
+    uniq_words = set()
+    for entry in result:
+      word = entry["word"]
+      if word in uniq_words: continue
+      uniq_words.add(word)
+      uniq_result.append(entry)
+    return uniq_result
 
   def SearchPartial(self, text, capacity):
     text = tkrzw_dict.NormalizeWord(text)
