@@ -191,7 +191,8 @@ def esc(expr):
 class GenerateUnionEPUBBatch:
   def __init__(self, input_path, output_path, supplement_labels,
                tran_prob_path, phrase_prob_path, rev_prob_path,
-               yomi_paths, tran_aux_paths, conj_verb_path, conj_adj_path, title):
+               yomi_paths, tran_aux_paths, rev_tran_aux_paths,
+               conj_verb_path, conj_adj_path, title):
     self.input_path = input_path
     self.output_path = output_path
     self.supplement_labels = supplement_labels
@@ -200,6 +201,7 @@ class GenerateUnionEPUBBatch:
     self.rev_prob_path = rev_prob_path
     self.yomi_paths = yomi_paths
     self.tran_aux_paths = tran_aux_paths
+    self.rev_tran_aux_paths = rev_tran_aux_paths
     self.conj_verb_path = conj_verb_path
     self.conj_adj_path = conj_adj_path
     self.title = title
@@ -226,17 +228,19 @@ class GenerateUnionEPUBBatch:
     input_dbm = tkrzw.DBM()
     input_dbm.Open(self.input_path, False, dbm="HashDBM").OrDie()
     os.makedirs(self.output_path, exist_ok=True)
-    aux_trans = self.ReadAuxTrans()
+    aux_trans = self.ReadAuxTrans(self.tran_aux_paths)
+    rev_aux_trans = self.ReadAuxTrans(self.rev_tran_aux_paths)
     conj_verbs = self.ReadConjWords(self.conj_verb_path)
     conj_adjs = self.ReadConjWords(self.conj_adj_path)
     word_dict = self.ReadEntries(input_dbm, tran_prob_dbm, aux_trans)
-    self.AddAuxTrans(word_dict, tran_prob_dbm, aux_trans)
     yomi_map = collections.defaultdict(list)
-    keywords = set()
+    keywords = collections.defaultdict(int)
     dubious_yomi_map = collections.defaultdict(list)
     for yomi_path in self.yomi_paths:
       if not yomi_path: continue
       self.ReadYomiMap(yomi_path, yomi_map, keywords, dubious_yomi_map)
+    self.AddAuxTrans(word_dict, tran_prob_dbm, aux_trans)
+    self.AddKeywords(word_dict, keywords, aux_trans, rev_aux_trans)
     if phrase_prob_dbm and rev_prob_dbm:
       word_dict = self.FilterEntries(word_dict, phrase_prob_dbm, rev_prob_dbm, keywords)
     input_dbm.Close().OrDie()
@@ -254,9 +258,9 @@ class GenerateUnionEPUBBatch:
       tran_prob_dbm.Close().OrDie()
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
-  def ReadAuxTrans(self):
+  def ReadAuxTrans(self, paths):
     aux_trans = collections.defaultdict(list)
-    for path in self.tran_aux_paths:
+    for path in paths:
       if not path: continue
       with open(path) as input_file:
         for line in input_file:
@@ -294,7 +298,7 @@ class GenerateUnionEPUBBatch:
       for word_entry in entry:
         self.ReadEntry(word_dict, word_entry, tran_prob_dbm, aux_trans)
       it.Next()
-    logger.info("Reading entries: done")
+    logger.info("Reading entries: done: {}".format(len(word_dict)))
     return word_dict
 
   def ReadEntry(self, word_dict, entry, tran_prob_dbm, aux_trans):
@@ -472,6 +476,8 @@ class GenerateUnionEPUBBatch:
 
   def AddAuxTrans(self, word_dict, tran_prob_dbm, aux_trans):
     if not tran_prob_dbm: return
+    logger.info("Adding from auxiliary translations")
+    count_added = 0
     for word, trans in aux_trans.items():
       norm_word = tkrzw_dict.NormalizeWord(word)
       trans = set(trans)
@@ -497,6 +503,28 @@ class GenerateUnionEPUBBatch:
             tran_prob = max(tran_prob, new_prob)
         score = tran_prob ** 0.5
         word_dict[tran].append((word, score, tran_prob, []))
+        count_added += 1
+    logger.info("Adding from auxiliary translations: done: {}".format(count_added))
+
+  def AddKeywords(self, word_dict, keywords, aux_trans, rev_aux_trans):
+    logger.info("Adding from keywords")
+    count_added = 0
+    inv_aux_trans = collections.defaultdict(list)
+    for word, trans in aux_trans.items():
+      for tran in trans:
+        inv_aux_trans[tran].append(word)
+    for tran, count in keywords.items():
+      if count < 2: continue
+      if tran in word_dict: continue
+      words = inv_aux_trans.get(tran) or []
+      words.extend(rev_aux_trans.get(tran) or [])
+      base_score = 1.0
+      if words:
+        for word in words[:2]:
+          word_dict[tran].append((word, count * base_score * 0.01, 0.01, []))
+          base_score *= 0.8
+        count_added += 1
+    logger.info("Adding from keywords: done: {}".format(count_added))
 
   def FilterEntries(self, word_dict, phrase_prob_dbm, rev_prob_dbm, keywords):
     logger.info("Filtering entries: before={}".format(len(word_dict)))
@@ -673,7 +701,7 @@ class GenerateUnionEPUBBatch:
           if is_dubious: break
         yomi_map[kanji].extend(yomis)
         if has_keyword:
-          keywords.add(kanji)
+          keywords[kanji] += 1
         if is_dubious:
           dubious_yomi_map[kanji].extend(yomis)
 
@@ -884,6 +912,7 @@ def main():
   rev_prob_path = tkrzw_dict.GetCommandFlag(args, "--rev_prob", 1) or ""
   yomi_paths = (tkrzw_dict.GetCommandFlag(args, "--yomi", 1) or "").split(",")
   tran_aux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or "").split(",")
+  rev_tran_aux_paths = (tkrzw_dict.GetCommandFlag(args, "--rev_tran_aux", 1) or "").split(",")
   conj_verb_path = tkrzw_dict.GetCommandFlag(args, "--conj_verb", 1)
   conj_adj_path = tkrzw_dict.GetCommandFlag(args, "--conj_adj", 1)
   title = tkrzw_dict.GetCommandFlag(args, "--title", 1) or "Union Japanese-English Dictionary"
@@ -893,7 +922,7 @@ def main():
     raise RuntimeError("an output path is required")
   GenerateUnionEPUBBatch(
     input_path, output_path, supplement_labels, tran_prob_path, phrase_prob_path, rev_prob_path,
-    yomi_paths, tran_aux_paths, conj_verb_path, conj_adj_path, title).Run()
+    yomi_paths, tran_aux_paths, rev_tran_aux_paths, conj_verb_path, conj_adj_path, title).Run()
 
 
 if __name__=="__main__":
