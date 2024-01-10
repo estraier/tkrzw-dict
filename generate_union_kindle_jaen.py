@@ -514,7 +514,7 @@ class GenerateUnionEPUBBatch:
       for tran in trans:
         inv_aux_trans[tran].append(word)
     for tran, count in keywords.items():
-      if count < 2: continue
+      if count < 3: continue
       if tran in word_dict: continue
       words = inv_aux_trans.get(tran) or []
       words.extend(rev_aux_trans.get(tran) or [])
