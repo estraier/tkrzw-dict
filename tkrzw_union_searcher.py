@@ -384,6 +384,9 @@ class UnionSearcher:
   _object_pronouns = {
     "me", "us", "you", "him", "her", "it", "them",
   }
+  _determiners = {
+    "a", "an", "the", "my", "our", "your", "his", "her", "its", "their", "this", "these", "that", "those",
+  }
   def SearchSetPhrases(self, text, capacity):
     text = tkrzw_dict.NormalizeWord(text)
     tokens = text.split(" ")
@@ -412,7 +415,7 @@ class UnionSearcher:
             phrase = " ".join(tokens[:i] + [wild] + tokens[i + 1:])
             for entry in self.SearchExact(phrase, capacity - len(result)):
               result.append(entry)
-    if len(tokens) >= 4 and tokens[1] in ["a", "an", "the"]:
+    if len(tokens) >= 4 and tokens[1] in self._determiners:
       for wild in ["someone", "something"]:
         phrase = " ".join(tokens[:1] + [wild] + tokens[3:])
         for entry in self.SearchExact(phrase, capacity - len(result)):
