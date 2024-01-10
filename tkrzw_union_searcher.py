@@ -412,7 +412,7 @@ class UnionSearcher:
             phrase = " ".join(tokens[:i] + [wild] + tokens[i + 1:])
             for entry in self.SearchExact(phrase, capacity - len(result)):
               result.append(entry)
-    if len(token) >= 4 and token[1] in ["a", "an", "the"]:
+    if len(tokens) >= 4 and tokens[1] in ["a", "an", "the"]:
       for wild in ["someone", "something"]:
         phrase = " ".join(tokens[:1] + [wild] + tokens[3:])
         for entry in self.SearchExact(phrase, capacity - len(result)):
