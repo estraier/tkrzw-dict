@@ -5,7 +5,8 @@
 #
 # Usage:
 #   build_union_db.py [--output str] [--core str] [--gloss str] [--top str] [--slim str]
-#     [--phrase_prob str] [--tran_prob str] [--tran_aux str] [--tran_aux_last str]
+#     [--phrase_prob str] [--tran_prob str]
+#     [--tran_aux str] [--tran_aux_last str] [--tran_aux_rev str]
 #     [--rev_prob str] [--cooc_prob str] [--aoa str] [--keyword str] [--min_prob str]
 #     [--quiet] inputs...
 #   (An input specified as "label:tsv_file".
@@ -261,7 +262,7 @@ class BuildUnionDBBatch:
   def __init__(self, input_confs, output_path, core_labels, full_def_labels, gloss_labels,
                surfeit_labels, top_labels, slim_labels, tran_list_labels, supplement_labels,
                phrase_prob_path, tran_prob_path, nmt_prob_path,
-               tran_aux_paths, tran_aux_last_paths,
+               tran_aux_paths, tran_aux_last_paths, tran_aux_rev_paths,
                rev_prob_path, cooc_prob_path, aoa_paths,
                keyword_path, hint_path, synonym_path, pronunciation_path, min_prob_map):
     self.input_confs = input_confs
@@ -279,6 +280,7 @@ class BuildUnionDBBatch:
     self.nmt_prob_path = nmt_prob_path
     self.tran_aux_paths = tran_aux_paths
     self.tran_aux_last_paths = tran_aux_last_paths
+    self.tran_aux_rev_paths = tran_aux_rev_paths
     self.rev_prob_path = rev_prob_path
     self.cooc_prob_path = cooc_prob_path
     self.aoa_paths = aoa_paths
@@ -306,6 +308,10 @@ class BuildUnionDBBatch:
     for tran_aux_last_path in self.tran_aux_last_paths:
       if not tran_aux_last_path: continue
       self.ReadTranAuxTSV(tran_aux_last_path, aux_last_trans)
+    aux_rev_trans = {}
+    for tran_aux_rev_path in self.tran_aux_rev_paths:
+      if not tran_aux_rev_path: continue
+      self.ReadTranAuxTSV(tran_aux_rev_path, aux_rev_trans)
     raw_aoa_words = collections.defaultdict(list)
     for aoa_path in self.aoa_paths:
       if not aoa_path: continue
@@ -325,7 +331,7 @@ class BuildUnionDBBatch:
     extra_pronunciations = {}
     if self.pronunciation_path:
       self.ReadPronunciations(self.pronunciation_path, extra_pronunciations)
-    self.SaveWords(word_dicts, aux_trans, aux_last_trans, aoa_words,
+    self.SaveWords(word_dicts, aux_trans, aux_last_trans, aux_rev_trans, aoa_words,
                    keywords, hints, extra_synonyms, extra_pronunciations)
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
 
@@ -548,7 +554,7 @@ class BuildUnionDBBatch:
     logger.info("Reading a pronunciation file: num_entries={}, elapsed_time={:.2f}s".format(
       num_entries, time.time() - start_time))
 
-  def SaveWords(self, word_dicts, aux_trans, aux_last_trans, aoa_words,
+  def SaveWords(self, word_dicts, aux_trans, aux_last_trans, aux_rev_trans, aoa_words,
                 keywords, hints, extra_synonyms, extra_pronunciations):
     logger.info("Preparing DBMs")
     phrase_prob_dbm = None
@@ -800,7 +806,7 @@ class BuildUnionDBBatch:
             if entry["word"] == word:
               entries.append((label, entry))
         self.SetAOA(word_entry, entries, aoa_words, live_words, phrase_prob_dbm)
-        self.SetTranslations(word_entry, aux_trans, tran_prob_dbm, rev_prob_dbm,
+        self.SetTranslations(word_entry, aux_trans, aux_rev_trans, tran_prob_dbm, rev_prob_dbm,
                              infl_dict, nmt_probs)
         self.SetRelations(word_entry, entries, word_dicts,
                           live_words, rev_live_words, pivot_live_words,
@@ -846,6 +852,44 @@ class BuildUnionDBBatch:
       if num_entries % 1000 == 0:
         logger.info("Finishing entries R2: num_records={}".format(num_entries))
     logger.info("Finishing entries done: elapsed_time={:.2f}s".format(time.time() - start_time))
+    if aux_rev_trans:
+      logger.info("Indexing translations")
+      start_time = time.time()
+      tran_coverage = set()
+      word_index = {}
+      for key, merged_entry in merged_entries:
+        for word_entry in merged_entry:
+          word = word_entry["word"]
+          trans = word_entry.get("translation")
+          if not trans: continue
+          word_index[word] = word_entry
+          for tran in trans:
+            tran_coverage.add(tran)
+      logger.info("Indexing translations done: elapsed_time={:.2f}s".format(
+        time.time() - start_time))
+      logger.info("Compensating reverse translations")
+      start_time = time.time()
+      num_covered = 0
+      num_hits = 0
+      for tran, words in aux_rev_trans.items():
+        if not words: continue
+        if tran in tran_coverage:
+          num_covered += 1
+          continue
+        hit = False
+        for word in words:
+          word_entry = word_index.get(word)
+          if not word_entry: continue
+          translations = word_entry.get("translation") or []
+          translations.append(tran)
+          word_entry["translation"] = translations
+          hit = True
+          break
+        if hit:
+          num_hits += 1
+      logger.info("Compensating reverse translations done: elapsed_time={:.2f}s"
+                  ", all={}, covered={}, added={}".format(
+                    time.time() - start_time, len(aux_rev_trans), num_covered, num_hits))
     rev_live_words.Close().OrDie()
     live_words.Close().OrDie()
     if cooc_prob_dbm:
@@ -1654,7 +1698,8 @@ class BuildUnionDBBatch:
           trans.append(tran)
     return trans
 
-  def SetTranslations(self, entry, aux_trans, tran_prob_dbm, rev_prob_dbm, infl_dict, nmt_probs):
+  def SetTranslations(self, entry, aux_trans, aux_rev_trans,
+                      tran_prob_dbm, rev_prob_dbm, infl_dict, nmt_probs):
     word = entry["word"]
     tran_probs = {}
     if tran_prob_dbm:
@@ -1748,6 +1793,9 @@ class BuildUnionDBBatch:
         if tkrzw_dict.IsStopWord("ja", tran) or tran in ("又は"):
           prob *= 0.5
         score += prob
+      rev_words = aux_rev_trans.get(tran)
+      if rev_words and word in rev_words:
+        score += 0.1
       score *= weight
       old_score = translations.get(tran) or 0.0
       translations[tran] = max(old_score, score)
@@ -3513,6 +3561,7 @@ def main():
   nmt_prob_path = tkrzw_dict.GetCommandFlag(args, "--nmt_prob", 1) or ""
   tran_aux_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux", 1) or "").split(",")
   tran_aux_last_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux_last", 1) or "").split(",")
+  tran_aux_rev_paths = (tkrzw_dict.GetCommandFlag(args, "--tran_aux_rev", 1) or "").split(",")
   rev_prob_path = tkrzw_dict.GetCommandFlag(args, "--rev_prob", 1) or ""
   cooc_prob_path = tkrzw_dict.GetCommandFlag(args, "--cooc_prob", 1) or ""
   aoa_paths = (tkrzw_dict.GetCommandFlag(args, "--aoa", 1) or "").split(",")
@@ -3543,7 +3592,7 @@ def main():
   BuildUnionDBBatch(input_confs, output_path, core_labels, full_def_labels, gloss_labels,
                     surfeit_labels, top_labels, slim_labels, tran_list_labels, supplement_labels,
                     phrase_prob_path, tran_prob_path, nmt_prob_path,
-                    tran_aux_paths, tran_aux_last_paths,
+                    tran_aux_paths, tran_aux_last_paths, tran_aux_rev_paths,
                     rev_prob_path, cooc_prob_path, aoa_paths,
                     keyword_path, hint_path, synonym_path, pronunciation_path, min_prob_map).Run()
 
