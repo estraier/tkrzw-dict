@@ -382,10 +382,12 @@ class UnionSearcher:
     "myself", "ourselves", "yourself", "yourselves", "himself", "herself", "itself", "theirselves",
   }
   _object_pronouns = {
-    "me", "us", "you", "him", "her", "it", "them",
+    "me", "us", "you", "him", "her", "it", "them", "this", "these", "that", "those",
+    "mine", "ours", "yours", "his", "its", "theirs",
   }
   _determiners = {
-    "a", "an", "the", "my", "our", "your", "his", "her", "its", "their", "this", "these", "that", "those",
+    "a", "an", "the", "my", "our", "your", "his", "her", "its", "their",
+    "this", "these", "that", "those",
   }
   def SearchSetPhrases(self, text, capacity):
     text = tkrzw_dict.NormalizeWord(text)
