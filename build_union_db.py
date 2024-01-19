@@ -4,8 +4,8 @@
 # Script to build a union database by merging TSV dictionaries
 #
 # Usage:
-#   build_union_db.py [--output str] [--core str] [--gloss str] [--top str] [--slim str]
-#     [--phrase_prob str] [--tran_prob str]
+#   build_union_db.py [--output str] [--core str] [--gloss str] [--surfeit str] [--top str]
+#     [--slim str] [--synth str] [--phrase_prob str] [--tran_prob str]
 #     [--tran_aux str] [--tran_aux_last str] [--tran_aux_rev str]
 #     [--rev_prob str] [--cooc_prob str] [--aoa str] [--keyword str] [--min_prob str]
 #     [--quiet] inputs...
@@ -260,7 +260,8 @@ force_parents = {
 
 class BuildUnionDBBatch:
   def __init__(self, input_confs, output_path, core_labels, full_def_labels, gloss_labels,
-               surfeit_labels, top_labels, slim_labels, tran_list_labels, supplement_labels,
+               surfeit_labels, top_labels, slim_labels, synth_labels,
+               tran_list_labels, supplement_labels,
                phrase_prob_path, tran_prob_path, nmt_prob_path,
                tran_aux_paths, tran_aux_last_paths, tran_aux_rev_paths,
                rev_prob_path, cooc_prob_path, aoa_paths,
@@ -273,6 +274,7 @@ class BuildUnionDBBatch:
     self.surfeit_labels = surfeit_labels
     self.top_labels = top_labels
     self.slim_labels = slim_labels
+    self.synth_labels = synth_labels
     self.tran_list_labels = tran_list_labels
     self.supplement_labels = supplement_labels
     self.phrase_prob_path = phrase_prob_path
@@ -1423,6 +1425,15 @@ class BuildUnionDBBatch:
           continue
         for pos, text in texts:
           items = word_entry.get("item") or []
+          if label in self.synth_labels:
+            short_text = regex.sub(r"\[.*", "", text)
+            short_text = regex.sub(r";.*", "", short_text)[:32].lower().strip()
+            is_dup = False
+            for item in items:
+              norm_item_text = regex.sub(r"\(.*?\)", "", item["text"].lower()).strip()
+              if norm_item_text.startswith(short_text):
+                is_dup = True
+            if is_dup: continue
           tran_key = word + "\t" + label + "\t" + pos
           sections = []
           num_examples = 0
@@ -3550,9 +3561,10 @@ def main():
   full_def_labels = set((tkrzw_dict.GetCommandFlag(
     args, "--full_def", 1) or "ox,wn,we").split(","))
   gloss_labels = set((tkrzw_dict.GetCommandFlag(args, "--gloss", 1) or "wj").split(","))
+  surfeit_labels = set((tkrzw_dict.GetCommandFlag(args, "--surfeit", 1) or "we").split(","))
   top_labels = set((tkrzw_dict.GetCommandFlag(args, "--top", 1) or "we,lx,xa").split(","))
   slim_labels = set((tkrzw_dict.GetCommandFlag(args, "--slim", 1) or "ox,we,wj").split(","))
-  surfeit_labels = set((tkrzw_dict.GetCommandFlag(args, "--surfeit", 1) or "we").split(","))
+  synth_labels = set((tkrzw_dict.GetCommandFlag(args, "--synth", 1) or "xz").split(","))
   tran_list_labels = set((tkrzw_dict.GetCommandFlag(
     args, "--tran_list", 1) or "xa,wn,we").split(","))
   supplement_labels = set((tkrzw_dict.GetCommandFlag(args, "--supplement", 1) or "xs").split(","))
@@ -3590,7 +3602,8 @@ def main():
       raise RuntimeError("invalid input: " + input)
     input_confs.append(input_conf)
   BuildUnionDBBatch(input_confs, output_path, core_labels, full_def_labels, gloss_labels,
-                    surfeit_labels, top_labels, slim_labels, tran_list_labels, supplement_labels,
+                    surfeit_labels, top_labels, slim_labels, synth_labels,
+                    tran_list_labels, supplement_labels,
                     phrase_prob_path, tran_prob_path, nmt_prob_path,
                     tran_aux_paths, tran_aux_last_paths, tran_aux_rev_paths,
                     rev_prob_path, cooc_prob_path, aoa_paths,

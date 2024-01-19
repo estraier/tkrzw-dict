@@ -958,7 +958,7 @@ def main():
   best_labels = set((tkrzw_dict.GetCommandFlag(args, "--best", 1) or "xa").split(","))
   vetted_labels = set((tkrzw_dict.GetCommandFlag(args, "--vetted", 1) or "wn").split(","))
   preferable_labels = set((tkrzw_dict.GetCommandFlag(
-    args, "--preferable", 1) or "xa,wn,ox,we").split(","))
+    args, "--preferable", 1) or "xa,xz,wn,ox,we").split(","))
   trustable_labels = set((tkrzw_dict.GetCommandFlag(
     args, "--trustable", 1) or "xa").split(","))
   supplement_labels = set((tkrzw_dict.GetCommandFlag(args, "--supplement", 1) or "xs").split(","))
