@@ -597,7 +597,7 @@ class GenerateUnionEPUBBatch:
         elif is_vetted:
           quality_cost = 1.0
         else:
-          quality_cost = 1.25
+          quality_cost = 1.4
         cost = (item_cost + 0.5) * (length_cost + 1.0) * quality_cost
         if not min_cost or cost < min_cost:
           best_label = label
