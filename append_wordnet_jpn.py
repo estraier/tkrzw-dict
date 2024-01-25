@@ -44,12 +44,13 @@ logger = tkrzw_dict.GetLogger()
 
 
 class AppendWordnetJPNBatch:
-  def __init__(self, input_path, output_path, wnjpn_path, wnmt_paths, feedback_path,
+  def __init__(self, input_path, output_path, wnjpn_path, vote_path, wnmt_paths, feedback_path,
                phrase_prob_path, rev_prob_path, tran_prob_path, nmt_prob_path,
                tran_aux_paths, tran_subaux_paths, tran_thes_path, hint_path, synonym_path):
     self.input_path = input_path
     self.output_path = output_path
     self.wnjpn_path = wnjpn_path
+    self.vote_path = vote_path
     self.wnmt_paths = wnmt_paths
     self.feedback_path = feedback_path
     self.phrase_prob_path = phrase_prob_path
@@ -74,13 +75,14 @@ class AppendWordnetJPNBatch:
     else:
       feedback_trans = None
     aux_trans, subaux_trans, tran_thes = self.ReadAuxTranslations()
+    votes = self.ReadVotes()
     hints = self.ReadHints()
     extra_synonyms = self.ReadSynonyms()
     synset_index = self.ReadSynsetIndex()
     tran_index = {}
     tran_index = self.ReadTranIndex(synset_index)
     self.AppendTranslations(
-      wnjpn_trans, wnmt_trans, feedback_trans, aux_trans, subaux_trans,
+      wnjpn_trans, votes, wnmt_trans, feedback_trans, aux_trans, subaux_trans,
       tran_thes, hints, extra_synonyms,
       synset_index, tran_index)
     logger.info("Process done: elapsed_time={:.2f}s".format(time.time() - start_time))
@@ -106,6 +108,40 @@ class AppendWordnetJPNBatch:
       "Reading translations done: synsets={}, translations={}, elapsed_time={:.2f}s".format(
         len(trans), num_trans, time.time() - start_time))
     return trans
+
+  def ReadVotes(self):
+    synset_votes = {}
+    if self.vote_path:
+      start_time = time.time()
+      logger.info("Reading votes: path={}".format(self.vote_path))
+      word_votes = collections.defaultdict(list)
+      num_votes = 0
+      with open(self.vote_path) as input_file:
+        for line in input_file:
+          line = line.strip()
+          fields = line.split("\t")
+          if len(fields) != 4: continue
+          word, synset_id, text, score = fields
+          score = int(score)
+          if score >= 0:
+            word_votes[word].append((synset_id, score))
+          num_votes += 1
+          if num_votes % 10000 == 0:
+            logger.info("Reading votes: votes={}".format(num_votes))
+      logger.info("Reading votes done: votes={}, elapsed_time={:.2f}s".format(
+        len(word_votes), time.time() - start_time))
+      for word, items in word_votes.items():
+        score_max = 0
+        for synset, score in items:
+          score_max = max(score, score_max)
+        if score_max > 0:
+          for synset, score in items:
+            if score <= 0: continue
+            score = score / score_max
+            score *= max(1, math.log(len(items) + 1))
+            key = word + ":" + synset
+            synset_votes[key] = score
+    return synset_votes
 
   def ReadMachineTranslations(self):
     trans = collections.defaultdict(list)
@@ -321,7 +357,7 @@ class AppendWordnetJPNBatch:
       logger.info("Reading NMT probs done: records={}".format(len(tran_index)))
     return tran_index
 
-  def AppendTranslations(self, wnjpn_trans, wnmt_trans, feedback_trans,
+  def AppendTranslations(self, wnjpn_trans, votes, wnmt_trans, feedback_trans,
                          aux_trans, subaux_trans, tran_thes, hints, extra_synonyms,
                          synset_index, tran_index):
     start_time = time.time()
@@ -639,6 +675,10 @@ class AppendWordnetJPNBatch:
               extra_syn_score = max(extra_syn_score, base_syn_score * 0.4)
             base_syn_score *= 0.95
           item_score += extra_syn_score
+        if votes:
+          vote_key = word + ":" + synset
+          vote_score = votes.get(vote_key) or 0.0
+          item_score += vote_score
         item["score"] = "{:.8f}".format(item_score).replace("0.", ".")
         if "link" in item:
           del item["link"]
@@ -911,6 +951,7 @@ def main():
   input_path = tkrzw_dict.GetCommandFlag(args, "--input", 1) or "wordnet.thk"
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "wordnet-tran.tkh"
   wnjpn_path = tkrzw_dict.GetCommandFlag(args, "--wnjpn", 1) or "wnjpn-ok.tab"
+  vote_path = tkrzw_dict.GetCommandFlag(args, "--vote", 1) or ""
   wnmt_paths = tkrzw_dict.GetCommandFlag(args, "--wnmt", 1) or ""
   feedback_path = tkrzw_dict.GetCommandFlag(args, "--feedback", 1) or ""
   phrase_prob_path = tkrzw_dict.GetCommandFlag(args, "--phrase_prob", 1) or ""
@@ -927,7 +968,7 @@ def main():
   if args:
     raise RuntimeError("unknown arguments: {}".format(str(args)))
   AppendWordnetJPNBatch(
-    input_path, output_path, wnjpn_path, wnmt_paths, feedback_path,
+    input_path, output_path, wnjpn_path, vote_path, wnmt_paths, feedback_path,
     phrase_prob_path, rev_prob_path, tran_prob_path, nmt_prob_path,
     tran_aux_paths, tran_subaux_paths, tran_thes_path, hint_path, synonym_path).Run()
 
