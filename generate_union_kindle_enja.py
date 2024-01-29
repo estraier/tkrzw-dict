@@ -610,8 +610,10 @@ class GenerateUnionEPUBBatch:
     items = []
     sub_items = []
     tran_items = []
+    labels = set()
     for item in entry["item"]:
       label = item["label"]
+      labels.add(label)
       text = item["text"]
       if text.startswith("[translation]:"):
         tran_items.append(item)
@@ -737,7 +739,13 @@ class GenerateUnionEPUBBatch:
         P('<div>{}</div>', SanitizeText(items[0]["text"]))
     elif self.example_only:
       if examples:
-        for example in examples[:5]:
+        if len(items) >= 3 and len(labels) >= 3:
+          num_examples = 5
+        elif len(items) >= 2 and len(labels) >= 2:
+          num_examples = 4
+        else:
+          num_examples = 3
+        for example in examples[:num_examples]:
           self.MakeMainEntryExampleItem(P, example, entry)
     else:
       for item in items:
