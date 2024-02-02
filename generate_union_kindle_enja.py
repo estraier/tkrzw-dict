@@ -292,7 +292,7 @@ def SanitizeText(text):
 class GenerateUnionEPUBBatch:
   def __init__(self, input_path, output_path, keyword_path,
                best_labels, vetted_labels, preferable_labels, trustable_labels,
-               supplement_labels, title,
+               synth_labels, supplement_labels, title,
                min_prob_normal, min_prob_capital, min_prob_multi, sufficient_prob,
                shrink, fallback, example_only):
     self.input_path = input_path
@@ -302,6 +302,7 @@ class GenerateUnionEPUBBatch:
     self.vetted_labels = vetted_labels
     self.preferable_labels = preferable_labels
     self.trustable_labels = trustable_labels
+    self.synth_labels = synth_labels
     self.supplement_labels = supplement_labels
     self.title = title
     self.min_prob_normal = min_prob_normal
@@ -402,7 +403,7 @@ class GenerateUnionEPUBBatch:
     for label in labels:
       if label in self.trustable_labels:
         return True
-      if label not in self.supplement_labels:
+      if label not in self.synth_labels and label not in self.supplement_labels:
         has_good_label = True
     if not has_good_label:
       return False
@@ -969,12 +970,13 @@ def main():
     args, "--preferable", 1) or "xa,xz,wn,ox,we").split(","))
   trustable_labels = set((tkrzw_dict.GetCommandFlag(
     args, "--trustable", 1) or "xa").split(","))
+  synth_labels = set((tkrzw_dict.GetCommandFlag(args, "--synth", 1) or "xz").split(","))
   supplement_labels = set((tkrzw_dict.GetCommandFlag(args, "--supplement", 1) or "xs").split(","))
   title = tkrzw_dict.GetCommandFlag(args, "--title", 1) or "Union English-Japanese Dictionary"
-  min_prob_normal = float(tkrzw_dict.GetCommandFlag(args, "--min_prob_normal", 1) or 0.0000005)
-  min_prob_capital = float(tkrzw_dict.GetCommandFlag(args, "--min_prob_multi", 1) or 0.000005)
-  min_prob_multi = float(tkrzw_dict.GetCommandFlag(args, "--min_prob_capital", 1) or 0.000005)
-  sufficient_prob = float(tkrzw_dict.GetCommandFlag(args, "--sufficient_prob", 1) or 0.00005)
+  min_prob_normal = float(tkrzw_dict.GetCommandFlag(args, "--min_prob_normal", 1) or 0.0000003)
+  min_prob_capital = float(tkrzw_dict.GetCommandFlag(args, "--min_prob_multi", 1) or 0.000003)
+  min_prob_multi = float(tkrzw_dict.GetCommandFlag(args, "--min_prob_capital", 1) or 0.000003)
+  sufficient_prob = float(tkrzw_dict.GetCommandFlag(args, "--sufficient_prob", 1) or 0.00003)
   shrink = tkrzw_dict.GetCommandFlag(args, "--shrink", 0)
   fallback = tkrzw_dict.GetCommandFlag(args, "--fallback", 0)
   example_only = tkrzw_dict.GetCommandFlag(args, "--example_only", 0)
@@ -984,8 +986,9 @@ def main():
     raise RuntimeError("an output path is required")
   GenerateUnionEPUBBatch(
     input_path, output_path, keyword_path,
-    best_labels, vetted_labels, preferable_labels, trustable_labels, supplement_labels,
-    title, min_prob_normal, min_prob_capital, min_prob_multi, sufficient_prob,
+    best_labels, vetted_labels, preferable_labels, trustable_labels,
+    synth_labels, supplement_labels, title,
+    min_prob_normal, min_prob_capital, min_prob_multi, sufficient_prob,
     shrink, fallback, example_only).Run()
 
 
