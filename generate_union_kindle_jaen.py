@@ -834,7 +834,7 @@ class GenerateUnionEPUBBatch:
     uniq_trans = set()
     uniq_synsets = set()
     misc_trans = []
-    for tran, score, tran_prob, synsets in trans:
+    for tran, score, tran_prob, synsets in trans[:8]:
       norm_tran = tkrzw_dict.NormalizeWord(tran)
       if norm_tran in uniq_trans: continue
       uniq_trans.add(norm_tran)
@@ -853,7 +853,7 @@ class GenerateUnionEPUBBatch:
       if not hit_syn:
         misc_trans.append(tran)
     if misc_trans:
-      P('<div>{}</div>', ', '.join(misc_trans[:16]))
+      P('<div>{}</div>', ', '.join(misc_trans[:8]))
     P('</idx:entry>')
     P('<br/>')
 
