@@ -56,13 +56,15 @@ def NormalizeSentence(text):
   return text
 
 class AttachExamplesBatch:
-  def __init__(self, input_path, output_path, index_paths, rev_prob_path, hint_paths,
+  def __init__(self, input_path, output_path, index_paths, rev_prob_path,
+               hint_paths, cooc_aux_paths,
                max_examples, min_examples, max_tran_matches):
     self.input_path = input_path
     self.output_path = output_path
     self.index_paths = index_paths
     self.rev_prob_path = rev_prob_path
     self.hint_paths = hint_paths
+    self.cooc_aux_paths = cooc_aux_paths
     self.max_examples = max_examples
     self.min_examples = min_examples
     self.max_tran_matches = max_tran_matches
@@ -107,6 +109,7 @@ class AttachExamplesBatch:
       rev_prob_dbm = tkrzw.DBM()
       rev_prob_dbm.Open(self.rev_prob_path, False, dbm="HashDBM").OrDie()
     hint_dict = self.ReadHint()
+    aux_coocs = self.ReadAuxCoocs()
     it = input_dbm.MakeIterator()
     keys = []
     infl_dict = collections.defaultdict(list)
@@ -150,13 +153,17 @@ class AttachExamplesBatch:
       first_entry = True
       for entry in entries:
         self.count_all_entries += 1
-        if self.count_all_entries % 10000 == 0:
+        if (self.count_all_entries % 10000 == 0 or
+            (self.count_all_entries < 200 and self.count_all_entries % 10 == 0) or
+            (self.count_all_entries < 2000 and self.count_all_entries % 100 == 0) or
+            (self.count_all_entries < 20000 and self.count_all_entries % 1000 == 0)):
           logger.info("Attaching: entries={}, hit_entries={}, examples={}".format(
             self.count_all_entries, self.count_hit_entries, self.count_examples))
         strict = not first_entry
         self.AttachExamplesEntry(
           entry, indices, input_dbm, rev_prob_dbm,
-          infl_dict, hint_dict, adopt_source_counts, adopt_parent_hashes, strict)
+          infl_dict, hint_dict, aux_coocs,
+          adopt_source_counts, adopt_parent_hashes, strict)
         first_entry = False
       serialized = json.dumps(entries, separators=(",", ":"), ensure_ascii=False)
       word_dict[key] = serialized
@@ -186,8 +193,23 @@ class AttachExamplesBatch:
       logger.info("Reading hint done: hints={}".format(len(hint_dict)))
     return hint_dict
 
+  def ReadAuxCoocs(self):
+    aux_coocs = collections.defaultdict(list)
+    for cooc_aux_path in self.cooc_aux_paths:
+      if not cooc_aux_path: continue
+      logger.info("Reading aux cooccurrences: path={}".format(cooc_aux_path))
+      with open(cooc_aux_path) as input_file:
+        for line in input_file:
+          fields = line.strip().split("\t")
+          if len(fields) < 2: continue
+          word = fields[0]
+          aux_coocs[word].extend(fields[1:])
+      logger.info("Reading aux cooccurrences done: coocs={}".format(len(aux_coocs)))
+    return aux_coocs
+
   def AttachExamplesEntry(self, entry, indices, input_dbm, rev_prob_dbm,
-                          infl_dict, hint_dict, adopt_source_counts, adopt_parent_hashes, strict):
+                          infl_dict, hint_dict, aux_coocs,
+                          adopt_source_counts, adopt_parent_hashes, strict):
     entry.pop("example", None)
     word = entry["word"]
     core_words = collections.defaultdict(float)
@@ -240,6 +262,13 @@ class AttachExamplesBatch:
     if not uniq_docs:
       return
     hints = set(hint_dict.get(word) or [])
+    cooc_scores = {}
+    cooc_score = 0.3
+    for cooc in (aux_coocs.get(word) or [])[:10]:
+      cooc = cooc.lower()
+      if cooc in cooc_scores: continue
+      cooc_scores[cooc] = cooc_score
+      cooc_score *= 0.95
     seed_records = []
     source_hashes = set()
     target_hashes = set()
@@ -316,6 +345,24 @@ class AttachExamplesBatch:
         continue
       source_hit_score = ((len(source) - source_loc) / len(source) / 2 + 0.5) ** 0.5
       source_hit_score *= source_hit_weight
+      if cooc_scores:
+        norm_tokens = [x for x in regex.split(r"\W", source.lower()) if x]
+        max_cooc_score = 0.0
+        for cooc, cooc_score in cooc_scores.items():
+          part_cooc = cooc[:3]
+          for token in norm_tokens:
+            hit = False
+            if token == cooc:
+              hit = True
+            elif token[:3] == part_cooc:
+              stems = infl_dict.get(token)
+              if stems:
+                for stem in stems:
+                  if stem == cooc:
+                    hit = True
+            if hit:
+              max_cooc_score = max(max_cooc_score, cooc_score)
+        source_hit_score += max_cooc_score
       source_len_score = 1 / math.exp(abs(math.log(len(source) / best_source_length)))
       target_len_score = 1 / math.exp(abs(math.log(len(target) / best_target_length)))
       length_score = (source_len_score * target_len_score) ** 0.2
@@ -763,6 +810,7 @@ def main():
   index_paths = (tkrzw_dict.GetCommandFlag(args, "--index", 1) or "tanaka-index.tkh").split(",")
   rev_prob_path = tkrzw_dict.GetCommandFlag(args, "--rev_prob", 1) or ""
   hint_paths = (tkrzw_dict.GetCommandFlag(args, "--hint", 1) or "").split(",")
+  cooc_aux_paths = (tkrzw_dict.GetCommandFlag(args, "--cooc_aux", 1) or "").split(",")
   max_examples = int(tkrzw_dict.GetCommandFlag(args, "--max_examples", 1) or 8)
   min_examples = int(tkrzw_dict.GetCommandFlag(args, "--min_examples", 1) or 3)
   max_tran_matches = int(tkrzw_dict.GetCommandFlag(args, "--max_tran_matches", 1) or 2)
@@ -772,7 +820,8 @@ def main():
     raise RuntimeError("the output path is required")
   if not index_paths:
     raise RuntimeError("the index path is required")
-  AttachExamplesBatch(input_path, output_path, index_paths, rev_prob_path, hint_paths,
+  AttachExamplesBatch(input_path, output_path, index_paths, rev_prob_path,
+                      hint_paths, cooc_aux_paths,
                       max_examples, min_examples, max_tran_matches).Run()
 
 
