@@ -42,7 +42,7 @@ PACKAGE_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
 <dc:identifier id="pub-id">urn:uuid:{}</dc:identifier>
 <dc:publisher>dbmx.net</dc:publisher>
-<dc:title>{}</dc:title>
+<dc:title>[PT] {}</dc:title>
 <dc:language>en</dc:language>
 <dc:language>ja</dc:language>
 <dc:creator>{}</dc:creator>
@@ -74,10 +74,11 @@ NAVIGATION_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en">
 <head>
-<title>{}: Contents</title>
+<title>[PT] {}: Contents</title>
 <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
+<div>[English-Japanese Parallel Text]</div>
 <h1>{}</h1>
 <div class="author">Author: {}</div>
 <article>
@@ -94,7 +95,7 @@ NAVIGATION_FOOTER_TEXT = """</ol>
 MAIN_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xmlns:mbp="https://kindlegen.s3.amazonaws.com/AmazonKindlePublishingGuidelines.pdf" lang="en">
 <head>
-<title>{}: {}</title>
+<title>[PT] {}: {}</title>
 <link rel="stylesheet" href="style.css"/>
 </head>
 <body epub:type="chapter">
