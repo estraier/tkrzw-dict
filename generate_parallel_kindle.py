@@ -226,6 +226,8 @@ class Batch:
           next_line.startswith("%% ")
           tran = next_line[3:].strip()
         paragraphs[-1].append([line, tran])
+        if regex.search(r"^#+ ", line):
+          paragraphs.append([])
       else:
         paragraphs.append([])
     with open(out_path, "w") as out_file:
