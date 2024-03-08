@@ -65,9 +65,14 @@ STYLE_TEXT = """html,body {
   margin: 0; padding: 0; background: #fff; color: #000; font-size: 12pt;
   text-align: left; text-justify: none; direction: ltr;
 }
-div.t {
-  color: #888; font-size: 80%;
-  margin-left: 4ex;
+h1, h2, h3, h4, h5, h6 {
+  margin: 1.2ex 0 1ex 0;
+}
+p {
+  margin-bottom: 1ex;
+}
+div.ja {
+  margin-left: 5ex; color: #666;
 }
 """
 NAVIGATION_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
@@ -80,7 +85,8 @@ NAVIGATION_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <body>
 <div>[English-Japanese Parallel Text]</div>
 <h1>{}</h1>
-<div class="author">Author: {}</div>
+<div class="titletran">{}</div>
+<div class="author">{}</div>
 <article>
 <h2>Contents</h2>
 <nav epub:type="toc">
@@ -93,12 +99,12 @@ NAVIGATION_FOOTER_TEXT = """</ol>
 </html>
 """
 MAIN_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xmlns:mbp="https://kindlegen.s3.amazonaws.com/AmazonKindlePublishingGuidelines.pdf" lang="en">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xmlns:mbp="https://kindlegen.s3.amazonaws.com/AmazonKindlePublishingGuidelines.pdf" xmlns:idx="https://kindlegen.s3.amazonaws.com/AmazonKindlePublishingGuidelines.pdf" lang="en">
 <head>
 <title>[PT] {}: {}</title>
 <link rel="stylesheet" href="style.css"/>
 </head>
-<body epub:type="chapter">
+<body epub:type="dictionary">
 <mbp:frameset>
 """
 MAIN_FOOTER_TEXT = """</mbp:frameset>
@@ -119,6 +125,7 @@ class Batch:
     self.output_path = output_path
     self.title = ""
     self.meta_title = ""
+    self.title_tran = ""
     self.meta_author = ""
 
   def Run(self):
@@ -152,6 +159,11 @@ class Batch:
       match = regex.search(r"^# (.*)$", line)
       if match:
         self.title = match.group(1).strip()
+        if i < len(lines) - 1:
+          next_line = lines[i+1]
+          next_match = regex.search(r"^%% (.*)$", next_line)
+          if next_match:
+            self.title_tran = next_match.group(1).strip()
       match = regex.search(r"^- *@title +(.*)$", line)
       if match:
         self.meta_title = match.group(1).strip()
@@ -204,7 +216,7 @@ class Batch:
     logger.info("Creating: {}".format(out_path))
     with open(out_path, "w") as out_file:
       print(NAVIGATION_HEADER_TEXT.format(
-        esc(self.title), esc(self.title), esc(self.meta_author)),
+        esc(self.title), esc(self.title), esc(self.title_tran), esc(self.meta_author)),
             file=out_file, end="")
       for i, (title, _, _) in enumerate(self.sections, 1):
         main_path = "main-{:03d}.xhtml".format(i)
@@ -231,6 +243,13 @@ class Batch:
       else:
         paragraphs.append([])
     with open(out_path, "w") as out_file:
+      def P(*args, end="\n"):
+        esc_args = []
+        for arg in args[1:]:
+          if isinstance(arg, str):
+            arg = esc(arg)
+          esc_args.append(arg)
+        print(args[0].format(*esc_args), end=end, file=out_file)
       print(MAIN_HEADER_TEXT.format(esc(self.title), esc(title)), file=out_file, end="")
       for sentences in paragraphs:
         if not sentences: continue
@@ -240,25 +259,19 @@ class Batch:
         if match:
           tag = 'h' + str(len(match.group(1)))
           sentences[0][0] = match.group(2).strip()
-        print('<' + tag + '>', file=out_file)
+        P('<idx:entry>')
+        P('<' + tag + '>')
         for text, tran in sentences:
-          self.WriteSentence(out_file, text, tran)
-        print('</' + tag + '>', file=out_file)
+          self.WriteSentence(P, text, tran)
+        P('</' + tag + '>')
+        P('</idx:entry>')
       print(MAIN_FOOTER_TEXT, file=out_file, end="")
 
-  def WriteSentence(self, out_file, src_text, trg_text):
-    def P(*args, end="\n"):
-      esc_args = []
-      for arg in args[1:]:
-        if isinstance(arg, str):
-          arg = esc(arg)
-        esc_args.append(arg)
-      print(args[0].format(*esc_args), end=end, file=out_file)
-    P('<div class="x">')
-    P('<div class="s" lang="en">{}</div>', src_text)
+  def WriteSentence(self, P, src_text, trg_text):
+    P('<div lang="en" class="en">{}</div>', src_text)
     if trg_text:
-      P('<div class="t" lang="ja">{}</div>', trg_text)
-    P('</div>')
+      P('<div lang="ja" class="ja"><small><small>{}</small></small></div>', trg_text)
+
 
 
 def main():
