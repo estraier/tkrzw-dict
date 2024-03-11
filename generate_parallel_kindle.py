@@ -4,7 +4,7 @@
 # Script to generate files to make a EnJa Kindle dictionary from the union dictionary
 #
 # Usage:
-#   generate_parallel_kindle.py [--input str] [--output str]
+#   generate_parallel_kindle.py [--input str] [--output str] [--style str]
 #
 # Example:
 #   ./generate_parallel_kindle.py --input anne01-translated.txt --output parallel-anne01
@@ -42,7 +42,7 @@ PACKAGE_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
 <dc:identifier id="pub-id">urn:uuid:{}</dc:identifier>
 <dc:publisher>dbmx.net</dc:publisher>
-<dc:title>[PT] {}</dc:title>
+<dc:title>[EJPB] {}</dc:title>
 <dc:language>en</dc:language>
 <dc:language>ja</dc:language>
 <dc:creator>{}</dc:creator>
@@ -65,25 +65,35 @@ STYLE_TEXT = """html,body {
   margin: 0; padding: 0; background: #fff; color: #000; font-size: 12pt;
   text-align: left; text-justify: none; direction: ltr;
 }
-h1, h2, h3, h4, h5, h6 {
-  margin: 1.2ex 0 1ex 0;
-}
-p {
-  margin-bottom: 1ex;
+h1, h2, h3, h4, h5, h6, p {
+  margin: 1ex 0 1ex 0;
 }
 div.ja {
   margin-left: 5ex; color: #666;
+}
+table {
+  margin: 0: padding: 0; border-collapse: collapse;
+  width: 100%; table-layout: fixed; overflow: hidden;
+}
+td {
+  margin: 0; vertical-align: top; border: none;
+}
+td.en {
+  width: 60%; padding: 0 0 0.2ex 0;
+}
+td.ja {
+  width: 40%; padding: 0.2ex 0 0.2ex 0; color: #666;
 }
 """
 NAVIGATION_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en">
 <head>
-<title>[PT] {}: Contents</title>
+<title>[EJPB] {}: Contents</title>
 <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
-<div>[English-Japanese Parallel Text]</div>
+<div>[English-Japanese Parallel Book]</div>
 <h1>{}</h1>
 <div class="titletran">{}</div>
 <div class="author">{}</div>
@@ -101,7 +111,7 @@ NAVIGATION_FOOTER_TEXT = """</ol>
 MAIN_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xmlns:mbp="https://kindlegen.s3.amazonaws.com/AmazonKindlePublishingGuidelines.pdf" xmlns:idx="https://kindlegen.s3.amazonaws.com/AmazonKindlePublishingGuidelines.pdf" lang="en">
 <head>
-<title>[PT] {}: {}</title>
+<title>[EJPB] {}: {}</title>
 <link rel="stylesheet" href="style.css"/>
 </head>
 <body epub:type="dictionary">
@@ -120,9 +130,10 @@ def esc(expr):
 
 
 class Batch:
-  def __init__(self, input_path, output_path):
+  def __init__(self, input_path, output_path, style_mode):
     self.input_path = input_path
     self.output_path = output_path
+    self.style_mode = style_mode
     self.title = ""
     self.meta_title = ""
     self.title_tran = ""
@@ -261,8 +272,14 @@ class Batch:
           sentences[0][0] = match.group(2).strip()
         P('<idx:entry>')
         P('<' + tag + '>')
-        for text, tran in sentences:
-          self.WriteSentence(P, text, tran)
+        if self.style_mode == "table":
+          P('<table>')
+          for text, tran in sentences:
+            self.WriteSentenceTable(P, text, tran)
+          P('</table>')
+        else:
+          for text, tran in sentences:
+            self.WriteSentence(P, text, tran)
         P('</' + tag + '>')
         P('</idx:entry>')
       print(MAIN_FOOTER_TEXT, file=out_file, end="")
@@ -272,17 +289,23 @@ class Batch:
     if trg_text:
       P('<div lang="ja" class="ja"><small><small>{}</small></small></div>', trg_text)
 
-
+  def WriteSentenceTable(self, P, src_text, trg_text):
+    P('<tr>')
+    P('<td lang="en" class="en">{}</td>', src_text)
+    if trg_text:
+      P('<td lang="ja" class="ja"><small><small>{}</small></small></td>', trg_text)
+    P('</tr>')
 
 def main():
   args = sys.argv[1:]
   input_path = tkrzw_dict.GetCommandFlag(args, "--input", 1) or "union-body.tkh"
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-dict-kindle"
+  style_mode = tkrzw_dict.GetCommandFlag(args, "--style", 1)
   if not input_path:
     raise RuntimeError("an input path is required")
   if not output_path:
     raise RuntimeError("an output path is required")
-  Batch(input_path, output_path).Run()
+  Batch(input_path, output_path, style_mode).Run()
 
 
 if __name__=="__main__":
