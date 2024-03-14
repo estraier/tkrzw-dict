@@ -96,7 +96,8 @@ NAVIGATION_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <div>[English-Japanese Parallel Book]</div>
 <h1>{}</h1>
 <div class="titletran">{}</div>
-<div class="author">{}</div>
+<div class="author">by <b>{}</b></div>
+<div class="stats"><small>{}</small></div>
 <article>
 <h2>Contents</h2>
 <nav epub:type="toc">
@@ -193,12 +194,29 @@ class Batch:
         sections.append((section_title, section_title_tran, []))
       if sections:
         sections[-1][2].append(line)
-    self.sections = sections
+    self.sections = []
+    for section_title, section_title_tran, section_lines in sections:
+      paragraphs = [[]]
+      for i, line in enumerate(section_lines):
+        if line:
+          if line.startswith("%% "): continue
+          tran = ""
+          if i < len(lines) - 1:
+            next_line = section_lines[i+1]
+            next_line.startswith("%% ")
+            tran = next_line[3:].strip()
+          paragraphs[-1].append([line, tran])
+          if regex.search(r"^#+ ", line):
+            paragraphs.append([])
+        else:
+          paragraphs.append([])
+      paragraphs = [x for x in paragraphs if x]
+      self.sections.append((section_title, section_title_tran, paragraphs))
     logger.info("title={}, meta_title={}, meta_author".format(
       self.title, self.meta_title, self.meta_author))
-    for i, (section_title, section_title_tran, section_lines) in enumerate(self.sections, 1):
-      logger.info("section-{}: title={}, lines={}".format(
-        i, section_title, len(section_lines)))
+    for i, (section_title, section_title_tran, paragraphs) in enumerate(self.sections, 1):
+      logger.info("section-{}: title={}, paragraphs={}".format(
+        i, section_title, len(paragraphs)))
 
   def MakePackage(self):
     out_path = os.path.join(self.output_path, "package.opf")
@@ -225,9 +243,30 @@ class Batch:
   def MakeNavigation(self):
     out_path = os.path.join(self.output_path, "nav.xhtml")
     logger.info("Creating: {}".format(out_path))
+    num_sections = len(self.sections)
+    num_paragraphs = 0
+    num_sentences = 0
+    num_words = 0
+    num_characters = 0
+    for section in self.sections:
+      title, title_tran, paragraphs = section
+      num_paragraphs += len(paragraphs)
+      for sentences in paragraphs:
+        num_sentences += len(sentences)
+        for src_text, trg_text in sentences:
+          num_characters += len(src_text)
+          src_text = regex.sub("(\p{Latin})['’]", r"\1_", src_text)
+          src_text = regex.sub("(\d)[.,](\d)", r"\1_\2", src_text)
+          words = regex.split("[^-_\p{Latin}\d]+", src_text)
+          words = [x for x in words if x]
+          num_words += len(words)
+    stats_expr = "sections={}, paragraphs={}, sentences={}, words={}, characters={}".format(
+      num_sections, num_paragraphs, num_sentences, num_words, num_characters)
+    logger.info("Stats: {}".format(stats_expr))
     with open(out_path, "w") as out_file:
       print(NAVIGATION_HEADER_TEXT.format(
-        esc(self.title), esc(self.title), esc(self.title_tran), esc(self.meta_author)),
+        esc(self.title), esc(self.title), esc(self.title_tran),
+        esc(self.meta_author), esc(stats_expr)),
             file=out_file, end="")
       for i, (title, _, _) in enumerate(self.sections, 1):
         main_path = "main-{:03d}.xhtml".format(i)
@@ -238,21 +277,7 @@ class Batch:
   def MakeMain(self, sec_id, section):
     out_path = os.path.join(self.output_path, "main-{:03d}.xhtml".format(sec_id))
     logger.info("Creating: {}".format(out_path))
-    title, title_tran, lines = section
-    paragraphs = [[]]
-    for i, line in enumerate(lines):
-      if line:
-        if line.startswith("%% "): continue
-        tran = ""
-        if i < len(lines) - 1:
-          next_line = lines[i+1]
-          next_line.startswith("%% ")
-          tran = next_line[3:].strip()
-        paragraphs[-1].append([line, tran])
-        if regex.search(r"^#+ ", line):
-          paragraphs.append([])
-      else:
-        paragraphs.append([])
+    title, title_tran, paragraphs = section
     with open(out_path, "w") as out_file:
       def P(*args, end="\n"):
         esc_args = []
@@ -263,7 +288,6 @@ class Batch:
         print(args[0].format(*esc_args), end=end, file=out_file)
       print(MAIN_HEADER_TEXT.format(esc(self.title), esc(title)), file=out_file, end="")
       for sentences in paragraphs:
-        if not sentences: continue
         tag = 'p'
         line = sentences[0][0]
         match = regex.search(r"^(#+) +(.*)$", line)
