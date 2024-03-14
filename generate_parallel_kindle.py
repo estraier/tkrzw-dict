@@ -68,6 +68,15 @@ STYLE_TEXT = """html,body {
 h1, h2, h3, h4, h5, h6, p {
   margin: 1ex 0 1ex 0;
 }
+div.titletran {
+  margin: 0 0 2ex 0;
+}
+div.author {
+  margin: 1ex 0;
+}
+div.stats {
+  color: #333;
+}
 div.ja {
   margin-left: 5ex; color: #666;
 }
@@ -260,13 +269,16 @@ class Batch:
           words = regex.split("[^-_\p{Latin}\d]+", src_text)
           words = [x for x in words if x]
           num_words += len(words)
-    stats_expr = "sections={}, paragraphs={}, sentences={}, words={}, characters={}".format(
-      num_sections, num_paragraphs, num_sentences, num_words, num_characters)
-    logger.info("Stats: {}".format(stats_expr))
+    logger.info("Stats: sections={}, paragraphs={}, sentences={}, words={}, characters={}".format(
+      num_sections, num_paragraphs, num_sentences, num_words, num_characters))
+    stats_html = "<div>sections={}, paragraphs={}, sentences={}</div>\n".format(
+      num_sections, num_paragraphs, num_sentences)
+    stats_html += "<div>words={}, characters={}</div>\n".format(
+      num_words, num_characters)
     with open(out_path, "w") as out_file:
       print(NAVIGATION_HEADER_TEXT.format(
         esc(self.title), esc(self.title), esc(self.title_tran),
-        esc(self.meta_author), esc(stats_expr)),
+        esc(self.meta_author), stats_html),
             file=out_file, end="")
       for i, (title, _, _) in enumerate(self.sections, 1):
         main_path = "main-{:03d}.xhtml".format(i)
