@@ -221,7 +221,7 @@ class Batch:
           paragraphs.append([])
       paragraphs = [x for x in paragraphs if x]
       self.sections.append((section_title, section_title_tran, paragraphs))
-    logger.info("title={}, meta_title={}, meta_author".format(
+    logger.info("title={}, meta_title={}, meta_author={}".format(
       self.title, self.meta_title, self.meta_author))
     for i, (section_title, section_title_tran, paragraphs) in enumerate(self.sections, 1):
       logger.info("section-{}: title={}, paragraphs={}".format(
