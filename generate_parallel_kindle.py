@@ -1,7 +1,7 @@
 #! /usr/bin/python3
 # -*- coding: utf-8 -*-
 #--------------------------------------------------------------------------------------------------
-# Script to generate files to make a EnJa Kindle dictionary from the union dictionary
+# Script to generate files to make a EnJa parallel book for Kindle.
 #
 # Usage:
 #   generate_parallel_kindle.py [--input str] [--output str] [--style str]
