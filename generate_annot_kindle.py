@@ -111,17 +111,18 @@ div.source {
   margin-top: 1ex;
 }
 div.target {
-  margin-left: 3ex;
+  margin-left: 2ex;
   font-weight: normal;
   color: #444;
 }
 div.vocab {
-  margin-left: 4ex;
+  margin-left: 3ex;
   font-weight: normal;
   color: #666;
 }
-h2 div.vocab, h3 div.vocab {
+h2 div.target, h2 div.vocab, h3 div.target, h3 div.vocab {
   font-size: 12pt;
+  font-weight: normal;
 }
 span.vphrase {
   color: #111;
@@ -163,7 +164,7 @@ a:hover {
     color: #555;
   }
   span.vphrase {
-    color: #118;
+    color: #017;
   }
   div.navi {
     display: block;
@@ -223,8 +224,6 @@ class Batch:
     self.meta_title = ""
     self.title_tran = ""
     self.meta_author = ""
-    self.vocab_uniq_tran = set()
-    self.vocab_uniq_gloss = set()
 
   def Run(self):
     start_time = time.time()
@@ -242,12 +241,29 @@ class Batch:
   def ReadInput(self):
     lines = []
     with open(self.input_path) as input_file:
+      vocab_uniq_tran = set()
+      vocab_uniq_gloss = set()
       for line in input_file:
         line = unicodedata.normalize("NFKC", line).strip()
         fields = line.split("\t")
         source = fields[0]
         target = fields[1] if len(fields) > 1 else ""
-        annots = fields[2:]
+        annots = []
+        for annot in fields[2:]:
+          columns = annot.split("|", 3)
+          if len(columns) != 4: continue
+          phrase, tran, pos, gloss = columns
+          norm_tran = phrase.lower() + ":"
+          norm_tran += regex.sub(r"[^\p{Han}\p{Hiragana}\p{Katakana}]", "", tran).strip()
+          if norm_tran in vocab_uniq_tran:
+            continue
+          vocab_uniq_tran.add(norm_tran)
+          norm_gloss = phrase.lower() + ":"
+          norm_gloss += regex.sub(r"[^\p{Latin} ]", "", gloss).lower()[:20].strip()
+          if norm_gloss in vocab_uniq_gloss:
+            continue
+          vocab_uniq_gloss.add(norm_gloss)
+          annots.append((phrase, tran, pos, gloss))
         lines.append((source, target, annots))
     sections = []
     for source, target, annots in lines:
@@ -314,6 +330,7 @@ class Batch:
     num_sections = len(self.sections)
     num_paragraphs = 0
     num_sentences = 0
+    num_annotations = 0
     num_words = 0
     num_characters = 0
     for section in self.sections:
@@ -322,18 +339,21 @@ class Batch:
       for sentences in paragraphs:
         num_sentences += len(sentences)
         for src_text, trg_text, annots in sentences:
+          num_annotations += len(annots)
           num_characters += len(src_text)
           src_text = regex.sub("(\p{Latin})['’]", r"\1_", src_text)
           src_text = regex.sub("(\d)[.,](\d)", r"\1_\2", src_text)
           words = regex.split("[^-_\p{Latin}\d]+", src_text)
           words = [x for x in words if x]
           num_words += len(words)
-    logger.info("Stats: sections={}, paragraphs={}, sentences={}, words={}, characters={}".format(
-      num_sections, num_paragraphs, num_sentences, num_words, num_characters))
+    logger.info("Stats: sections={}, paragraphs={}, sentences={}".format(
+      num_sections, num_paragraphs, num_sentences))
+    logger.info("Stats: words={}, characters={}, annotations={}".format(
+      num_words, num_characters, num_annotations))
     stats_html = "<div>sections={}, paragraphs={}, sentences={}</div>\n".format(
       num_sections, num_paragraphs, num_sentences)
-    stats_html += "<div>words={}, characters={}</div>\n".format(
-      num_words, num_characters)
+    stats_html += "<div>words={}, characters={}, annotations={}</div>\n".format(
+      num_words, num_characters, num_annotations)
     with open(out_path, "w") as out_file:
       print(NAVIGATION_HEADER_TEXT.format(
         esc(self.title), esc(self.title), esc(self.title_tran),
@@ -391,20 +411,7 @@ class Batch:
   def WriteSentence(self, P, src_text, trg_text, annots):
     P('<div class="sentence">')
     P('<div lang="en" class="source">{}</div>', src_text)
-    for annot in annots:
-      fields = annot.split("|", 3)
-      if len(fields) != 4: continue
-      phrase, tran, pos, gloss = fields
-      norm_tran = phrase.lower() + ":"
-      norm_tran += regex.sub(r"[^\p{Han}\p{Hiragana}\p{Katakana}]", "", tran).strip()
-      if norm_tran in self.vocab_uniq_tran:
-        continue
-      self.vocab_uniq_tran.add(norm_tran)
-      norm_gloss = phrase.lower() + ":"
-      norm_gloss += regex.sub(r"[^\p{Latin} ]", "", gloss).lower()[:20].strip()
-      if norm_gloss in self.vocab_uniq_gloss:
-        continue
-      self.vocab_uniq_gloss.add(norm_gloss)
+    for phrase, tran, pos, gloss in annots:
       pos = regex.sub(r" +phrase$", "", pos)
       if pos == "adjective" and phrase.startswith("be "):
         pos = "verb"
