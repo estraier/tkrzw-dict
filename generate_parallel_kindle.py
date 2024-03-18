@@ -61,7 +61,7 @@ PACKAGE_MIDDLE_TEXT = """</manifest>
 PACKAGE_FOOTER_TEXT = """</spine>
 </package>
 """
-STYLE_TEXT = """html,body {
+STYLE_TEXT = """html, body {
   margin: 0; padding: 0; background: #fff; color: #000; font-size: 12pt;
   text-align: left; text-justify: none; direction: ltr;
 }
@@ -93,6 +93,53 @@ td.en {
 td.ja {
   width: 40%; padding: 0.2ex 0 0.2ex 0; color: #666;
 }
+h2 .ja, h3 .ja {
+  font-size: 12pt;
+  font-weight: normal;
+}
+div.navi {
+  text-align: right;
+  display: none;
+  font-size: 80%;
+  font-family: monospace;
+}
+div.navi a {
+  color: #58e;
+  text-decoration: none;
+}
+div.navi span {
+  color: #ccc;
+}
+a:hover {
+  text-decoration: underline;
+}
+@media screen and (min-width:800px) {
+  html {
+    text-align: center;
+    background: #eee;
+  }
+  body {
+    display: inline-block;
+    width: 700px;
+    margin: 1ex 1ex;
+    padding: 1ex 2ex;
+    border: 1pt solid #ccc;
+    border-radius: 1ex;
+    text-align: left;
+  }
+  div.target {
+    color: #333;
+  }
+  div.vocab {
+    color: #555;
+  }
+  span.vphrase {
+    color: #017;
+  }
+  div.navi {
+    display: block;
+  }
+}
 """
 NAVIGATION_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
@@ -123,9 +170,52 @@ MAIN_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <head>
 <title>[EJPB] {}: {}</title>
 <link rel="stylesheet" href="style.css"/>
+<script type="text/javascript">/*<![CDATA[*/
+{}
+/*]]>*/</script>
 </head>
-<body epub:type="dictionary">
+<body epub:type="dictionary" onload="main();" data-section="{}/{}">
 <mbp:frameset>
+"""
+MAIN_SCRIPT_TEXT = """
+"use strict";
+function main() {
+  const sectionNumbers = document.body.dataset.section.split("/");
+  const currentSection = parseInt(sectionNumbers[0]);
+  const allSections = parseInt(sectionNumbers[1]);
+  document.body.insertBefore(createNaviDiv(
+    currentSection, allSections), document.body.firstChild);
+  document.body.insertBefore(createNaviDiv(
+    currentSection, allSections), null);
+}
+function createNaviDiv(currentSection, allSections) {
+  const div = document.createElement("div");
+  div.className = "navi";
+  if (currentSection > 1) {
+    const anc = document.createElement("a");
+    const url = "main-" + (currentSection - 1).toString().padStart(3, "0") + ".xhtml";
+    anc.innerHTML = '<a href="' + url + '">[←]</a>'
+    div.appendChild(anc);
+  } else {
+    const span = document.createElement("span");
+    span.innerHTML = '[←]'
+    div.appendChild(span);
+  }
+  const anc_index = document.createElement("a");
+  anc_index.innerHTML = '<a href="nav.xhtml">[↑]</a>'
+  div.appendChild(anc_index);
+  if (currentSection < allSections) {
+    const anc = document.createElement("a");
+    const url = "main-" + (currentSection + 1).toString().padStart(3, "0") + ".xhtml";
+    anc.innerHTML = '<a href="' + url + '">[→]</a>'
+    div.appendChild(anc);
+  } else {
+    const span = document.createElement("span");
+    span.innerHTML = '[→]'
+    div.appendChild(span);
+  }
+  return div;
+}
 """
 MAIN_FOOTER_TEXT = """</mbp:frameset>
 </body>
@@ -298,7 +388,9 @@ class Batch:
             arg = esc(arg)
           esc_args.append(arg)
         print(args[0].format(*esc_args), end=end, file=out_file)
-      print(MAIN_HEADER_TEXT.format(esc(self.title), esc(title)), file=out_file, end="")
+      print(MAIN_HEADER_TEXT.format(esc(self.title), esc(title), MAIN_SCRIPT_TEXT.strip(),
+                                    sec_id, len(self.sections)),
+            file=out_file, end="")
       for sentences in paragraphs:
         tag = 'p'
         line = sentences[0][0]
@@ -314,14 +406,19 @@ class Batch:
             self.WriteSentenceTable(P, text, tran)
           P('</table>')
         else:
+          spacing = tag == 'p'
           for text, tran in sentences:
-            self.WriteSentence(P, text, tran)
+            self.WriteSentence(P, text, tran, spacing)
+            spacing = False
         P('</' + tag + '>')
         P('</idx:entry>')
       print(MAIN_FOOTER_TEXT, file=out_file, end="")
 
-  def WriteSentence(self, P, src_text, trg_text):
-    P('<div lang="en" class="en">{}</div>', src_text)
+  def WriteSentence(self, P, src_text, trg_text, spacing):
+    P('<div lang="en" class="en">', end="")
+    if spacing:
+      P('&#x2003;', end="")
+    P('{}</div>', src_text)
     if trg_text:
       P('<div lang="ja" class="ja"><small><small>{}</small></small></div>', trg_text)
 

@@ -91,7 +91,7 @@ PACKAGE_MIDDLE_TEXT = """</manifest>
 PACKAGE_FOOTER_TEXT = """</spine>
 </package>
 """
-STYLE_TEXT = """html,body {
+STYLE_TEXT = """html, body {
   margin: 0; padding: 0; background: #fff; color: #000; font-size: 12pt;
   text-align: left; text-justify: none; direction: ltr;
 }
@@ -200,9 +200,52 @@ MAIN_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <head>
 <title>[EJAB] {}: {}</title>
 <link rel="stylesheet" href="style.css"/>
+<script type="text/javascript">/*<![CDATA[*/
+{}
+/*]]>*/</script>
 </head>
-<body epub:type="dictionary">
+<body epub:type="dictionary" onload="main();" data-section="{}/{}">
 <mbp:frameset>
+"""
+MAIN_SCRIPT_TEXT = """
+"use strict";
+function main() {
+  const sectionNumbers = document.body.dataset.section.split("/");
+  const currentSection = parseInt(sectionNumbers[0]);
+  const allSections = parseInt(sectionNumbers[1]);
+  document.body.insertBefore(createNaviDiv(
+    currentSection, allSections), document.body.firstChild);
+  document.body.insertBefore(createNaviDiv(
+    currentSection, allSections), null);
+}
+function createNaviDiv(currentSection, allSections) {
+  const div = document.createElement("div");
+  div.className = "navi";
+  if (currentSection > 1) {
+    const anc = document.createElement("a");
+    const url = "main-" + (currentSection - 1).toString().padStart(3, "0") + ".xhtml";
+    anc.innerHTML = '<a href="' + url + '">[←]</a>'
+    div.appendChild(anc);
+  } else {
+    const span = document.createElement("span");
+    span.innerHTML = '[←]'
+    div.appendChild(span);
+  }
+  const anc_index = document.createElement("a");
+  anc_index.innerHTML = '<a href="nav.xhtml">[↑]</a>'
+  div.appendChild(anc_index);
+  if (currentSection < allSections) {
+    const anc = document.createElement("a");
+    const url = "main-" + (currentSection + 1).toString().padStart(3, "0") + ".xhtml";
+    anc.innerHTML = '<a href="' + url + '">[→]</a>'
+    div.appendChild(anc);
+  } else {
+    const span = document.createElement("span");
+    span.innerHTML = '[→]'
+    div.appendChild(span);
+  }
+  return div;
+}
 """
 MAIN_FOOTER_TEXT = """</mbp:frameset>
 </body>
@@ -377,8 +420,9 @@ class Batch:
             arg = esc(arg)
           esc_args.append(arg)
         print(args[0].format(*esc_args), end=end, file=out_file)
-      print(MAIN_HEADER_TEXT.format(esc(self.title), esc(title)), file=out_file, end="")
-      self.WriteNavi(P, sec_id)
+      print(MAIN_HEADER_TEXT.format(esc(self.title), esc(title), MAIN_SCRIPT_TEXT.strip(),
+                                    sec_id, len(self.sections)),
+            file=out_file, end="")
       for sentences in paragraphs:
         tag = 'p'
         line = sentences[0][0]
@@ -388,29 +432,20 @@ class Batch:
           sentences[0][0] = match.group(2).strip()
         P('<idx:entry>')
         P('<' + tag + '>')
+        spacing = tag == 'p'
         for src_text, trg_text, annots in sentences:
-          self.WriteSentence(P, src_text, trg_text, annots)
+          self.WriteSentence(P, src_text, trg_text, annots, spacing)
+          spacing = False
         P('</' + tag + '>')
         P('</idx:entry>')
-      self.WriteNavi(P, sec_id)
       print(MAIN_FOOTER_TEXT, file=out_file, end="")
 
-  def WriteNavi(self, P, sec_id):
-    P('<div class="navi">')
-    if sec_id > 1:
-      P('<a href="main-{:03d}.xhtml">[←]</a>', sec_id - 1)
-    else:
-      P('<span>[←]</span>')
-    P('<a href="nav.xhtml">[↑]</a>')
-    if sec_id < len(self.sections):
-      P('<a href="main-{:03d}.xhtml">[→]</a>', sec_id + 1)
-    else:
-      P('<span>[→]</span>')
-    P('</div>')
-
-  def WriteSentence(self, P, src_text, trg_text, annots):
+  def WriteSentence(self, P, src_text, trg_text, annots, spacing):
     P('<div class="sentence">')
-    P('<div lang="en" class="source">{}</div>', src_text)
+    P('<div lang="en" class="source">', end="")
+    if spacing:
+      P('&#x2003;', end="")
+    P('{}</div>', src_text)
     for phrase, tran, pos, gloss in annots:
       pos = regex.sub(r" +phrase$", "", pos)
       if pos == "adjective" and phrase.startswith("be "):
