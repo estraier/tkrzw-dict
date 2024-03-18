@@ -142,6 +142,13 @@ div.navi span {
 }
 a:hover {
   text-decoration: underline;
+  cursor: pointer;
+}
+span.flip {
+  font-size: 90%;
+  font-weight: normal;
+  color: #666;
+  cursor: pointer;
 }
 @media screen and (min-width:800px) {
   html {
@@ -217,10 +224,20 @@ function main() {
     currentSection, allSections), document.body.firstChild);
   document.body.insertBefore(createNaviDiv(
     currentSection, allSections), null);
+  for (const div of document.getElementsByClassName("source")) {
+    const icon = document.createElement("span");
+    icon.innerHTML = ' <a onclick="flipOne(this);">⊿</a>'
+    icon.className = "flip";
+    icon.style.display = "none";
+    div.insertBefore(icon, null);
+  }
 }
 function createNaviDiv(currentSection, allSections) {
   const div = document.createElement("div");
   div.className = "navi";
+  const anc_flip = document.createElement("a");
+  anc_flip.innerHTML = '<a onclick="flipAll();">[≡]</a>'
+  div.appendChild(anc_flip);
   if (currentSection > 1) {
     const anc = document.createElement("a");
     const url = "main-" + (currentSection - 1).toString().padStart(3, "0") + ".xhtml";
@@ -245,6 +262,48 @@ function createNaviDiv(currentSection, allSections) {
     div.appendChild(span);
   }
   return div;
+}
+let targetIsOn = true;
+function flipAll() {
+  for (const div of document.getElementsByClassName("vocab")) {
+    if (targetIsOn) {
+      div.style.display = 'none';
+    } else {
+      div.style.display = 'block';
+    }
+  }
+  for (const div of document.getElementsByClassName("target")) {
+    if (targetIsOn) {
+      div.style.display = 'none';
+    } else {
+      div.style.display = 'block';
+    }
+  }
+  for (const div of document.getElementsByClassName("flip")) {
+    if (targetIsOn) {
+      div.style.display = 'inline';
+    } else {
+      div.style.display = 'none';
+    }
+  }
+  targetIsOn = !targetIsOn;
+}
+function flipOne(anc) {
+  const icon = anc.parentNode;
+  icon.style.display = "none";
+  let node = icon.parentNode.nextSibling;
+  while (node) {
+    if (node.className == "source") {
+      break;
+    }
+    if (node.className == "vocab") {
+      node.style.display = "block";
+    }
+    if (node.className == "target") {
+      node.style.display = "block";
+    }
+    node = node.nextSibling;
+  }
 }
 """
 MAIN_FOOTER_TEXT = """</mbp:frameset>

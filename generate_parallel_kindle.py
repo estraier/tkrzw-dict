@@ -77,7 +77,7 @@ div.author {
 div.stats {
   color: #333;
 }
-div.ja {
+div.target {
   margin-left: 5ex; color: #666;
 }
 table {
@@ -87,13 +87,13 @@ table {
 td {
   margin: 0; vertical-align: top; border: none;
 }
-td.en {
+td.source {
   width: 60%; padding: 0 0 0.2ex 0;
 }
-td.ja {
+td.target {
   width: 40%; padding: 0.2ex 0 0.2ex 0; color: #666;
 }
-h2 .ja, h3 .ja {
+h2 .target, h3 .target {
   font-size: 12pt;
   font-weight: normal;
 }
@@ -112,6 +112,13 @@ div.navi span {
 }
 a:hover {
   text-decoration: underline;
+  cursor: pointer;
+}
+span.flip {
+  font-size: 90%;
+  font-weight: normal;
+  color: #666;
+  cursor: pointer;
 }
 @media screen and (min-width:800px) {
   html {
@@ -174,7 +181,7 @@ MAIN_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 {}
 /*]]>*/</script>
 </head>
-<body epub:type="dictionary" onload="main();" data-section="{}/{}">
+<body epub:type="dictionary" onload="main();" data-section="{}/{}" data-style="{}">
 <mbp:frameset>
 """
 MAIN_SCRIPT_TEXT = """
@@ -183,14 +190,27 @@ function main() {
   const sectionNumbers = document.body.dataset.section.split("/");
   const currentSection = parseInt(sectionNumbers[0]);
   const allSections = parseInt(sectionNumbers[1]);
+  const styleName = document.body.dataset.style;
   document.body.insertBefore(createNaviDiv(
-    currentSection, allSections), document.body.firstChild);
+    currentSection, allSections, styleName), document.body.firstChild);
   document.body.insertBefore(createNaviDiv(
-    currentSection, allSections), null);
+    currentSection, allSections, styleName), null);
+  for (const div of document.getElementsByClassName("source")) {
+    const icon = document.createElement("span");
+    icon.innerHTML = ' <a onclick="flipOne(this);">⊿</a>'
+    icon.className = "flip";
+    icon.style.display = "none";
+    div.insertBefore(icon, null);
+  }
 }
-function createNaviDiv(currentSection, allSections) {
+function createNaviDiv(currentSection, allSections, styleName) {
   const div = document.createElement("div");
   div.className = "navi";
+  if (styleName == "lines") {
+    const anc_flip = document.createElement("a");
+    anc_flip.innerHTML = '<a onclick="flipAll();">[≡]</a>'
+    div.appendChild(anc_flip);
+  }
   if (currentSection > 1) {
     const anc = document.createElement("a");
     const url = "main-" + (currentSection - 1).toString().padStart(3, "0") + ".xhtml";
@@ -215,6 +235,38 @@ function createNaviDiv(currentSection, allSections) {
     div.appendChild(span);
   }
   return div;
+}
+let targetIsOn = true;
+function flipAll() {
+  for (const div of document.getElementsByClassName("target")) {
+    if (targetIsOn) {
+      div.style.display = 'none';
+    } else {
+      div.style.display = 'block';
+    }
+  }
+  for (const div of document.getElementsByClassName("flip")) {
+    if (targetIsOn) {
+      div.style.display = 'inline';
+    } else {
+      div.style.display = 'none';
+    }
+  }
+  targetIsOn = !targetIsOn;
+}
+function flipOne(anc) {
+  const icon = anc.parentNode;
+  icon.style.display = "none";
+  let node = icon.parentNode.nextSibling;
+  while (node) {
+    if (node.className == "source") {
+      break;
+    }
+    if (node.className == "target") {
+      node.style.display = "block";
+    }
+    node = node.nextSibling;
+  }
 }
 """
 MAIN_FOOTER_TEXT = """</mbp:frameset>
@@ -389,7 +441,7 @@ class Batch:
           esc_args.append(arg)
         print(args[0].format(*esc_args), end=end, file=out_file)
       print(MAIN_HEADER_TEXT.format(esc(self.title), esc(title), MAIN_SCRIPT_TEXT.strip(),
-                                    sec_id, len(self.sections)),
+                                    sec_id, len(self.sections), self.style_mode),
             file=out_file, end="")
       for sentences in paragraphs:
         tag = 'p'
@@ -402,8 +454,10 @@ class Batch:
         P('<' + tag + '>')
         if self.style_mode == "table":
           P('<table>')
+          spacing = tag == 'p'
           for text, tran in sentences:
-            self.WriteSentenceTable(P, text, tran)
+            self.WriteSentenceTable(P, text, tran, spacing)
+            spacing = False
           P('</table>')
         else:
           spacing = tag == 'p'
@@ -415,25 +469,28 @@ class Batch:
       print(MAIN_FOOTER_TEXT, file=out_file, end="")
 
   def WriteSentence(self, P, src_text, trg_text, spacing):
-    P('<div lang="en" class="en">', end="")
+    P('<div lang="en" class="source">', end="")
     if spacing:
       P('&#x2003;', end="")
     P('{}</div>', src_text)
     if trg_text:
-      P('<div lang="ja" class="ja"><small><small>{}</small></small></div>', trg_text)
+      P('<div lang="ja" class="target"><small><small>{}</small></small></div>', trg_text)
 
-  def WriteSentenceTable(self, P, src_text, trg_text):
+  def WriteSentenceTable(self, P, src_text, trg_text, spacing):
     P('<tr>')
-    P('<td lang="en" class="en">{}</td>', src_text)
+    P('<td lang="en" class="source">', end="")
+    if spacing:
+      P('&#x2003;', end="")
+    P('{}</td>', src_text)
     if trg_text:
-      P('<td lang="ja" class="ja"><small><small>{}</small></small></td>', trg_text)
+      P('<td lang="ja" class="target"><small><small>{}</small></small></td>', trg_text)
     P('</tr>')
 
 def main():
   args = sys.argv[1:]
   input_path = tkrzw_dict.GetCommandFlag(args, "--input", 1) or "union-body.tkh"
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-dict-kindle"
-  style_mode = tkrzw_dict.GetCommandFlag(args, "--style", 1)
+  style_mode = tkrzw_dict.GetCommandFlag(args, "--style", 1) or "lines"
   if not input_path:
     raise RuntimeError("an input path is required")
   if not output_path:
