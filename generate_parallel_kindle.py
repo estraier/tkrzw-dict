@@ -62,8 +62,13 @@ PACKAGE_FOOTER_TEXT = """</spine>
 </package>
 """
 STYLE_TEXT = """html, body {
-  margin: 0; padding: 0; background: #fff; color: #000; font-size: 12pt;
-  text-align: left; text-justify: none; direction: ltr;
+  margin: 0; padding: 0;
+  background: #fff;
+  color: #000;
+  font-size: 12pt;
+  text-align: left;
+  text-justify: none;
+  direction: ltr;
 }
 h1, h2, h3, h4, h5, h6, p {
   margin: 1ex 0 1ex 0;
@@ -79,25 +84,36 @@ div.stats {
   color: #333;
 }
 div.source {
-  line-height: 1.2;
+  line-height: 1.3;
 }
 div.target {
-  margin-left: 5ex; color: #666;
-  line-height: 1.0;
-  margin-bottom: 0.3ex;
+  margin-left: 5ex;
+  margin-bottom: 0.4ex;
+  color: #666;
+  line-height: 1.1;
 }
 table {
-  margin: 0: padding: 0; border-collapse: collapse;
-  width: 100%; table-layout: fixed; overflow: hidden;
+  margin: 0;
+  padding: 0;
+  border-collapse: collapse;
+  width: 100%;
+  table-layout: fixed;
+  overflow: hidden;
 }
 td {
-  margin: 0; vertical-align: top; border: none;
+  margin: 0;
+  padding: 0 0.2ex 0.2ex 0.2ex;
+  vertical-align: top;
+  border: none;
 }
 td.source {
-  width: 60%; padding: 0 0 0.2ex 0;
+  width: 55%;
+  line-height: 1.3;
 }
 td.target {
-  width: 40%; padding: 0.2ex 0 0.2ex 0; color: #666;
+  width: 45%;
+  line-height: 1.2;
+  color: #666;
 }
 h2 .target, h3 .target {
   font-size: 12pt;
@@ -124,8 +140,16 @@ span.flip {
   right: 0;
   font-size: 90%;
   font-weight: normal;
-  color: #666;
+  color: #000;
   cursor: pointer;
+  opacity: 0.2;
+}
+span.flip:hover {
+  color: #58e;
+  opacity: 1.0;
+}
+span.flip a {
+  text-decoration: none;
 }
 @media screen and (min-width:800px) {
   html {
@@ -140,6 +164,27 @@ span.flip {
     border: 1pt solid #ccc;
     border-radius: 1ex;
     text-align: left;
+  }
+  div.source, div.target {
+    padding: 0 0.8ex;
+    border-radius: 0.5ex;
+  }
+  div.source:hover {
+    background: #eef8ff;
+  }
+  div.target:hover {
+    background: #ffffee;
+  }
+  tr:hover td.source {
+    background: #eef8ff;
+  }
+  tr:hover td.target {
+    background: #ffffee;
+  }
+}
+@media screen and (min-width:1100px) {
+  body[data-style="table"] {
+    width: 1000px;
   }
 }
 """
@@ -251,14 +296,19 @@ function flipAll() {
 }
 function flipOne(anc) {
   const icon = anc.parentNode;
-  icon.style.display = "none";
   let node = icon.parentNode.nextSibling;
   while (node) {
     if (node.className == "source") {
       break;
     }
     if (node.className == "target") {
-      node.style.display = "block";
+      if (node.isOn) {
+        node.style.display = "none";
+        node.isOn = false;
+      } else {
+        node.style.display = "block";
+        node.isOn = true;
+      }
     }
     node = node.nextSibling;
   }
