@@ -87,7 +87,7 @@ div.source {
   line-height: 1.3;
 }
 div.target {
-  margin-left: 5ex;
+  margin-left: 4ex;
   margin-bottom: 0.4ex;
   color: #666;
   line-height: 1.1;

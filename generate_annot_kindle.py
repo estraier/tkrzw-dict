@@ -92,11 +92,17 @@ PACKAGE_FOOTER_TEXT = """</spine>
 </package>
 """
 STYLE_TEXT = """html, body {
-  margin: 0; padding: 0; background: #fff; color: #000; font-size: 12pt;
-  text-align: left; text-justify: none; direction: ltr;
+  margin: 0; padding: 0;
+  background: #fff;
+  color: #000;
+  font-size: 12pt;
+  text-align: left;
+  text-justify: none;
+  direction: ltr;
 }
 h1, h2, h3, h4, h5, h6, p {
-  margin: 2ex 0 2ex 0;
+  margin: 1.5ex 0 1.5ex 0;
+  position: relative;
 }
 div.titletran {
   margin: 0 0 2ex 0;
@@ -108,24 +114,29 @@ div.stats {
   color: #333;
 }
 div.source {
-  margin-top: 1ex;
-}
-div.target {
-  margin-left: 2ex;
-  font-weight: normal;
-  color: #444;
+  margin-top: 1.2ex;
+  line-height: 1.3;
 }
 div.vocab {
   margin-left: 3ex;
-  font-weight: normal;
+  color: #444;
+}
+div.target {
+  margin-left: 2ex;
+  margin-bottom: 0.4ex;
   color: #666;
+  line-height: 1.1;
 }
 h2 div.target, h2 div.vocab, h3 div.target, h3 div.vocab {
   font-size: 12pt;
   font-weight: normal;
 }
 span.vphrase {
-  color: #111;
+  color: #000;
+}
+span.vpos, span.vgloss {
+  color: #666;
+  font-size: 90%;
 }
 div.navi {
   text-align: right;
@@ -144,10 +155,20 @@ a:hover {
   cursor: pointer;
 }
 span.flip {
+  position: absolute;
+  right: 0;
   font-size: 90%;
   font-weight: normal;
-  color: #666;
+  color: #000;
   cursor: pointer;
+  opacity: 0.2;
+}
+span.flip:hover {
+  color: #58e;
+  opacity: 1.0;
+}
+span.flip a {
+  text-decoration: none;
 }
 @media screen and (min-width:800px) {
   html {
@@ -163,14 +184,21 @@ span.flip {
     border-radius: 1ex;
     text-align: left;
   }
-  div.target {
-    color: #222;
+  div.source, div.vocab, div.target {
+    padding: 0 0.8ex;
+    border-radius: 0.5ex;
   }
-  div.vocab {
-    color: #333;
+  div.source:hover {
+    background: #eef8ff;
+  }
+  div.vocab:hover {
+    background: #ffeeff;
+  }
+  div.target:hover {
+    background: #ffffee;
   }
   span.vphrase {
-    color: #017;
+    color: #026;
   }
 }
 """
@@ -286,17 +314,19 @@ function flipAll() {
 }
 function flipOne(anc) {
   const icon = anc.parentNode;
-  icon.style.display = "none";
   let node = icon.parentNode.nextSibling;
   while (node) {
     if (node.className == "source") {
       break;
     }
-    if (node.className == "vocab") {
-      node.style.display = "block";
-    }
-    if (node.className == "target") {
-      node.style.display = "block";
+    if (node.className == "target" || node.className == "vocab") {
+      if (node.isOn) {
+        node.style.display = "none";
+        node.isOn = false;
+      } else {
+        node.style.display = "block";
+        node.isOn = true;
+      }
     }
     node = node.nextSibling;
   }
@@ -505,15 +535,17 @@ class Batch:
       pos = regex.sub(r" +phrase$", "", pos)
       if pos == "adjective" and phrase.startswith("be "):
         pos = "verb"
+      if len(gloss) > 200:
+        gloss = gloss[:200] + "..."
       pos_label = POS_LABELS.get(pos) or "他"
-      P('<div class="vocab"><small><small>')
-      P('<span class="vphrase">{}</span>', phrase)
+      P('<div class="vocab"><small>')
+      P('<span class="vphrase"><b>{}</b></span>', phrase)
       P('<span class="vtran">({})</span>', tran)
       P('<span class="vpos">[{}]</span>', pos_label)
       P('<span class="vgloss">{}</span>', gloss)
-      P('</small></small></div>')
+      P('</small></div>')
     if trg_text:
-      P('<div lang="ja" class="target"><small><small>{}</small></small></div>', trg_text)
+      P('<div lang="ja" class="target"><small>{}</small></div>', trg_text)
     P('</div>')
     
 
