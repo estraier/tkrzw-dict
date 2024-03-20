@@ -129,7 +129,6 @@ span.vphrase {
 }
 div.navi {
   text-align: right;
-  display: none;
   font-size: 80%;
   font-family: monospace;
 }
@@ -165,16 +164,13 @@ span.flip {
     text-align: left;
   }
   div.target {
-    color: #333;
+    color: #222;
   }
   div.vocab {
-    color: #555;
+    color: #333;
   }
   span.vphrase {
     color: #017;
-  }
-  div.navi {
-    display: block;
   }
 }
 """

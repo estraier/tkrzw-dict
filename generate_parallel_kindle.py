@@ -67,6 +67,7 @@ STYLE_TEXT = """html, body {
 }
 h1, h2, h3, h4, h5, h6, p {
   margin: 1ex 0 1ex 0;
+  position: relative;
 }
 div.titletran {
   margin: 0 0 2ex 0;
@@ -77,8 +78,13 @@ div.author {
 div.stats {
   color: #333;
 }
+div.source {
+  line-height: 1.2;
+}
 div.target {
   margin-left: 5ex; color: #666;
+  line-height: 1.0;
+  margin-bottom: 0.3ex;
 }
 table {
   margin: 0: padding: 0; border-collapse: collapse;
@@ -99,7 +105,6 @@ h2 .target, h3 .target {
 }
 div.navi {
   text-align: right;
-  display: none;
   font-size: 80%;
   font-family: monospace;
 }
@@ -115,6 +120,8 @@ a:hover {
   cursor: pointer;
 }
 span.flip {
+  position: absolute;
+  right: 0;
   font-size: 90%;
   font-weight: normal;
   color: #666;
@@ -133,18 +140,6 @@ span.flip {
     border: 1pt solid #ccc;
     border-radius: 1ex;
     text-align: left;
-  }
-  div.target {
-    color: #333;
-  }
-  div.vocab {
-    color: #555;
-  }
-  span.vphrase {
-    color: #017;
-  }
-  div.navi {
-    display: block;
   }
 }
 """
