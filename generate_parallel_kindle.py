@@ -137,7 +137,7 @@ a:hover {
 }
 span.flip {
   position: absolute;
-  right: 0;
+  right: 0.8ex;
   font-size: 90%;
   font-weight: normal;
   color: #000;
