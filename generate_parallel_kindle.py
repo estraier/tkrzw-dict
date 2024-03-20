@@ -151,7 +151,7 @@ span.flip:hover {
 span.flip a {
   text-decoration: none;
 }
-@media screen and (min-width:800px) {
+@media screen and (min-width:750px) {
   html {
     text-align: center;
     background: #eee;
@@ -180,6 +180,11 @@ span.flip a {
   }
   tr:hover td.target {
     background: #ffffee;
+  }
+}
+@media screen and (min-width:950px) {
+  body[data-style="table"] {
+    width: 900px;
   }
 }
 @media screen and (min-width:1100px) {

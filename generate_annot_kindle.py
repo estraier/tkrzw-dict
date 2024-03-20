@@ -170,7 +170,7 @@ span.flip:hover {
 span.flip a {
   text-decoration: none;
 }
-@media screen and (min-width:800px) {
+@media screen and (min-width:750px) {
   html {
     text-align: center;
     background: #eee;
