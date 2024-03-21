@@ -73,6 +73,12 @@ STYLE_TEXT = """html, body {
 h1, h2, h3, h4, h5, h6, p {
   margin: 1ex 0 1ex 0;
   position: relative;
+  text-align: left;
+  text-justify: none;
+}
+div {
+  text-align: left;
+  text-justify: none;
 }
 div.titletran {
   margin: 0 0 2ex 0;
@@ -105,6 +111,8 @@ td {
   padding: 0 0.2ex 0.2ex 0.2ex;
   vertical-align: top;
   border: none;
+  text-align: left;
+  text-justify: none;
 }
 td.source {
   width: 55%;
