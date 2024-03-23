@@ -143,6 +143,26 @@ a:hover {
   text-decoration: underline;
   cursor: pointer;
 }
+span.utter {
+  position: absolute;
+  right: -1.8ex;
+  width: 2ex;
+  font-size: 90%;
+  font-weight: normal;
+  color: #000;
+  cursor: pointer;
+  opacity: 0;
+}
+td span.utter {
+  left: -1.6ex;
+}
+div.source:hover span.utter, td.source:hover span.utter {
+  opacity: 0.1;
+}
+div.source:hover span.utter:hover, td.source:hover span.utter:hover {
+  color: #58e;
+  opacity: 1.0;
+}
 span.flip {
   position: absolute;
   right: 0.8ex;
@@ -254,11 +274,15 @@ function main() {
   document.body.insertBefore(createNaviDiv(
     currentSection, allSections, styleName), null);
   for (const div of document.getElementsByClassName("source")) {
-    const icon = document.createElement("span");
-    icon.innerHTML = ' <a onclick="flipOne(this);">⊿</a>'
-    icon.className = "flip";
-    icon.style.display = "none";
-    div.insertBefore(icon, null);
+    const utter_icon = document.createElement("span");
+    utter_icon.innerHTML = '<a onclick="readOne(this);">♫</a>';
+    utter_icon.className = "utter";
+    div.insertBefore(utter_icon, div.firstChild);
+    const flip_icon = document.createElement("span");
+    flip_icon.innerHTML = ' <a onclick="flipOne(this);">⊿</a>'
+    flip_icon.className = "flip";
+    flip_icon.style.display = "none";
+    div.insertBefore(flip_icon, null);
   }
 }
 function createNaviDiv(currentSection, allSections, styleName) {
@@ -293,6 +317,23 @@ function createNaviDiv(currentSection, allSections, styleName) {
     div.appendChild(span);
   }
   return div;
+}
+function utterText(text, rate) {
+  if (!SpeechSynthesisUtterance) {
+    alert("This browser doesn't support SpeechSynthesis.");
+    return;
+  }
+  window.speechSynthesis.cancel();
+  if (text.length < 1) return;
+  let utter = new SpeechSynthesisUtterance(text);
+  utter.lang = "en-US";
+  utter.rate = rate;
+  window.speechSynthesis.speak(utter);
+}
+function readOne(anc) {
+  let text = anc.parentNode.parentNode.textContent;
+  text = text.replace(/[^-\p{L}\p{P} ]/gui, "")
+  utterText(text, 1.0);
 }
 let targetIsOn = true;
 function flipAll() {

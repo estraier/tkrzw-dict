@@ -160,6 +160,40 @@ a:hover {
   text-decoration: underline;
   cursor: pointer;
 }
+span.utter {
+  position: absolute;
+  left: -1.6ex;
+  width: 2ex;
+  font-size: 90%;
+  font-weight: normal;
+  color: #000;
+  cursor: pointer;
+  opacity: 0;
+}
+div.source:hover span.utter {
+  opacity: 0.1;
+}
+div.source:hover span.utter:hover {
+  color: #58e;
+  opacity: 1.0;
+}
+span.uttervocab {
+  position: absolute;
+  left: 1.2ex;
+  width: 2ex;
+  font-size: 90%;
+  font-weight: normal;
+  color: #000;
+  cursor: pointer;
+  opacity: 0;
+}
+div.vocab:hover span.uttervocab {
+  opacity: 0.1;
+}
+span.uttervocab:hover, div.source:hover span.uttervocab:hover {
+  color: #58e;
+  opacity: 1.0;
+}
 span.flip {
   position: absolute;
   right: 0.8ex;
@@ -198,7 +232,7 @@ span.flip a {
     background: #eef8ff;
   }
   div.vocab:hover {
-    background: #ffeeff;
+    background: #fff8ff;
   }
   div.target:hover {
     background: #ffffee;
@@ -260,11 +294,21 @@ function main() {
   document.body.insertBefore(createNaviDiv(
     currentSection, allSections), null);
   for (const div of document.getElementsByClassName("source")) {
-    const icon = document.createElement("span");
-    icon.innerHTML = ' <a onclick="flipOne(this);">⊿</a>'
-    icon.className = "flip";
-    icon.style.display = "none";
-    div.insertBefore(icon, null);
+    const utter_icon = document.createElement("span");
+    utter_icon.innerHTML = '<a onclick="readOne(this);">♫</a>';
+    utter_icon.className = "utter";
+    div.insertBefore(utter_icon, div.firstChild);
+    const flip_icon = document.createElement("span");
+    flip_icon.innerHTML = ' <a onclick="flipOne(this);">⊿</a>'
+    flip_icon.className = "flip";
+    flip_icon.style.display = "none";
+    div.insertBefore(flip_icon, null);
+  }
+  for (const div of document.getElementsByClassName("vocab")) {
+    const utter_icon = document.createElement("span");
+    utter_icon.innerHTML = '<a onclick="readVocab(this);">♫</a>';
+    utter_icon.className = "uttervocab";
+    div.insertBefore(utter_icon, div.firstChild);
   }
 }
 function createNaviDiv(currentSection, allSections) {
@@ -297,6 +341,30 @@ function createNaviDiv(currentSection, allSections) {
     div.appendChild(span);
   }
   return div;
+}
+function utterText(text, rate) {
+  if (!SpeechSynthesisUtterance) {
+    alert("This browser doesn't support SpeechSynthesis.");
+    return;
+  }
+  window.speechSynthesis.cancel();
+  if (text.length < 1) return;
+  let utter = new SpeechSynthesisUtterance(text);
+  utter.lang = "en-US";
+  utter.rate = rate;
+  window.speechSynthesis.speak(utter);
+}
+function readOne(anc) {
+  let text = anc.parentNode.parentNode.textContent;
+  text = text.replace(/[^-\p{L}\p{P} ]/gui, "")
+  utterText(text, 1.0);
+}
+function readVocab(anc) {
+  for (const span of anc.parentNode.parentNode.getElementsByClassName("vphrase")) {
+    let text = span.textContent;
+    text = text.replace(/[^-\p{L}\p{P} ]/gui, "")
+    utterText(text, 0.8);
+  }
 }
 let targetIsOn = true;
 function flipAll() {
