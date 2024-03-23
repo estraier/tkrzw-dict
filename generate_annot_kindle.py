@@ -157,21 +157,22 @@ div.navi span {
   color: #ccc;
 }
 a:hover {
-  text-decoration: underline;
+  text-decoration: none;
   cursor: pointer;
 }
 span.utter {
   position: absolute;
-  left: -1.6ex;
+  left: -2ex;
   width: 2ex;
-  font-size: 90%;
+  padding: 0.5ex 0;
+  font-size: 80%;
   font-weight: normal;
   color: #000;
   cursor: pointer;
   opacity: 0;
 }
 div.source:hover span.utter {
-  opacity: 0.1;
+  opacity: 0.05;
 }
 div.source:hover span.utter:hover {
   color: #58e;
@@ -179,18 +180,19 @@ div.source:hover span.utter:hover {
 }
 span.uttervocab {
   position: absolute;
-  left: 1.2ex;
+  left: 1.5ex;
   width: 2ex;
-  font-size: 90%;
+  padding: 0.3ex 0;
+  font-size: 80%;
   font-weight: normal;
   color: #000;
   cursor: pointer;
   opacity: 0;
 }
 div.vocab:hover span.uttervocab {
-  opacity: 0.1;
+  opacity: 0.05;
 }
-span.uttervocab:hover, div.source:hover span.uttervocab:hover {
+div.vocab:hover span.uttervocab:hover {
   color: #58e;
   opacity: 1.0;
 }
@@ -206,9 +208,6 @@ span.flip {
 span.flip:hover {
   color: #58e;
   opacity: 1.0;
-}
-span.flip a {
-  text-decoration: none;
 }
 @media screen and (min-width:750px) {
   html {

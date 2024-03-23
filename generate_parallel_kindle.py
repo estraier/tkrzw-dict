@@ -140,24 +140,25 @@ div.navi span {
   color: #ccc;
 }
 a:hover {
-  text-decoration: underline;
+  text-decoration: none;
   cursor: pointer;
 }
 span.utter {
   position: absolute;
-  right: -1.8ex;
+  right: -2ex;
   width: 2ex;
-  font-size: 90%;
+  padding: 0.5ex 0;
+  font-size: 80%;
   font-weight: normal;
   color: #000;
   cursor: pointer;
   opacity: 0;
 }
 td span.utter {
-  left: -1.6ex;
+  left: -2.2ex;
 }
 div.source:hover span.utter, td.source:hover span.utter {
-  opacity: 0.1;
+  opacity: 0.05;
 }
 div.source:hover span.utter:hover, td.source:hover span.utter:hover {
   color: #58e;
@@ -175,9 +176,6 @@ span.flip {
 span.flip:hover {
   color: #58e;
   opacity: 1.0;
-}
-span.flip a {
-  text-decoration: none;
 }
 @media screen and (min-width:750px) {
   html {
