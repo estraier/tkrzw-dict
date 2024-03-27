@@ -38,11 +38,11 @@ CURRENT_UUID = str(uuid.uuid1())
 CURRENT_DATETIME = regex.sub(r"\..*", "Z", datetime.datetime.now(
   datetime.timezone.utc).isoformat())
 PACKAGE_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
-<package unique-identifier="pub-id" version="3.0" xmlns="http://www.idpf.org/2007/opf" xml:lang="ja">
+<package unique-identifier="pub-id" version="3.0" xmlns="http://www.idpf.org/2007/opf" xml:lang="en">
 <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
 <dc:identifier id="pub-id">urn:uuid:{}</dc:identifier>
 <dc:publisher>dbmx.net</dc:publisher>
-<dc:title>[EJPB] {}</dc:title>
+<dc:title>{}</dc:title>
 <dc:language>en</dc:language>
 <dc:language>ja</dc:language>
 <dc:creator>{}</dc:creator>
@@ -223,11 +223,11 @@ NAVIGATION_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="en">
 <head>
-<title>[EJPB] {}: Contents</title>
+<title>{}: Contents</title>
 <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
-<div>[English-Japanese Parallel Book]</div>
+<div>{}</div>
 <h1>{}</h1>
 <div class="titletran">{}</div>
 <div class="author">by <b>{}</b></div>
@@ -251,7 +251,7 @@ NAVIGATION_FOOTER_TEXT = """</ol>
 MAIN_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xmlns:mbp="https://kindlegen.s3.amazonaws.com/AmazonKindlePublishingGuidelines.pdf" xmlns:idx="https://kindlegen.s3.amazonaws.com/AmazonKindlePublishingGuidelines.pdf" lang="en">
 <head>
-<title>[EJPB] {}: {}</title>
+<title>{}</title>
 <link rel="stylesheet" href="style.css"/>
 <script type="text/javascript">/*<![CDATA[*/
 {}
@@ -384,10 +384,11 @@ def esc(expr):
 
 
 class Batch:
-  def __init__(self, input_path, output_path, style_mode):
+  def __init__(self, input_path, output_path, style_mode, reverse_mode):
     self.input_path = input_path
     self.output_path = output_path
     self.style_mode = style_mode
+    self.reverse_mode = reverse_mode
     self.title = ""
     self.meta_title = ""
     self.title_tran = ""
@@ -475,8 +476,12 @@ class Batch:
     out_path = os.path.join(self.output_path, "package.opf")
     logger.info("Creating: {}".format(out_path))
     with open(out_path, "w") as out_file:
+      if self.reverse_mode:
+        book_title = "[JEPB] " + self.meta_title
+      else:
+        book_title = "[EJPB] " + self.meta_title
       print(PACKAGE_HEADER_TEXT.format(
-        CURRENT_UUID, esc(self.meta_title), esc(self.meta_author), CURRENT_DATETIME),
+        CURRENT_UUID, esc(book_title), esc(self.meta_author), CURRENT_DATETIME),
             file=out_file, end="")
       for i, _ in enumerate(self.sections, 1):
         main_path = "main-{:03d}.xhtml".format(i)
@@ -520,8 +525,14 @@ class Batch:
     stats_html += "<div>words={}, characters={}</div>\n".format(
       num_words, num_characters)
     with open(out_path, "w") as out_file:
+      if self.reverse_mode:
+        head_title = "[JEPB] " + self.title
+        book_tag = "[Japanese-English Parallel Book]"
+      else:
+        head_title = "[EJPB] " + self.title
+        book_tag = "[English-Japanese Parallel Book]"
       print(NAVIGATION_HEADER_TEXT.format(
-        esc(self.title), esc(self.title), esc(self.title_tran),
+        esc(head_title), book_tag, esc(self.title), esc(self.title_tran),
         esc(self.meta_author), stats_html),
             file=out_file, end="")
       for i, (title, _, _) in enumerate(self.sections, 1):
@@ -542,7 +553,11 @@ class Batch:
             arg = esc(arg)
           esc_args.append(arg)
         print(args[0].format(*esc_args), end=end, file=out_file)
-      print(MAIN_HEADER_TEXT.format(esc(self.title), esc(title), MAIN_SCRIPT_TEXT.strip(),
+      if self.reverse_mode:
+        page_title = "[JEPB] " + self.title + ": " + title
+      else:
+        page_title = "[EJPB] " + self.title + ": " + title
+      print(MAIN_HEADER_TEXT.format(esc(page_title), MAIN_SCRIPT_TEXT.strip(),
                                     sec_id, len(self.sections), self.style_mode),
             file=out_file, end="")
       sent_id = 1
@@ -574,23 +589,35 @@ class Batch:
       print(MAIN_FOOTER_TEXT, file=out_file, end="")
 
   def WriteSentence(self, P, sent_id, src_text, trg_text, spacing):
-    P('<div lang="en" class="source" id="s{}">', sent_id, end="")
+    if self.reverse_mode:
+      src_lang = "ja"
+      trg_lang = "en"
+    else:
+      src_lang = "en"
+      trg_lang = "ja"
+    P('<div lang="{}" class="source" id="s{}">', src_lang, sent_id, end="")
     if spacing:
       P('&#x2003;', end="")
     P('{}</div>', src_text)
     if trg_text:
-      P('<div lang="ja" class="target" id="t{}"><small><small>{}</small></small></div>',
-        sent_id, trg_text)
+      P('<div lang="{}" class="target" id="t{}"><small><small>{}</small></small></div>',
+        trg_lang, sent_id, trg_text)
 
   def WriteSentenceTable(self, P, sent_id, src_text, trg_text, spacing):
+    if self.reverse_mode:
+      src_lang = "ja"
+      trg_lang = "en"
+    else:
+      src_lang = "en"
+      trg_lang = "ja"
     P('<tr>')
-    P('<td lang="en" class="source" id="s{}">', sent_id, end="")
+    P('<td lang="{}" class="source" id="s{}">', src_lang, sent_id, end="")
     if spacing:
       P('&#x2003;', end="")
     P('{}</td>', src_text)
     if trg_text:
-      P('<td lang="ja" class="target" id="t{}"><small><small>{}</small></small></td>',
-        sent_id, trg_text)
+      P('<td lang="{}" class="target" id="t{}"><small><small>{}</small></small></td>',
+        trg_lang, sent_id, trg_text)
     P('</tr>')
 
 def main():
@@ -598,11 +625,12 @@ def main():
   input_path = tkrzw_dict.GetCommandFlag(args, "--input", 1) or "union-body.tkh"
   output_path = tkrzw_dict.GetCommandFlag(args, "--output", 1) or "union-dict-kindle"
   style_mode = tkrzw_dict.GetCommandFlag(args, "--style", 1) or "lines"
+  reverse_mode = bool(tkrzw_dict.GetCommandFlag(args, "--reverse", 0))
   if not input_path:
     raise RuntimeError("an input path is required")
   if not output_path:
     raise RuntimeError("an output path is required")
-  Batch(input_path, output_path, style_mode).Run()
+  Batch(input_path, output_path, style_mode, reverse_mode).Run()
 
 
 if __name__=="__main__":
