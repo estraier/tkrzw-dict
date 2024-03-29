@@ -154,13 +154,18 @@ span.utter {
   cursor: pointer;
   opacity: 0;
 }
-td span.utter {
+td.source span.utter {
   left: -2.2ex;
 }
-div.source:hover span.utter, td.source:hover span.utter {
+td.target span.utter {
+  right: -2ex;
+}
+div.source:hover span.utter, td.source:hover span.utter,
+div.target:hover span.utter, td.target:hover span.utter {
   opacity: 0.05;
 }
-div.source:hover span.utter:hover, td.source:hover span.utter:hover {
+div.source:hover span.utter:hover, td.source:hover span.utter:hover,
+div.target:hover span.utter:hover, td.target:hover span.utter:hover {
   color: #58e;
   opacity: 1.0;
 }
@@ -282,6 +287,12 @@ function main() {
     flip_icon.style.display = "none";
     div.insertBefore(flip_icon, null);
   }
+  for (const div of document.getElementsByClassName("target")) {
+    const utter_icon = document.createElement("span");
+    utter_icon.innerHTML = '<a onclick="readOne(this);">♫</a>';
+    utter_icon.className = "utter";
+    div.insertBefore(utter_icon, div.firstChild);
+  }
 }
 function createNaviDiv(currentSection, allSections, styleName) {
   const div = document.createElement("div");
@@ -316,7 +327,7 @@ function createNaviDiv(currentSection, allSections, styleName) {
   }
   return div;
 }
-function utterText(text, rate) {
+function utterText(text, lang, rate) {
   if (!SpeechSynthesisUtterance) {
     alert("This browser doesn't support SpeechSynthesis.");
     return;
@@ -324,14 +335,19 @@ function utterText(text, rate) {
   window.speechSynthesis.cancel();
   if (text.length < 1) return;
   let utter = new SpeechSynthesisUtterance(text);
-  utter.lang = "en-US";
+  utter.lang = lang
   utter.rate = rate;
   window.speechSynthesis.speak(utter);
 }
 function readOne(anc) {
-  let text = anc.parentNode.parentNode.textContent;
+  const node = anc.parentNode.parentNode;
+  let lang = "en-US";
+  if (node.lang == "ja") {
+    lang = "ja-JP";
+  }
+  let text = node.textContent;
   text = text.replace(/[^-\p{L}\p{P} ]/gui, "")
-  utterText(text, 1.0);
+  utterText(text, lang, 1.0);
 }
 let targetIsOn = true;
 function flipAll() {

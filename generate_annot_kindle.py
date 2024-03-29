@@ -171,16 +171,19 @@ span.utter {
   cursor: pointer;
   opacity: 0;
 }
-div.source:hover span.utter {
+div.target span.utter {
+  left: 0.2ex;;
+}
+div.source:hover span.utter, div.target:hover span.utter {
   opacity: 0.05;
 }
-div.source:hover span.utter:hover {
+div.source:hover span.utter:hover, div.target:hover span.utter:hover {
   color: #58e;
   opacity: 1.0;
 }
 span.uttervocab {
   position: absolute;
-  left: 1.5ex;
+  left: 1.7ex;
   width: 2ex;
   padding: 0.3ex 0;
   font-size: 80%;
@@ -303,6 +306,12 @@ function main() {
     flip_icon.style.display = "none";
     div.insertBefore(flip_icon, null);
   }
+  for (const div of document.getElementsByClassName("target")) {
+    const utter_icon = document.createElement("span");
+    utter_icon.innerHTML = '<a onclick="readOne(this);">♫</a>';
+    utter_icon.className = "utter";
+    div.insertBefore(utter_icon, div.firstChild);
+  }
   for (const div of document.getElementsByClassName("vocab")) {
     const utter_icon = document.createElement("span");
     utter_icon.innerHTML = '<a onclick="readVocab(this);">♫</a>';
@@ -341,7 +350,7 @@ function createNaviDiv(currentSection, allSections) {
   }
   return div;
 }
-function utterText(text, rate) {
+function utterText(text, lang, rate) {
   if (!SpeechSynthesisUtterance) {
     alert("This browser doesn't support SpeechSynthesis.");
     return;
@@ -349,14 +358,19 @@ function utterText(text, rate) {
   window.speechSynthesis.cancel();
   if (text.length < 1) return;
   let utter = new SpeechSynthesisUtterance(text);
-  utter.lang = "en-US";
+  utter.lang = lang;
   utter.rate = rate;
   window.speechSynthesis.speak(utter);
 }
 function readOne(anc) {
-  let text = anc.parentNode.parentNode.textContent;
+  const node = anc.parentNode.parentNode;
+  let lang = "en-US";
+  if (node.lang == "ja") {
+    lang = "ja-JP";
+  }
+  let text = node.textContent;
   text = text.replace(/[^-\p{L}\p{P} ]/gui, "")
-  utterText(text, 1.0);
+  utterText(text, lang, 1.0);
 }
 function readVocab(anc) {
   for (const span of anc.parentNode.parentNode.getElementsByClassName("vphrase")) {
