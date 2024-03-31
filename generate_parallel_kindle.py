@@ -227,9 +227,14 @@ span.flip:hover {
     width: 900px;
   }
 }
-@media screen and (min-width:1100px) {
+@media screen and (min-width:1050px) {
   body[data-style="table"] {
     width: 1000px;
+  }
+}
+@media screen and (min-width:1150px) {
+  body[data-style="table"] {
+    width: 1100px;
   }
 }
 """
