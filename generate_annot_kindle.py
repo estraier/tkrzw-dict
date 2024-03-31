@@ -284,6 +284,8 @@ MAIN_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <script type="text/javascript">/*<![CDATA[*/
 {}
 /*]]>*/</script>
+<link rel="stylesheet" href="https://dbmx.net/dict/union_dict_pane.css">
+<script src="https://dbmx.net/dict/union_dict_pane.js"></script>
 </head>
 <body epub:type="dictionary" onload="main();" data-section="{}/{}">
 <mbp:frameset>
@@ -331,6 +333,7 @@ function main() {
     utter_icon.className = "uttervocab";
     div.insertBefore(utter_icon, div.firstChild);
   }
+  union_dict_activate();
 }
 function createNaviDiv(currentSection, allSections) {
   const div = document.createElement("div");
