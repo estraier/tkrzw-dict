@@ -284,7 +284,7 @@ MAIN_HEADER_TEXT = """<?xml version="1.0" encoding="UTF-8"?>
 <script type="text/javascript">/*<![CDATA[*/
 {}
 /*]]>*/</script>
-<link rel="stylesheet" href="https://dbmx.net/dict/union_dict_pane.css">
+<link rel="stylesheet" href="https://dbmx.net/dict/union_dict_pane.css"/>
 <script src="https://dbmx.net/dict/union_dict_pane.js"></script>
 </head>
 <body epub:type="dictionary" onload="main();" data-section="{}/{}">
@@ -397,7 +397,7 @@ function readVocab(anc) {
   for (const span of anc.parentNode.parentNode.getElementsByClassName("vphrase")) {
     let text = span.textContent;
     text = text.replace(/[^-\p{L}\p{P} ]/gui, "")
-    utterText(text, 0.8);
+    utterText(text, "en", 0.8);
   }
 }
 let targetIsOn = true;
