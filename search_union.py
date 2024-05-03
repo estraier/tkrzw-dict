@@ -2186,7 +2186,7 @@ def PrintCGIFooter(file=sys.stdout):
 
 def main_cgi():
   script_name = os.environ.get("SCRIPT_NAME", sys.argv[0])
-  request_method = os.environ.get("REQUEST_METHOD", sys.argv[0])
+  request_method = os.environ.get("REQUEST_METHOD", "GET")
   path_info = regex.sub(r"[^a-z]", "", os.environ.get("PATH_INFO", ""))[:20]
   if path_info:
     data_prefix = path_info + "-" + CGI_DATA_PREFIX
