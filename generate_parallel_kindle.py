@@ -505,8 +505,8 @@ class Batch:
           tran = ""
           if i < len(lines) - 1:
             next_line = section_lines[i+1]
-            next_line.startswith("%% ")
-            tran = next_line[3:].strip()
+            if next_line.startswith("%% "):
+              tran = next_line[3:].strip()
           paragraphs[-1].append([line, tran])
           if regex.search(r"^#+ ", line):
             paragraphs.append([])
