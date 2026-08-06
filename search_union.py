@@ -2225,7 +2225,7 @@ button {{ padding: 0.8em 1.2em; font-size: 1rem; cursor: pointer; }}
 <body>
 <p>This service uses a simple check to prevent automated access.<br/>
 Please click the button below to continue.</p>
-<button type="button" onclick="document.cookie='{}={}; Max-Age={}; Path=/; SameSite=Lax'; location.reload();">I'm not a robot.</button>
+<button type="button" onclick="document.cookie='{}={}; Max-Age={}; Path=/; SameSite=None; Secure'; location.reload();">I'm not a robot.</button>
 </body>
 </html>
 """.format(CGI_CAPTCHA_COOKIE_NAME, token, CGI_CAPTCHA_COOKIE_MAX_AGE), end="")
