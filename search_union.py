@@ -26,7 +26,10 @@
 
 
 import cgi
+import datetime
+import hashlib
 import html
+import http.cookies
 import json
 import os
 import math
@@ -44,6 +47,8 @@ CGI_CAPACITY = 100
 CGI_MAX_HTTP_CONTENT_LENGTH = 512 * 1024
 CGI_MAX_QUERY_LENGTH = 256 * 1024
 CGI_MAX_QUERY_LINE_LENGTH = 16 * 1024
+CGI_CAPTCHA_COOKIE_NAME = "dbmx_captcha"
+CGI_CAPTCHA_COOKIE_MAX_AGE = 31 * 24 * 60 * 60
 POPUP_CAPACITY = 5
 POSES = {
   "noun": "名",
@@ -2184,9 +2189,55 @@ def PrintCGIFooter(file=sys.stdout):
 """, end="", file=file)
 
 
+def GetCaptchaToken():
+  client_address = (os.environ.get("HTTP_X_FORWARDED_FOR") or
+                    os.environ.get("REMOTE_ADDR") or "").strip()
+  month = datetime.datetime.now().strftime("%Y%m")
+  digest = hashlib.sha256((client_address + month).encode("utf-8")).digest()
+  return "{:06d}".format(int.from_bytes(digest[:8], "big") % 1000000)
+
+
+def HasCaptchaToken(token):
+  try:
+    cookies = http.cookies.SimpleCookie()
+    cookies.load(os.environ.get("HTTP_COOKIE", ""))
+    cookie = cookies.get(CGI_CAPTCHA_COOKIE_NAME)
+    return cookie is not None and cookie.value == token
+  except http.cookies.CookieError:
+    return False
+
+
+def PrintCaptcha(token):
+  print("""Content-Type: text/html; charset=UTF-8
+Cache-Control: no-store
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="robots" content="noindex,nofollow,noarchive"/>
+<title>Robot check</title>
+<style>
+body {{ margin: 1em; font-family: sans-serif; }}
+button {{ padding: 0.8em 1.2em; font-size: 1rem; cursor: pointer; }}
+</style>
+</head>
+<body>
+<p>This service uses a simple check to prevent automated access.<br/>
+Please click the button below to continue.</p>
+<button type="button" onclick="document.cookie='{}={}; Max-Age={}; Path=/; SameSite=Lax'; location.reload();">I'm not a robot.</button>
+</body>
+</html>
+""".format(CGI_CAPTCHA_COOKIE_NAME, token, CGI_CAPTCHA_COOKIE_MAX_AGE), end="")
+
+
 def main_cgi():
+  captcha_token = GetCaptchaToken()
+  if not HasCaptchaToken(captcha_token):
+    PrintCaptcha(captcha_token)
+    return
   script_name = os.environ.get("SCRIPT_NAME", sys.argv[0])
-  request_method = os.environ.get("REQUEST_METHOD", "GET")
+  request_method = os.environ.get("REQUEST_METHOD", sys.argv[0])
   path_info = regex.sub(r"[^a-z]", "", os.environ.get("PATH_INFO", ""))[:20]
   if path_info:
     data_prefix = path_info + "-" + CGI_DATA_PREFIX
