@@ -21,7 +21,7 @@
     "storage", "tabs", "contextMenus"
   ],
   "host_permissions": [
-    "https://dbms.net/*"
+    "https://dbmx.net/*"
   ],
   "icons": {
     "128": "icon128.png"
