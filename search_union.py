@@ -25,84 +25,13 @@
 #--------------------------------------------------------------------------------------------------
 
 
-import datetime
-import hashlib
-import html
-import http.cookies
-import os
-import sys
-
-
-CGI_CAPTCHA_COOKIE_NAME = "dbmx_captcha"
-CGI_CAPTCHA_COOKIE_MAX_AGE = 31 * 24 * 60 * 60
-
-
-def GetCaptchaClientAddress():
-  return (os.environ.get("HTTP_X_FORWARDED_FOR") or
-          os.environ.get("REMOTE_ADDR") or "").strip()
-
-
-def GetCaptchaToken(client_address):
-  month = datetime.datetime.now().strftime("%Y%m")
-  digest = hashlib.sha256((client_address + month).encode("utf-8")).digest()
-  return "{:06d}".format(int.from_bytes(digest[:8], "big") % 1000000)
-
-
-def GetCaptchaCookieValue():
-  try:
-    cookies = http.cookies.SimpleCookie()
-    cookies.load(os.environ.get("HTTP_COOKIE", ""))
-    cookie = cookies.get(CGI_CAPTCHA_COOKIE_NAME)
-    return cookie.value if cookie is not None else ""
-  except http.cookies.CookieError:
-    return ""
-
-
-def PrintCaptcha(token):
-  print("""Content-Type: text/html; charset=UTF-8
-Cache-Control: no-store
-
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8"/>
-<meta name="robots" content="noindex,nofollow,noarchive"/>
-<meta name="description" content="Open-source dicitionary made from WordNet, Wiktionary, refined by AI models"/>
-<title>English-Japanese Dictionary</title>
-<style>
-body {{ margin: 1em; font-family: sans-serif; }}
-button {{ padding: 0.8em 1.2em; font-size: 1rem; cursor: pointer; }}
-</style>
-</head>
-<body>
-<p>This service uses a simple check to prevent automated access.<br/>
-Please click the button below to continue.</p>
-<button type="button" onclick="document.cookie='{}={}; Max-Age={}; Path=/; SameSite=None; Secure'; location.reload();">I'm not a robot.</button>
-</body>
-</html>
-""".format(CGI_CAPTCHA_COOKIE_NAME, token, CGI_CAPTCHA_COOKIE_MAX_AGE), end="")
-
-
-def CheckCaptcha():
-  captcha_client_address = GetCaptchaClientAddress()
-  captcha_token = GetCaptchaToken(captcha_client_address)
-  captcha_cookie_value = GetCaptchaCookieValue()
-  if captcha_cookie_value != captcha_token:
-    PrintCaptcha(captcha_token)
-    return False
-  return True
-
-
-if __name__ == "__main__":
-  interface = os.environ.get("GATEWAY_INTERFACE")
-  if interface and interface.startswith("CGI/") and not CheckCaptcha():
-    sys.exit(0)
-
-
 import cgi
+import html
 import json
+import os
 import math
 import regex
+import sys
 import tkrzw_dict
 import tkrzw_union_searcher
 import urllib
